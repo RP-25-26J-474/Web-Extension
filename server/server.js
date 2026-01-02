@@ -32,16 +32,16 @@ mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
-.then(() => console.log('✅ Connected to MongoDB'))
+.then(() => console.log('Connected to MongoDB'))
 .catch(err => {
-  console.error('❌ MongoDB connection error:', err);
+  console.error('MongoDB connection error:', err);
   process.exit(1);
 });
 
 // Routes
 app.get('/', (req, res) => {
   res.json({ 
-    message: '🌟 AURA Interaction Tracker API',
+    message: 'AURA Interaction Tracker API',
     version: '1.0.0',
     status: 'running'
   });
@@ -62,7 +62,7 @@ app.use((err, req, res, next) => {
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 AURA Tracker API running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`AURA Tracker API running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 
