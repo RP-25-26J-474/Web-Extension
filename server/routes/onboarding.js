@@ -39,35 +39,53 @@ router.get('/status', authMiddleware, async (req, res) => {
 // Start onboarding session
 router.post('/start', authMiddleware, async (req, res) => {
   try {
-    // Check if user already has an onboarding session
+    // First, check if session already exists for this user
     let session = await OnboardingSession.findOne({ userId: req.userId });
     
     if (session) {
+      // Session already exists - return it
+      console.log(`Onboarding session already exists for user ${req.userId}`);
       return res.json({
         message: 'Onboarding session already exists',
         session,
+        isNew: false,
       });
     }
     
+    // No session exists - create a new one
     const { device, screen, game, perf } = req.body;
     
-    // Create new onboarding session
     session = new OnboardingSession({
       userId: req.userId,
       device,
       screen,
       game,
       perf,
+      status: 'in_progress',
     });
     
     await session.save();
     
+    console.log(`New onboarding session created for user ${req.userId}`);
+    
     res.status(201).json({
       message: 'Onboarding session started',
       session,
+      isNew: true,
     });
     
   } catch (error) {
+    // Handle duplicate key error (race condition)
+    if (error.code === 11000) {
+      // Another request created the session - fetch and return it
+      const session = await OnboardingSession.findOne({ userId: req.userId });
+      return res.json({
+        message: 'Onboarding session already exists',
+        session,
+        isNew: false,
+      });
+    }
+    
     console.error('Start onboarding error:', error);
     res.status(500).json({ error: 'Failed to start onboarding' });
   }
