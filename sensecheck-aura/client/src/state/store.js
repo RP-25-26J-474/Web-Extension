@@ -93,6 +93,16 @@ const useStore = create((set, get) => ({
     
     console.log('✅ Local state updated. Completed modules:', get().completedModules);
     
+    // Check if we have authentication (token in URL or sessionStorage)
+    const params = new URLSearchParams(window.location.search);
+    const hasToken = !!params.get('token') || !!sessionStorage.getItem('aura_token');
+    
+    // Only save to backend if we have authentication
+    if (!hasToken) {
+      console.log('ℹ️ No auth token - skipping backend save');
+      return;
+    }
+    
     // Save to backend (non-blocking, errors logged but don't break flow)
     try {
       console.log(`🎉 Saving module completion to backend: ${moduleName} for session: ${sessionId}`);
@@ -110,6 +120,16 @@ const useStore = create((set, get) => ({
     const sessionId = state.sessionId;
     
     console.log(`🔄 Loading session data for: ${sessionId}`);
+    
+    // Check if we have authentication (token in URL or sessionStorage)
+    const params = new URLSearchParams(window.location.search);
+    const hasToken = !!params.get('token') || !!sessionStorage.getItem('aura_token');
+    
+    // Only load from backend if we have authentication
+    if (!hasToken) {
+      console.log('ℹ️ No auth token - using local state only');
+      return null;
+    }
     
     try {
       const response = await getSessionResults(sessionId);

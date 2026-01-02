@@ -12,11 +12,31 @@ class AuraIntegration {
   }
   
   initialize() {
-    // Check if we're in AURA mode (launched from extension)
+    // Check URL params first (for initial load from extension)
     const params = new URLSearchParams(window.location.search);
-    this.userId = params.get('userId');
-    this.token = params.get('token');
-    this.isAuraMode = params.get('mode') === 'aura';
+    let userId = params.get('userId');
+    let token = params.get('token');
+    let mode = params.get('mode');
+    
+    // If URL params exist, store them in sessionStorage for persistence across navigation
+    if (userId && token) {
+      sessionStorage.setItem('aura_userId', userId);
+      sessionStorage.setItem('aura_token', token);
+      sessionStorage.setItem('aura_mode', mode || 'aura');
+      console.log('🔑 AURA credentials stored in session');
+    } else {
+      // Try to restore from sessionStorage (for after React Router navigation)
+      userId = sessionStorage.getItem('aura_userId');
+      token = sessionStorage.getItem('aura_token');
+      mode = sessionStorage.getItem('aura_mode');
+      if (userId && token) {
+        console.log('🔑 AURA credentials restored from session');
+      }
+    }
+    
+    this.userId = userId;
+    this.token = token;
+    this.isAuraMode = mode === 'aura';
     
     if (this.isAuraMode && (!this.userId || !this.token)) {
       console.error('AURA mode enabled but missing userId or token');
@@ -37,6 +57,11 @@ class AuraIntegration {
   // Check if running in AURA mode
   isEnabled() {
     return this.isAuraMode && this.userId && this.token;
+  }
+  
+  // Get the auth token (for API calls)
+  getToken() {
+    return this.token;
   }
   
   // Get userId (replaces sessionId in AURA mode)

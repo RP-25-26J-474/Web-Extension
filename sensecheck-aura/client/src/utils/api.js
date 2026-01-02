@@ -9,10 +9,18 @@ const api = axios.create({
   },
 });
 
-// Helper to get auth token from URL params (AURA mode)
+// Helper to get auth token from URL params or sessionStorage (AURA mode)
 const getAuthToken = () => {
+  // First try URL params (initial load from extension)
   const params = new URLSearchParams(window.location.search);
-  return params.get('token');
+  let token = params.get('token');
+  
+  // Fallback to sessionStorage (for after React Router navigation)
+  if (!token) {
+    token = sessionStorage.getItem('aura_token');
+  }
+  
+  return token;
 };
 
 // Add auth interceptor

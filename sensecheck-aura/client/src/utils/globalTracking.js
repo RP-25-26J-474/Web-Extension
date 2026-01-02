@@ -116,7 +116,7 @@ class GlobalTracker {
       if (synchronous) {
         // Use sendBeacon for synchronous unload
         // Include token in URL (sendBeacon can't send headers)
-        const token = auraIntegration.token;
+        const token = auraIntegration.getToken();
         const url = token 
           ? `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding/global/interactions?token=${token}`
           : `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding/global/interactions`;
