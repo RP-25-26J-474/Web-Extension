@@ -100,11 +100,58 @@ class APIClient {
     });
   }
 
-  // Interaction methods
+  // Interaction methods - transforms to GlobalInteractionBucket format
   async saveInteractions(interactions) {
+    // Transform extension format to GlobalInteractionBucket format
+    const transformedInteractions = interactions.map(interaction => ({
+      eventType: interaction.type,
+      module: 'extension', // Mark as coming from browser extension
+      timestamp: interaction.timestamp || new Date(),
+      data: {
+        // Position data
+        position: {
+          x: interaction.x || null,
+          y: interaction.y || null,
+        },
+        screenPosition: {
+          x: interaction.screenX || null,
+          y: interaction.screenY || null,
+        },
+        // Page context
+        url: interaction.url,
+        title: interaction.pageTitle,
+        screen: 'browser',
+        // Element target info
+        target: {
+          tag: interaction.elementTag,
+          id: interaction.elementId,
+          class: interaction.elementClass,
+          text: interaction.elementText,
+        },
+        // Input metadata
+        key: interaction.key,
+        code: interaction.code,
+        button: interaction.button,
+        // Touch/Gesture data
+        touchCount: interaction.touchCount,
+        scale: interaction.scale,
+        zoomLevel: interaction.zoomLevel,
+        direction: interaction.direction,
+        distance: interaction.distance,
+        // Scroll data
+        scrollX: interaction.scrollX,
+        scrollY: interaction.scrollY,
+        // Drag data
+        dragType: interaction.dragType,
+        // Additional metadata
+        action: interaction.action,
+        metadata: interaction.metadata,
+      },
+    }));
+    
     return await this.request(API_CONFIG.ENDPOINTS.SAVE_INTERACTIONS, {
       method: 'POST',
-      body: JSON.stringify({ interactions })
+      body: JSON.stringify({ interactions: transformedInteractions })
     });
   }
 

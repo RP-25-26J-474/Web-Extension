@@ -146,41 +146,61 @@ async function handleInteraction(data, tab) {
     // Store updated data
     await chrome.storage.local.set({ interactions, stats });
     
-    // Update badge with total count
-    updateBadge(stats.totalInteractions);
+    // Update badge with pending (un-synced) count
+    updateBadge(interactions.length);
+    
+    // Trigger immediate sync if buffer reaches threshold (50 interactions)
+    const SYNC_THRESHOLD = 50;
+    if (interactions.length >= SYNC_THRESHOLD) {
+      console.log(`📊 Buffer threshold reached (${interactions.length}), triggering immediate sync...`);
+      syncInteractionsToServer().catch(err => console.error('Threshold sync failed:', err));
+    }
     
   } catch (error) {
     console.error('Failed to handle interaction:', error);
   }
 }
 
-// Update extension badge
-function updateBadge(count) {
-  if (count > 0) {
-    const text = count > 999 ? '999+' : count.toString();
+// Update extension badge (shows pending/unsycned count)
+function updateBadge(pendingCount) {
+  if (pendingCount > 0) {
+    const text = pendingCount > 999 ? '999+' : pendingCount.toString();
     chrome.action.setBadgeText({ text });
-    chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
+    chrome.action.setBadgeBackgroundColor({ color: '#FF9800' }); // Orange = pending sync
   } else {
-    chrome.action.setBadgeText({ text: '' });
+    chrome.action.setBadgeText({ text: '✓' });
+    chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' }); // Green = all synced
   }
 }
 
-// Clear old data periodically (every 24 hours)
+// Auto-sync interactions to server (every 30 seconds)
 setInterval(async () => {
   try {
-    const result = await chrome.storage.local.get(['interactions']);
-    let interactions = result.interactions || [];
+    const result = await chrome.storage.local.get(['interactions', 'authToken', 'trackingEnabled']);
     
-    // Remove interactions older than 7 days
-    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-    interactions = interactions.filter(i => i.timestamp > sevenDaysAgo);
+    // Only sync if tracking is enabled and user is logged in
+    if (!result.trackingEnabled || !result.authToken) {
+      return;
+    }
     
-    await chrome.storage.local.set({ interactions });
-    console.log('Cleaned up old interactions');
+    const interactions = result.interactions || [];
+    
+    if (interactions.length === 0) {
+      return; // Nothing to sync
+    }
+    
+    console.log(`🔄 Auto-syncing ${interactions.length} interactions...`);
+    
+    // Sync and flush
+    const syncResult = await syncInteractionsToServer();
+    
+    if (syncResult.success && syncResult.synced > 0) {
+      console.log(`✅ Auto-synced ${syncResult.synced} interactions`);
+    }
   } catch (error) {
-    console.error('Failed to clean up old data:', error);
+    console.error('Auto-sync failed:', error);
   }
-}, 24 * 60 * 60 * 1000); // Run every 24 hours
+}, API_CONFIG?.SYNC_INTERVAL || 30000); // Sync every 30 seconds
 
 // Handle messages from popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -204,6 +224,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'EXPORT_DATA') {
     chrome.storage.local.get(['interactions']).then(result => {
       sendResponse({ interactions: result.interactions || [] });
+    });
+    return true;
+  }
+  
+  if (message.type === 'SYNC_TO_SERVER') {
+    syncInteractionsToServer().then(result => {
+      sendResponse(result);
     });
     return true;
   }
@@ -280,10 +307,123 @@ async function clearAllData() {
   updateBadge(0);
 }
 
-// Initialize badge on startup
-chrome.storage.local.get(['stats']).then(result => {
-  if (result.stats) {
-    updateBadge(result.stats.totalInteractions);
+// Sync interactions to server (uses GlobalInteractionBucket)
+// Automatically flushes local data after successful sync
+async function syncInteractionsToServer() {
+  try {
+    const result = await chrome.storage.local.get(['interactions', 'authToken', 'stats']);
+    
+    if (!result.authToken) {
+      console.log('⚠️ Not logged in, skipping sync');
+      return { success: false, reason: 'not_logged_in' };
+    }
+    
+    const interactions = result.interactions || [];
+    
+    if (interactions.length === 0) {
+      return { success: true, synced: 0 };
+    }
+    
+    console.log(`📤 Syncing ${interactions.length} interactions to server...`);
+    
+    // Send in batches to avoid overwhelming the server
+    const BATCH_SIZE = API_CONFIG?.BATCH_SIZE || 50;
+    let totalSynced = 0;
+    let syncedIndices = [];
+    
+    for (let i = 0; i < interactions.length; i += BATCH_SIZE) {
+      const batch = interactions.slice(i, i + BATCH_SIZE);
+      
+      // Transform to GlobalInteractionBucket format
+      const transformedBatch = batch.map(interaction => ({
+        eventType: interaction.type,
+        module: 'extension',
+        timestamp: interaction.timestamp || new Date(),
+        data: {
+          position: { x: interaction.x || null, y: interaction.y || null },
+          screenPosition: { x: interaction.screenX || null, y: interaction.screenY || null },
+          url: interaction.url,
+          title: interaction.pageTitle,
+          screen: 'browser',
+          target: {
+            tag: interaction.elementTag,
+            id: interaction.elementId,
+            class: interaction.elementClass,
+            text: interaction.elementText,
+          },
+          key: interaction.key,
+          code: interaction.code,
+          button: interaction.button,
+          touchCount: interaction.touchCount,
+          scale: interaction.scale,
+          zoomLevel: interaction.zoomLevel,
+          direction: interaction.direction,
+          distance: interaction.distance,
+          scrollX: interaction.scrollX,
+          scrollY: interaction.scrollY,
+          dragType: interaction.dragType,
+          action: interaction.action,
+          metadata: interaction.metadata,
+        },
+      }));
+      
+      // Send to server
+      const response = await fetch(`${API_CONFIG.BASE_URL}/onboarding/global/interactions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${result.authToken}`,
+        },
+        body: JSON.stringify({ interactions: transformedBatch }),
+      });
+      
+      if (response.ok) {
+        totalSynced += batch.length;
+        // Track which indices were synced
+        for (let j = i; j < i + batch.length; j++) {
+          syncedIndices.push(j);
+        }
+      } else {
+        console.error('❌ Sync batch failed:', await response.text());
+        // Stop syncing on first failure to prevent data loss
+        break;
+      }
+    }
+    
+    // FLUSH: Remove synced interactions from local storage immediately
+    if (totalSynced > 0) {
+      // Keep only interactions that weren't synced
+      const remainingInteractions = interactions.filter((_, idx) => !syncedIndices.includes(idx));
+      
+      // Update storage - clear synced data
+      await chrome.storage.local.set({ 
+        interactions: remainingInteractions,
+        lastSyncTime: Date.now()
+      });
+      
+      // Update badge to show remaining (un-synced) count
+      updateBadge(remainingInteractions.length);
+      
+      console.log(`✅ Synced & flushed ${totalSynced} interactions. ${remainingInteractions.length} remaining.`);
+    }
+    
+    return { success: true, synced: totalSynced };
+    
+  } catch (error) {
+    console.error('❌ Sync failed:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Initialize badge on startup and trigger initial sync
+chrome.storage.local.get(['interactions', 'authToken']).then(async (result) => {
+  const pendingCount = (result.interactions || []).length;
+  updateBadge(pendingCount);
+  
+  // Trigger initial sync if user is logged in and has pending data
+  if (result.authToken && pendingCount > 0) {
+    console.log('🚀 Extension started, syncing pending interactions...');
+    await syncInteractionsToServer();
   }
 });
 
@@ -324,6 +464,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ success: true });
   }
   
+  // Sync on page unload request from content script
+  if (message.type === 'PAGE_UNLOAD_SYNC') {
+    syncInteractionsToServer().then(result => {
+      sendResponse(result);
+    });
+    return true;
+  }
+  
   return true;
+});
+
+// Sync when browser is about to suspend (for graceful shutdown)
+chrome.runtime.onSuspend?.addListener(() => {
+  console.log('🔄 Browser suspending, syncing data...');
+  syncInteractionsToServer();
 });
 

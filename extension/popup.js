@@ -245,10 +245,9 @@ function initializeEventListeners() {
   document.getElementById('trackTouchEvents')?.addEventListener('change', handleConfigChange);
   document.getElementById('trackZoomEvents')?.addEventListener('change', handleConfigChange);
   
-  // Action buttons
+  // Action buttons (sync is now automatic)
   document.getElementById('refreshBtn')?.addEventListener('click', loadRecentInteractions);
-  document.getElementById('exportBtn')?.addEventListener('click', handleExportData);
-  document.getElementById('clearBtn')?.addEventListener('click', handleClearData);
+  document.getElementById('exportBtn')?.addEventListener('click', handleExportLocalData);
   document.getElementById('revokeConsent')?.addEventListener('click', handleRevokeConsent);
 }
 
@@ -521,6 +520,10 @@ async function loadData() {
     // Load recent interactions from API
     await loadRecentInteractions();
     
+    // Update sync status and set up periodic refresh
+    updateSyncStatus();
+    setInterval(updateSyncStatus, 5000); // Refresh sync status every 5 seconds
+    
   } catch (error) {
     console.error('Failed to load data:', error);
     showNotification('Failed to load data', 'error');
@@ -651,14 +654,42 @@ async function loadRecentInteractions() {
   }
 }
 
-// Handle export data
-async function handleExportData() {
+// Update sync status display
+function updateSyncStatus() {
+  const syncIndicator = document.getElementById('syncIndicator');
+  const syncStatus = document.getElementById('syncStatus');
+  
+  // Get pending interactions count from background
+  chrome.storage.local.get(['interactions', 'trackingEnabled', 'authToken', 'lastSyncTime'], (result) => {
+    const pendingCount = (result.interactions || []).length;
+    const isEnabled = result.trackingEnabled;
+    const isLoggedIn = !!result.authToken;
+    const lastSync = result.lastSyncTime ? new Date(result.lastSyncTime).toLocaleTimeString() : 'Never';
+    
+    if (!isLoggedIn) {
+      syncIndicator.style.background = '#FF9800';
+      syncStatus.textContent = 'Login required for sync';
+    } else if (!isEnabled) {
+      syncIndicator.style.background = '#888';
+      syncStatus.textContent = 'Tracking paused';
+    } else if (pendingCount > 0) {
+      syncIndicator.style.background = '#2196F3';
+      syncStatus.textContent = `${pendingCount} pending • Auto-sync in progress`;
+    } else {
+      syncIndicator.style.background = '#4CAF50';
+      syncStatus.textContent = `Auto-sync active • Last: ${lastSync}`;
+    }
+  });
+}
+
+// Export remaining local data (for debugging/backup)
+async function handleExportLocalData() {
   try {
-    const response = await chrome.runtime.sendMessage({ type: 'EXPORT_DATA' });
-    const interactions = response.interactions || [];
+    const result = await chrome.storage.local.get(['interactions']);
+    const interactions = result.interactions || [];
     
     if (interactions.length === 0) {
-      showNotification('No data to export', 'info');
+      showNotification('No local data to export (all synced!)', 'info');
       return;
     }
     
@@ -670,12 +701,12 @@ async function handleExportData() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `interaction-data-${Date.now()}.csv`;
+    a.download = `local-interaction-data-${Date.now()}.csv`;
     a.click();
     
-    showNotification('Data exported successfully', 'success');
+    showNotification(`Exported ${interactions.length} local interactions`, 'success');
   } catch (error) {
-    console.error('Failed to export data:', error);
+    console.error('Failed to export local data:', error);
     showNotification('Failed to export data', 'error');
   }
 }
@@ -695,22 +726,6 @@ function convertToCSV(interactions) {
   ].join('\n');
   
   return csvContent;
-}
-
-// Handle clear data
-async function handleClearData() {
-  if (!confirm('Are you sure you want to delete all tracked data? This action cannot be undone.')) {
-    return;
-  }
-  
-  try {
-    await apiClient.clearInteractions();
-    await loadData();
-    showNotification('All data cleared successfully', 'success');
-  } catch (error) {
-    console.error('Failed to clear data:', error);
-    showNotification('Failed to clear data', 'error');
-  }
 }
 
 // Handle revoke consent

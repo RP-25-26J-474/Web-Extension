@@ -264,6 +264,89 @@ router.post('/global/interactions', authMiddleware, async (req, res) => {
   }
 });
 
+// Get global interactions (paginated) - for extension
+router.get('/global/interactions', authMiddleware, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    
+    const interactions = await GlobalInteractionBucket.getUserInteractions(req.userId);
+    
+    // Paginate
+    const startIndex = (page - 1) * limit;
+    const endIndex = page * limit;
+    const paginatedInteractions = interactions.slice(startIndex, endIndex);
+    
+    res.json({
+      success: true,
+      data: {
+        interactions: paginatedInteractions,
+        pagination: {
+          page,
+          limit,
+          total: interactions.length,
+          pages: Math.ceil(interactions.length / limit),
+        },
+      },
+    });
+    
+  } catch (error) {
+    console.error('Error getting global interactions:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Get recent global interactions - for extension
+router.get('/global/interactions/recent', authMiddleware, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    
+    const allInteractions = await GlobalInteractionBucket.getUserInteractions(req.userId);
+    
+    // Sort by timestamp descending and take recent
+    const recentInteractions = allInteractions
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, limit);
+    
+    res.json({
+      success: true,
+      data: {
+        interactions: recentInteractions,
+      },
+    });
+    
+  } catch (error) {
+    console.error('Error getting recent interactions:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Clear all global interactions - for extension
+router.delete('/global/interactions/clear', authMiddleware, async (req, res) => {
+  try {
+    // Delete all buckets for this user
+    await GlobalInteractionBucket.deleteMany({ userId: req.userId });
+    
+    res.json({
+      success: true,
+      message: 'All interactions cleared successfully',
+    });
+    
+  } catch (error) {
+    console.error('Error clearing interactions:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 // ========== LEGACY ENDPOINT (kept for backward compatibility) ==========
 
 // Save motor skills result

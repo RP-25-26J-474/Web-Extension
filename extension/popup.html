@@ -141,137 +141,16 @@
           <span class="toggle-label">Enable Tracking</span>
         </div>
       </div>
-
-      <!-- Statistics -->
-      <div class="section stats-section">
-        <h2>Statistics</h2>
-        <div class="stats-grid">
-          <div class="stat-item">
-            <div class="stat-value" id="totalInteractions">0</div>
-            <div class="stat-label">Total</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="clicksCount">0</div>
-            <div class="stat-label">Clicks</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="keystrokesCount">0</div>
-            <div class="stat-label">Keystrokes</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="movementsCount">0</div>
-            <div class="stat-label">Movements</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="pageViewsCount">0</div>
-            <div class="stat-label">Page Views</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="doubleClicksCount">0</div>
-            <div class="stat-label">Double Clicks</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="rightClicksCount">0</div>
-            <div class="stat-label">Right Clicks</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="mouseHoversCount">0</div>
-            <div class="stat-label">Hovers</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="dragAndDropCount">0</div>
-            <div class="stat-label">Drag & Drop</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="touchEventsCount">0</div>
-            <div class="stat-label">Touch Events</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="zoomEventsCount">0</div>
-            <div class="stat-label">Zoom Events</div>
-          </div>
-        </div>
-        <div class="recent-count">
-          <span id="recentCount">0</span> interactions stored
-        </div>
-      </div>
-
-      <!-- Tracking Configuration -->
-      <div class="section config-section">
-        <h2>Tracking Options</h2>
-        <div class="config-options">
-          <label class="checkbox-label">
-            <input type="checkbox" id="trackClicks" checked>
-            <span>Track Clicks</span>
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" id="trackKeystrokes" checked>
-            <span>Track Keystrokes</span>
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" id="trackMovements" checked>
-            <span>Track Mouse Movements</span>
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" id="trackPageViews" checked>
-            <span>Track Page Views</span>
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" id="trackDoubleClicks" checked>
-            <span>Track Double Clicks</span>
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" id="trackRightClicks" checked>
-            <span>Track Right Clicks</span>
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" id="trackMouseHovers" checked>
-            <span>Track Mouse Hovers</span>
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" id="trackDragAndDrop" checked>
-            <span>Track Drag & Drop</span>
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" id="trackTouchEvents" checked>
-            <span>Track Touch Events</span>
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" id="trackZoomEvents" checked>
-            <span>Track Zoom Events (Desktop & Mobile)</span>
-          </label>
-        </div>
-      </div>
-
-      <!-- Recent Interactions -->
-      <div class="section interactions-section">
-        <div class="section-header">
-          <h2>Recent Interactions</h2>
-          <button id="refreshBtn" class="btn btn-small">🔄 Refresh</button>
-        </div>
-        <div id="interactionsList" class="interactions-list">
-          <div class="empty-state">No interactions tracked yet</div>
-        </div>
-      </div>
-
-      <!-- Actions -->
-      <div class="section actions-section">
-        <h2>Actions</h2>
-        <div class="actions-buttons">
-          <button id="exportBtn" class="btn btn-secondary">📥 Export Data</button>
-          <button id="clearBtn" class="btn btn-danger">🗑️ Clear All Data</button>
-        </div>
-      </div>
-
       <!-- Privacy Info -->
       <div class="section privacy-section">
         <h2>Privacy Information</h2>
         <p class="privacy-text">
-          All data is stored locally in your browser. No information is sent to external servers. 
-          Character keys are masked for privacy (you'll see [CHAR] instead of actual characters).
-          Interactions older than 7 days are automatically deleted.
+          Interactions are automatically synced to the server every 30 seconds and removed from local storage.
         </p>
-        <button id="revokeConsent" class="btn btn-warning">Revoke Consent & Disable</button>
+        <div style="display: flex; gap: 8px; margin-top: 12px;">
+          <button id="exportBtn" class="btn btn-secondary btn-small">📥 Export Local</button>
+          <button id="revokeConsent" class="btn btn-warning btn-small">Revoke Consent</button>
+        </div>
       </div>
     </div>
 

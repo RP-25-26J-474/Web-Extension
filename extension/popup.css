@@ -287,6 +287,13 @@ header h1 {
   background: #f8f9fa;
 }
 
+/* Sync Section */
+.sync-section {
+  padding: 12px 20px;
+  background: rgba(33, 150, 243, 0.08);
+  border-bottom: 1px solid rgba(33, 150, 243, 0.2);
+}
+
 .status-header {
   display: flex;
   align-items: center;

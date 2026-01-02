@@ -701,16 +701,23 @@
   // Initialize when script loads
   initializeTracking();
   
-  // Track page unload
+  // Track page unload and trigger sync
   window.addEventListener('beforeunload', function() {
-    if (!isTrackingEnabled || !trackingConfig.pageViews) return;
+    if (!isTrackingEnabled) return;
     
-    const data = {
-      type: 'page_unload',
-      timeOnPage: Date.now() - (window.pageLoadTime || Date.now())
-    };
+    // Track page unload event
+    if (trackingConfig.pageViews) {
+      const data = {
+        type: 'page_unload',
+        timeOnPage: Date.now() - (window.pageLoadTime || Date.now())
+      };
+      sendInteraction(data);
+    }
     
-    sendInteraction(data);
+    // Trigger sync to flush pending data to server
+    chrome.runtime.sendMessage({ type: 'PAGE_UNLOAD_SYNC' }).catch(() => {
+      // Ignore errors - page is closing anyway
+    });
   });
   
   // Store page load time
