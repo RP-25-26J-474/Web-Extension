@@ -33,9 +33,9 @@ function App() {
           canvasHeight: 600,
         },
         perf: {
-          memory: (performance as any).memory ? {
-            jsHeapSizeLimit: (performance as any).memory.jsHeapSizeLimit,
-            totalJSHeapSize: (performance as any).memory.totalJSHeapSize,
+          memory: performance.memory ? {
+            jsHeapSizeLimit: performance.memory.jsHeapSizeLimit,
+            totalJSHeapSize: performance.memory.totalJSHeapSize,
           } : null,
         },
       };

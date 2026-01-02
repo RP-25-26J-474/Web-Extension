@@ -330,9 +330,11 @@ async function handleRegister() {
   const name = document.getElementById('registerName').value.trim();
   const email = document.getElementById('registerEmail').value.trim();
   const password = document.getElementById('registerPassword').value;
+  const age = parseInt(document.getElementById('registerAge').value);
+  const gender = document.getElementById('registerGender').value;
   const errorDiv = document.getElementById('registerError');
   
-  if (!name || !email || !password) {
+  if (!name || !email || !password || !age || !gender) {
     errorDiv.textContent = 'Please fill in all required fields';
     errorDiv.style.display = 'block';
     return;
@@ -344,12 +346,18 @@ async function handleRegister() {
     return;
   }
   
+  if (age < 1 || age > 120) {
+    errorDiv.textContent = 'Please enter a valid age (1-120)';
+    errorDiv.style.display = 'block';
+    return;
+  }
+  
   try {
     document.getElementById('registerBtn').disabled = true;
     document.getElementById('registerBtn').textContent = 'Creating account...';
     errorDiv.style.display = 'none';
     
-    await apiClient.register(email, password, name);
+    await apiClient.register(email, password, name, age, gender);
     
     showConsentSection();
     showNotification('Account created successfully!', 'success');

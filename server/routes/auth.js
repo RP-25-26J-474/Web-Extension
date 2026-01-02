@@ -15,7 +15,9 @@ const generateToken = (userId) => {
 router.post('/register', [
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 6 }),
-  body('name').trim().notEmpty()
+  body('name').trim().notEmpty(),
+  body('age').isInt({ min: 1, max: 120 }),
+  body('gender').isIn(['male', 'female', 'other', 'prefer-not-to-say'])
 ], async (req, res) => {
   try {
     // Validate input
@@ -24,7 +26,7 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
     
-    const { email, password, name } = req.body;
+    const { email, password, name, age, gender } = req.body;
     
     // Check if user exists
     const existingUser = await User.findOne({ email });
@@ -36,7 +38,9 @@ router.post('/register', [
     const user = new User({
       email,
       password,
-      name
+      name,
+      age,
+      gender
     });
     
     await user.save();

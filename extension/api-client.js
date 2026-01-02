@@ -55,10 +55,10 @@ class APIClient {
   }
 
   // Auth methods
-  async register(email, password, name) {
+  async register(email, password, name, age, gender) {
     const data = await this.request(API_CONFIG.ENDPOINTS.REGISTER, {
       method: 'POST',
-      body: JSON.stringify({ email, password, name })
+      body: JSON.stringify({ email, password, name, age, gender })
     });
     
     if (data.token) {

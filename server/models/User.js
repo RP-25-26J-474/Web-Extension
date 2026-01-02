@@ -19,6 +19,18 @@ const userSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  age: {
+    type: Number,
+    required: true,
+    min: 1,
+    max: 120
+  },
+  gender: {
+    type: String,
+    required: true,
+    enum: ['male', 'female', 'other', 'prefer-not-to-say'],
+    lowercase: true
+  },
   consentGiven: {
     type: Boolean,
     default: false

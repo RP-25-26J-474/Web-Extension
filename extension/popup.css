@@ -133,6 +133,17 @@ header h1 {
   margin-bottom: 18px;
 }
 
+.form-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.form-row .form-group {
+  flex: 1;
+  margin-bottom: 0;
+}
+
 .form-group label {
   display: block;
   font-weight: 500;
@@ -141,7 +152,8 @@ header h1 {
   font-size: 13px;
 }
 
-.form-group input {
+.form-group input,
+.form-group select {
   width: 100%;
   padding: 10px 12px;
   border: 1.5px solid #e0e0e0;
@@ -149,9 +161,11 @@ header h1 {
   font-size: 14px;
   transition: all 0.3s;
   box-sizing: border-box;
+  background: white;
 }
 
-.form-group input:focus {
+.form-group input:focus,
+.form-group select:focus {
   outline: none;
   border-color: #1FB854;
   box-shadow: 0 0 0 3px rgba(31, 184, 84, 0.1);
