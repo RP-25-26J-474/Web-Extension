@@ -118,16 +118,12 @@ function showOnboardingPrompt(user) {
         <button id="startOnboardingBtn" class="btn btn-primary full-width">
           Start Onboarding Game
         </button>
-        <button id="skipOnboardingBtn" class="btn btn-secondary full-width" style="margin-top: 10px;">
-          Skip for Now
-        </button>
       </div>
     </div>
   `;
   
-  // Add event listeners
+  // Add event listener
   document.getElementById('startOnboardingBtn').addEventListener('click', startOnboardingGame);
-  document.getElementById('skipOnboardingBtn').addEventListener('click', skipOnboarding);
 }
 
 // Start onboarding game in new tab
@@ -157,15 +153,6 @@ async function startOnboardingGame() {
     console.error('Failed to start onboarding:', error);
     showNotification('Failed to open onboarding game', 'error');
   }
-}
-
-// Skip onboarding (proceed to consent)
-async function skipOnboarding() {
-  if (!confirm('Are you sure you want to skip the onboarding assessment? You can always complete it later from settings.')) {
-    return;
-  }
-  
-  showConsentSection();
 }
 
 // Show consent section

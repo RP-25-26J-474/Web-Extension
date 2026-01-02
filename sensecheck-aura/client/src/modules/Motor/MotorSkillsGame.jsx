@@ -86,6 +86,12 @@ const MotorSkillsGame = () => {
 
   const currentPattern = BUBBLE_PATTERNS[currentRound - 1];
   
+  // Debug: Log state changes
+  useEffect(() => {
+    console.log(`🔄 State update: currentRound=${currentRound}, isPlaying=${isPlaying}, isTransitioning=${isTransitioning}, isCompleting=${isCompleting}`);
+    console.log(`🔘 Button should be visible: ${!isPlaying && !isCompleting && !isTransitioning}`);
+  }, [currentRound, isPlaying, isTransitioning, isCompleting]);
+  
   // Initialize motor skills tracker
   useEffect(() => {
     if (!motorTrackerRef.current && sessionId) {
@@ -288,6 +294,7 @@ const MotorSkillsGame = () => {
 
   // Start round
   const startRound = () => {
+    console.log(`🎮 Starting round ${currentRound}...`);
     setIsPlaying(true);
     isPlayingRef.current = true; // Set ref synchronously for animation loop
     setRoundStartTime(Date.now());
@@ -301,6 +308,7 @@ const MotorSkillsGame = () => {
     // Update tracker round
     if (motorTrackerRef.current) {
       motorTrackerRef.current.setRound(currentRound); // Use setRound method instead of direct assignment
+      console.log(`✅ Tracker round set to ${currentRound}`);
     }
     
     // Start performance tracking on first round
@@ -328,6 +336,7 @@ const MotorSkillsGame = () => {
       setTimeRemaining(remaining);
 
       if (remaining === 0) {
+        console.log(`⏰ Round ${currentRound} timer expired, ending round...`);
         endRound();
       }
     }, 100);
@@ -335,6 +344,7 @@ const MotorSkillsGame = () => {
 
   // End round
   const endRound = async () => {
+    console.log(`🏁 Ending round ${currentRound}...`);
     setIsPlaying(false);
     isPlayingRef.current = false; // Set ref synchronously to stop animation
     
@@ -365,6 +375,8 @@ const MotorSkillsGame = () => {
         const hits = roundInteractions.filter(i => i.eventType === 'bubble_hit').length;
         const misses = roundInteractions.filter(i => i.eventType === 'bubble_miss').length;
         
+        console.log(`📊 Round ${currentRound} stats: ${hits} hits, ${misses} misses`);
+        
         await motorTrackerRef.current.trackRoundComplete({
           hits: hits,
           misses: misses,
@@ -384,17 +396,21 @@ const MotorSkillsGame = () => {
 
     // Move to next round or complete
     if (currentRound < 3) {
+      console.log(`➡️ Transitioning from round ${currentRound} to round ${currentRound + 1}...`);
       // Set transitioning state to keep button disabled
       setIsTransitioning(true);
       setTimeout(() => {
         const nextRound = currentRound + 1;
+        console.log(`✅ Setting currentRound to ${nextRound}`);
         setCurrentRound(nextRound);
         // Save progress to sessionStorage for persistence across refresh
         sessionStorage.setItem('sensecheck_motor_current_round', nextRound.toString());
+        console.log(`🔓 Transition complete, isTransitioning = false`);
         // Allow button to be clickable again after round is updated
         setIsTransitioning(false);
       }, 2000);
     } else {
+      console.log(`🎊 All 3 rounds complete! Completing test...`);
       // Mark as completing to prevent button from showing
       setIsCompleting(true);
       // Clear motor round progress on completion
@@ -783,7 +799,10 @@ const MotorSkillsGame = () => {
             {/* Action Button */}
             {!isPlaying && !isCompleting && !isTransitioning && (
               <button
-                onClick={startRound}
+                onClick={() => {
+                  console.log(`🔘 Start button clicked for round ${currentRound}`);
+                  startRound();
+                }}
                 className="w-full mt-5 py-4 px-6 rounded-xl font-bold text-base sm:text-lg text-white transition-all duration-300 shadow-lg hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3"
                 style={{ 
                   background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%)',

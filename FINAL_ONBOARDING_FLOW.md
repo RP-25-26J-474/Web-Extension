@@ -16,12 +16,12 @@
 4. 📋 Sees onboarding information screen
    → Explains what the game is about
    → Shows 3 modules: Motor, Vision, Literacy
-   → "Start Onboarding Game" button
+   → ONLY "Start Onboarding Game" button (no skip!) ✅
    ↓
 5. User clicks "Start Onboarding Game"
    ↓
 6. 🎮 Game opens in new tab
-   → NO age/gender popup (already have data!)
+   → NO age/gender popup (already have data!) ✅
    ↓
 7. User completes 3 modules
    ↓
@@ -36,37 +36,35 @@
 
 ---
 
-## 📝 Changes Made
+## 📝 Changes Made (Latest Update)
 
 ### 1. **Extension - `popup.js`** ✅
-**Reverted to show prompt before game**
+**Removed "Skip for Now" button**
 
 ```javascript
-// Handle consent acceptance
-async function handleAcceptConsent() {
-  await apiClient.updateSettings(true, true);
-  await chrome.runtime.sendMessage({ type: 'SET_CONSENT', consent: true });
-  
-  const onboardingStatus = await apiClient.getOnboardingStatus();
-  
-  if (!onboardingStatus.completed) {
-    // ✅ SHOW PROMPT FIRST (with information)
-    const userData = await apiClient.getCurrentUser();
-    showOnboardingPrompt(userData.user);
-    
-  } else {
-    // Show main content
-    showMainContent();
-    displayUserInfo(userData.user);
-    await loadData();
-  }
-}
+// BEFORE:
+<div class="onboarding-actions">
+  <button id="startOnboardingBtn" class="btn btn-primary full-width">
+    Start Onboarding Game
+  </button>
+  <button id="skipOnboardingBtn" class="btn btn-secondary full-width" style="margin-top: 10px;">
+    Skip for Now
+  </button>
+</div>
+
+// AFTER:
+<div class="onboarding-actions">
+  <button id="startOnboardingBtn" class="btn btn-primary full-width">
+    Start Onboarding Game
+  </button>
+</div>
 ```
 
-**Key Change:**
-- ✅ Shows informational screen first
-- ✅ User sees what game is about before starting
-- ✅ "Start Onboarding Game" button to begin
+**Key Changes:**
+- ✅ Removed "Skip for Now" button completely
+- ✅ Removed `skipOnboarding()` function
+- ✅ User MUST complete onboarding game
+- ✅ Cleaner, more focused UI
 
 ### 2. **Game - `Home.jsx`** ✅
 **Skip age/gender modal in AURA mode**
@@ -97,20 +95,64 @@ useEffect(() => {
 }, [loadSessionData]);
 ```
 
-**Key Change:**
-- ✅ In AURA mode: Skip UserInfoModal (age/gender already in User model)
-- ✅ In standalone mode: Show modal as normal
-- ✅ No redundant data collection
+### 3. **Game - `MotorSkillsGame.jsx`** ✅
+**Added comprehensive logging for debugging round progression**
+
+```javascript
+// Start round
+const startRound = () => {
+  console.log(`🎮 Starting round ${currentRound}...`);
+  // ... existing logic
+  console.log(`✅ Tracker round set to ${currentRound}`);
+};
+
+// End round
+const endRound = async () => {
+  console.log(`🏁 Ending round ${currentRound}...`);
+  console.log(`📊 Round ${currentRound} stats: ${hits} hits, ${misses} misses`);
+  
+  if (currentRound < 3) {
+    console.log(`➡️ Transitioning from round ${currentRound} to round ${currentRound + 1}...`);
+    setIsTransitioning(true);
+    setTimeout(() => {
+      const nextRound = currentRound + 1;
+      console.log(`✅ Setting currentRound to ${nextRound}`);
+      setCurrentRound(nextRound);
+      console.log(`🔓 Transition complete, isTransitioning = false`);
+      setIsTransitioning(false);
+    }, 2000);
+  }
+};
+
+// Debug: Log state changes
+useEffect(() => {
+  console.log(`🔄 State update: currentRound=${currentRound}, isPlaying=${isPlaying}, isTransitioning=${isTransitioning}, isCompleting=${isCompleting}`);
+  console.log(`🔘 Button should be visible: ${!isPlaying && !isCompleting && !isTransitioning}`);
+}, [currentRound, isPlaying, isTransitioning, isCompleting]);
+```
+
+**Logging Added:**
+- ✅ Round start/end events
+- ✅ State transitions (isPlaying, isTransitioning, isCompleting)
+- ✅ Button visibility logic
+- ✅ Round stats (hits/misses)
+- ✅ Tracker updates
+
+**This helps diagnose:**
+- Why button might not appear after round 1
+- If state is updating correctly
+- If timer is triggering endRound
+- If transition setTimeout is executing
 
 ---
 
 ## 🎯 Why This Flow Is Better
 
-### **Information Before Action**
-- ✅ User knows what to expect
-- ✅ Sees that game has 3 modules
-- ✅ Understands it takes 5-7 minutes
-- ✅ Can read about privacy & security
+### **Mandatory Onboarding**
+- ✅ Ensures baseline data for all users
+- ✅ No fragmented user experience
+- ✅ Consistent data quality for analysis
+- ✅ Users understand what tracking involves
 
 ### **No Redundant Data**
 - ✅ Age & gender collected during registration
@@ -118,10 +160,43 @@ useEffect(() => {
 - ✅ Data available via User model when needed
 - ✅ Cleaner user experience
 
-### **Clear Call-to-Action**
-- ✅ Big "Start Onboarding Game" button
-- ✅ Option to "Skip for Now" if needed
-- ✅ User is in control
+### **Better UX**
+- ✅ Single clear call-to-action
+- ✅ No confusing "skip" option
+- ✅ Users are guided through the process
+- ✅ Professional, purposeful flow
+
+---
+
+## 🐛 Debugging Motor Skills Round Progression
+
+### **Console Output to Watch:**
+
+```
+🎮 Starting round 1...
+✅ Tracker round set to 1
+📊 Performance tracking started
+(user plays for 20 seconds)
+⏰ Round 1 timer expired, ending round...
+🏁 Ending round 1...
+📊 Round 1 stats: 15 hits, 3 misses
+➡️ Transitioning from round 1 to round 2...
+(wait 2 seconds)
+✅ Setting currentRound to 2
+🔓 Transition complete, isTransitioning = false
+🔄 State update: currentRound=2, isPlaying=false, isTransitioning=false, isCompleting=false
+🔘 Button should be visible: true
+(button appears: "Begin Round 2")
+```
+
+### **If Button Doesn't Appear:**
+
+Check console for:
+1. Does `endRound()` get called?
+2. Does `setIsTransitioning(false)` execute after 2s?
+3. Is `currentRound` updating to 2?
+4. Does the state update useEffect fire?
+5. Is button condition met: `!isPlaying && !isCompleting && !isTransitioning`?
 
 ---
 
@@ -191,7 +266,7 @@ ANALYSIS
 └──────────────────────────────┘
 ```
 
-### **2. Onboarding Information Screen** ⭐ NEW
+### **2. Onboarding Information Screen** ⭐ UPDATED
 ```
 ┌──────────────────────────────┐
 │  Welcome John! 🎉            │
@@ -207,8 +282,8 @@ ANALYSIS
 │                              │
 │  ⏱️ 5-7 minutes • Private    │
 │                              │
-│  [Start Onboarding Game]     │
-│  [Skip for Now]              │
+│  [Start Onboarding Game] ✅  │
+│  (No skip button!)           │
 └──────────────────────────────┘
 ```
 
@@ -232,26 +307,29 @@ ANALYSIS
 ## ✅ Implementation Checklist
 
 - [x] Extension shows onboarding prompt after consent
-- [x] Prompt has "Start Onboarding Game" button
+- [x] Prompt has ONLY "Start Onboarding Game" button (no skip)
 - [x] Game opens in new tab when button clicked
 - [x] Popup closes automatically
 - [x] Game skips age/gender modal in AURA mode
-- [x] User completes 3 modules
+- [x] User completes 3 modules (with proper round progression)
+- [x] Comprehensive logging for debugging motor skills
 - [x] Tab auto-closes after completion
 - [x] Main interface shows when user reopens extension
 - [x] Age/gender accessible via User model for analysis
 
 ---
 
-## 🔍 Key Differences: Before vs After
+## 🔍 Key Changes: Before vs After
 
 | Aspect | Before | After |
 |--------|--------|-------|
 | **Age/Gender Collection** | During game (modal) | During registration ✅ |
 | **Game Start** | Immediate on consent | After info screen ✅ |
 | **User Modal in Game** | Always shown | Skipped in AURA mode ✅ |
-| **User Experience** | Game starts suddenly | Clear information first ✅ |
+| **Skip Option** | Available | Removed ✅ |
+| **User Experience** | Confusing options | Clear, guided flow ✅ |
 | **Data Redundancy** | Asked twice | Asked once ✅ |
+| **Motor Round Debug** | No logging | Comprehensive logs ✅ |
 
 ---
 
@@ -265,7 +343,8 @@ ANALYSIS
 ---
 
 **Implementation Date:** January 2, 2026  
+**Last Updated:** January 2, 2026 (Added motor debug logging, removed skip button)  
 **Status:** ✅ Complete  
-**Files Modified:** 2 files (popup.js, Home.jsx)  
-**Key Achievement:** No redundant data collection, clear user flow
+**Files Modified:** 3 files (popup.js, Home.jsx, MotorSkillsGame.jsx)  
+**Key Achievement:** Mandatory onboarding, no redundant data, comprehensive debugging
 
