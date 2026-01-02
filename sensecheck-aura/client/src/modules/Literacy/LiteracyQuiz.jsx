@@ -15,8 +15,17 @@ import auraIntegration from '../../utils/auraIntegration';
 const LiteracyQuiz = () => {
   const navigate = useNavigate();
   const sessionId = useStore((state) => state.sessionId);
+  const isModuleCompleted = useStore((state) => state.isModuleCompleted);
   const { recordLiteracyResponse, completeLiteracyTest, completeModule, isAllModulesCompleted } = useStore();
   const { trackEvent, trackClick, trackHover, trackFocus } = useInteractionTracking('literacy', true);
+  
+  // Redirect if knowledge module is already completed
+  useEffect(() => {
+    if (isModuleCompleted('knowledge')) {
+      console.log('⚠️ Knowledge module already completed, redirecting to home');
+      navigate('/', { replace: true });
+    }
+  }, [isModuleCompleted, navigate]);
 
   // Load initial state from sessionStorage for persistence
   const getInitialQuestionIndex = () => {

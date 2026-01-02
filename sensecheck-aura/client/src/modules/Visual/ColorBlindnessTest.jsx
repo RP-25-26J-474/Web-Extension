@@ -25,8 +25,17 @@ const imageMap = {
 const ColorBlindnessTest = () => {
   const navigate = useNavigate();
   const sessionId = useStore((state) => state.sessionId);
+  const isModuleCompleted = useStore((state) => state.isModuleCompleted);
   const { recordColorBlindnessResponse, completeColorBlindnessTest } = useStore();
   const { trackEvent, trackClick, trackFocus } = useInteractionTracking('colorBlindness', true);
+  
+  // Redirect if perception module is already completed
+  useEffect(() => {
+    if (isModuleCompleted('perception')) {
+      console.log('⚠️ Perception module already completed, redirecting to home');
+      navigate('/', { replace: true });
+    }
+  }, [isModuleCompleted, navigate]);
 
   // Load initial state from sessionStorage for persistence across refresh
   const getInitialPlateIndex = () => {

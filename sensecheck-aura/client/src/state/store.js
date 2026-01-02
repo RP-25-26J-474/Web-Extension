@@ -216,18 +216,41 @@ const useStore = create((set, get) => ({
   })),
   
   // Check if a specific module is completed
+  // Handles both sensecheck names (perception, reaction, knowledge) and AURA names (vision, motor, literacy)
   isModuleCompleted: (moduleName) => {
     const state = get();
-    return state.completedModules.some((m) => m.moduleName === moduleName || m.name === moduleName);
+    // Map between sensecheck and AURA module names
+    const moduleNameMap = {
+      'perception': ['perception', 'vision'],
+      'reaction': ['reaction', 'motor'],
+      'knowledge': ['knowledge', 'literacy'],
+      'vision': ['perception', 'vision'],
+      'motor': ['reaction', 'motor'],
+      'literacy': ['knowledge', 'literacy'],
+    };
+    
+    const namesToCheck = moduleNameMap[moduleName] || [moduleName];
+    
+    return state.completedModules.some((m) => 
+      namesToCheck.includes(m.moduleName) || namesToCheck.includes(m.name)
+    );
   },
   
   // Check if all modules are completed
   isAllModulesCompleted: () => {
     const state = get();
-    const requiredModules = ['perception', 'reaction', 'knowledge'];
-    return requiredModules.every(moduleName => 
-      state.completedModules.some((m) => m.moduleName === moduleName || m.name === moduleName)
+    // Check for any valid module names (sensecheck OR AURA names)
+    const hasPerception = state.completedModules.some((m) => 
+      ['perception', 'vision'].includes(m.moduleName) || ['perception', 'vision'].includes(m.name)
     );
+    const hasReaction = state.completedModules.some((m) => 
+      ['reaction', 'motor'].includes(m.moduleName) || ['reaction', 'motor'].includes(m.name)
+    );
+    const hasKnowledge = state.completedModules.some((m) => 
+      ['knowledge', 'literacy'].includes(m.moduleName) || ['knowledge', 'literacy'].includes(m.name)
+    );
+    
+    return hasPerception && hasReaction && hasKnowledge;
   },
   
   // Reset (for testing)

@@ -44,7 +44,16 @@ const BUBBLE_RADIUS = 25;
 const MotorSkillsGame = () => {
   const navigate = useNavigate();
   const sessionId = useStore((state) => state.sessionId);
+  const isModuleCompleted = useStore((state) => state.isModuleCompleted);
   const { setMotorRound, completeMotorSkillsTest, completeModule, isAllModulesCompleted } = useStore();
+  
+  // Redirect if reaction module is already completed
+  useEffect(() => {
+    if (isModuleCompleted('reaction')) {
+      console.log('⚠️ Reaction module already completed, redirecting to home');
+      navigate('/', { replace: true });
+    }
+  }, [isModuleCompleted, navigate]);
   
   // Enhanced motor skills tracking (only for this module)
   const motorTrackerRef = useRef(null);

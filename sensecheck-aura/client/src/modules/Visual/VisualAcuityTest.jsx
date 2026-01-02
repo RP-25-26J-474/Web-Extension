@@ -10,6 +10,7 @@ import auraIntegration from '../../utils/auraIntegration';
 const VisualAcuityTest = () => {
   const navigate = useNavigate();
   const sessionId = useStore((state) => state.sessionId);
+  const isModuleCompleted = useStore((state) => state.isModuleCompleted);
   const {
     recordVisualAcuityAttempt,
     setVisualAcuitySize,
@@ -18,6 +19,14 @@ const VisualAcuityTest = () => {
     isAllModulesCompleted,
   } = useStore();
   const { trackEvent, trackClick } = useInteractionTracking('visualAcuity', true);
+  
+  // Redirect if perception module is already completed
+  useEffect(() => {
+    if (isModuleCompleted('perception')) {
+      console.log('⚠️ Perception module already completed, redirecting to home');
+      navigate('/', { replace: true });
+    }
+  }, [isModuleCompleted, navigate]);
 
   // Load initial state from sessionStorage for persistence
   const getInitialSize = () => {

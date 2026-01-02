@@ -9,6 +9,21 @@ const api = axios.create({
   },
 });
 
+// Helper to get auth token from URL params (AURA mode)
+const getAuthToken = () => {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('token');
+};
+
+// Add auth interceptor
+api.interceptors.request.use((config) => {
+  const token = getAuthToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // ==================== BUCKET-BASED INTERACTION LOGGING ====================
 // New unified API using MongoDB bucket pattern for better performance
 
@@ -170,10 +185,15 @@ export const updateSessionPerformance = async (sessionId, perfMetrics) => {
   }
 };
 
-// Vision Results
+// Vision Results (AURA-compatible)
 export const saveVisionResults = async (resultsData) => {
   try {
-    const response = await api.post('/results/vision', resultsData);
+    // Use AURA onboarding endpoint
+    const response = await api.post('/onboarding/vision', {
+      colorBlindness: resultsData.colorBlindness,
+      visualAcuity: resultsData.visualAcuity,
+      testConditions: resultsData.testConditions,
+    });
     return response.data;
   } catch (error) {
     console.error('Error saving vision results:', error);
@@ -181,10 +201,16 @@ export const saveVisionResults = async (resultsData) => {
   }
 };
 
-// Literacy Results
+// Literacy Results (AURA-compatible)
 export const saveLiteracyResults = async (resultsData) => {
   try {
-    const response = await api.post('/results/literacy', resultsData);
+    // Use AURA onboarding endpoint
+    const response = await api.post('/onboarding/literacy', {
+      responses: resultsData.responses,
+      score: resultsData.score,
+      metrics: resultsData.metrics,
+      categoryScores: resultsData.categoryScores,
+    });
     return response.data;
   } catch (error) {
     console.error('Error saving literacy results:', error);
@@ -192,10 +218,11 @@ export const saveLiteracyResults = async (resultsData) => {
   }
 };
 
-// Get Session Results
+// Get Session Results (AURA-compatible)
 export const getSessionResults = async (sessionId) => {
   try {
-    const response = await api.get(`/results/session/${sessionId}`);
+    // Use AURA onboarding endpoint
+    const response = await api.get(`/onboarding/session/${sessionId}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching session results:', error);
@@ -203,10 +230,11 @@ export const getSessionResults = async (sessionId) => {
   }
 };
 
-// Update Session Module Completion
+// Update Session Module Completion (AURA-compatible)
 export const updateModuleCompletion = async (sessionId, moduleName) => {
   try {
-    const response = await api.post('/results/module-complete', {
+    // Use AURA onboarding endpoint
+    const response = await api.post('/onboarding/module-complete', {
       sessionId,
       moduleName,
     });
@@ -217,7 +245,7 @@ export const updateModuleCompletion = async (sessionId, moduleName) => {
   }
 };
 
-// ==================== ML-READY MOTOR SKILLS APIs ====================
+// ==================== ML-READY MOTOR SKILLS APIs (AURA-compatible) ====================
 
 /**
  * Log pointer trace samples (for ML training)
@@ -226,8 +254,8 @@ export const updateModuleCompletion = async (sessionId, moduleName) => {
  */
 export const logPointerSamples = async (sessionId, samples) => {
   try {
-    const response = await api.post('/motor/trace', {
-      sessionId,
+    // Use AURA onboarding endpoint
+    const response = await api.post('/onboarding/motor/trace', {
       samples,
     });
     return response.data;
@@ -244,8 +272,8 @@ export const logPointerSamples = async (sessionId, samples) => {
  */
 export const logMotorAttempts = async (sessionId, attempts) => {
   try {
-    const response = await api.post('/motor/attempts', {
-      sessionId,
+    // Use AURA onboarding endpoint
+    const response = await api.post('/onboarding/motor/attempts', {
       attempts,
     });
     return response.data;
@@ -263,9 +291,8 @@ export const logMotorAttempts = async (sessionId, attempts) => {
  */
 export const computeRoundSummary = async (sessionId, participantId, round) => {
   try {
-    const response = await api.post('/motor/summary/round', {
-      sessionId,
-      participantId,
+    // Use AURA onboarding endpoint
+    const response = await api.post('/onboarding/motor/summary/round', {
       round,
     });
     return response.data;
@@ -282,10 +309,8 @@ export const computeRoundSummary = async (sessionId, participantId, round) => {
  */
 export const computeSessionSummary = async (sessionId, participantId) => {
   try {
-    const response = await api.post('/motor/summary/session', {
-      sessionId,
-      participantId,
-    });
+    // Use AURA onboarding endpoint
+    const response = await api.post('/onboarding/motor/summary/session', {});
     return response.data;
   } catch (error) {
     console.error('Error computing session summary:', error);
@@ -294,13 +319,14 @@ export const computeSessionSummary = async (sessionId, participantId) => {
 };
 
 /**
- * Log global interactions (for ML training)
+ * Log global interactions (for ML training) - AURA-compatible
  * @param {string} sessionId - Session ID
  * @param {array} interactions - Array of global interaction objects
  */
 export const logGlobalInteractions = async (sessionId, interactions) => {
   try {
-    const response = await api.post('/global/interactions', {
+    // Use AURA onboarding endpoint
+    const response = await api.post('/onboarding/global/interactions', {
       sessionId,
       interactions,
     });

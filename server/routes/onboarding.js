@@ -454,5 +454,113 @@ router.get('/results', authMiddleware, async (req, res) => {
   }
 });
 
+// ========== SENSECHECK-COMPATIBLE ENDPOINTS ==========
+// These endpoints match the format expected by sensecheck-aura client
+
+// Get session data (sensecheck-compatible)
+router.get('/session/:sessionId', authMiddleware, async (req, res) => {
+  try {
+    const session = await OnboardingSession.findOne({ userId: req.userId });
+    
+    if (!session) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Session not found' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        session: {
+          sessionId: req.userId,
+          completedModules: session.completedModules || [],
+          status: session.status,
+          createdAt: session.createdAt,
+        },
+      },
+    });
+    
+  } catch (error) {
+    console.error('Get session error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to get session' 
+    });
+  }
+});
+
+// Update module completion (sensecheck-compatible)
+router.post('/module-complete', authMiddleware, async (req, res) => {
+  try {
+    const { moduleName } = req.body;
+    
+    if (!moduleName) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Module name is required' 
+      });
+    }
+    
+    // Map sensecheck module names to AURA module names
+    const moduleNameMap = {
+      'perception': 'vision',
+      'reaction': 'motor',
+      'knowledge': 'literacy',
+      // Also accept direct names
+      'vision': 'vision',
+      'motor': 'motor',
+      'literacy': 'literacy',
+    };
+    
+    const mappedModuleName = moduleNameMap[moduleName] || moduleName;
+    
+    // Find or create session
+    let session = await OnboardingSession.findOne({ userId: req.userId });
+    
+    if (!session) {
+      // Create session if it doesn't exist
+      session = new OnboardingSession({
+        userId: req.userId,
+        status: 'in_progress',
+      });
+    }
+    
+    // Check if module already completed
+    const alreadyCompleted = session.completedModules.some(
+      m => m.moduleName === mappedModuleName || m.moduleName === moduleName
+    );
+    
+    if (!alreadyCompleted) {
+      session.completedModules.push({
+        moduleName: mappedModuleName,
+        completedAt: new Date(),
+      });
+    }
+    
+    await session.save();
+    
+    console.log(`Module completed: ${moduleName} (mapped to ${mappedModuleName}) for user ${req.userId}`);
+    
+    res.json({
+      success: true,
+      data: {
+        session: {
+          sessionId: req.userId,
+          completedModules: session.completedModules,
+          status: session.status,
+        },
+      },
+    });
+    
+  } catch (error) {
+    console.error('Update module completion error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to update module completion' 
+    });
+  }
+});
+
 module.exports = router;
 
