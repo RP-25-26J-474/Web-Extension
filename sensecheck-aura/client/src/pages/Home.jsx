@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import UserInfoModal from '../components/UserInfoModal';
 import useStore from '../state/store';
 import logo from '../resources/logo.png';
+import auraIntegration from '../utils/auraIntegration';
 
 const Home = () => {
   const navigate = useNavigate();
@@ -18,11 +19,17 @@ const Home = () => {
       console.log('🏠 Home page: Loading session data...');
       await loadSessionData();
       
-      const infoCollected = sessionStorage.getItem('sensecheck_user_info_collected');
-      if (infoCollected === 'true') {
+      // Skip user info modal if in AURA mode (already have user data from registration)
+      if (auraIntegration.isEnabled()) {
+        console.log('✅ AURA mode: Skipping age/gender modal (data already in user profile)');
         setUserInfoCollected(true);
       } else {
-        setShowUserInfoModal(true);
+        const infoCollected = sessionStorage.getItem('sensecheck_user_info_collected');
+        if (infoCollected === 'true') {
+          setUserInfoCollected(true);
+        } else {
+          setShowUserInfoModal(true);
+        }
       }
       
       setLoading(false);

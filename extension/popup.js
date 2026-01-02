@@ -409,12 +409,10 @@ async function handleAcceptConsent() {
     console.log('📋 Onboarding status:', onboardingStatus);
     
     if (!onboardingStatus.completed) {
-      // User needs to complete onboarding game - START IMMEDIATELY
-      console.log('🎮 Starting onboarding game immediately...');
-      showNotification('Starting onboarding game...', 'info');
-      
-      // Start the game right away (no prompt)
-      await startOnboardingGame();
+      // User needs to complete onboarding game - show prompt first
+      console.log('🎮 User needs to complete onboarding, showing prompt...');
+      const userData = await apiClient.getCurrentUser();
+      showOnboardingPrompt(userData.user);
       
     } else {
       // User has completed onboarding, show main content
