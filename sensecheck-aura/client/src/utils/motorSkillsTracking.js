@@ -326,21 +326,23 @@ class MotorSkillsTracker {
       }
     }
     
-    // ========== ORIGINAL TRACKING (unchanged) ==========
-    // Send round-specific data to ML schemas
-    try {
-      await this.sendRoundDataToML(this.round);
-    } catch (error) {
-      console.error(`Error sending round ${this.round} data to ML:`, error);
-    }
-    
-    // Compute round summary on backend
-    try {
-      const result = await computeRoundSummary(this.sessionId, this.participantId, this.round);
-      console.log(`📊 Round ${this.round} summary computed on backend`, result);
-    } catch (error) {
-      console.error(`❌ Error computing round ${this.round} summary:`, error);
-      console.error('Error details:', error.response?.data || error.message);
+    // ========== ORIGINAL TRACKING (only when NOT in AURA mode) ==========
+    if (!auraIntegration.isEnabled()) {
+      // Send round-specific data to ML schemas
+      try {
+        await this.sendRoundDataToML(this.round);
+      } catch (error) {
+        console.error(`Error sending round ${this.round} data to ML:`, error);
+      }
+      
+      // Compute round summary on backend
+      try {
+        const result = await computeRoundSummary(this.sessionId, this.participantId, this.round);
+        console.log(`📊 Round ${this.round} summary computed on backend`, result);
+      } catch (error) {
+        console.error(`❌ Error computing round ${this.round} summary:`, error);
+        console.error('Error details:', error.response?.data || error.message);
+      }
     }
     
     this.round++;
@@ -574,13 +576,21 @@ class MotorSkillsTracker {
     }
     
     try {
-      // Use ML-ready global interactions endpoint with module='motorSkills'
-      await logGlobalInteractions(this.sessionId, batch);
-      console.log(`📦 Flushed ${batch.length} motor skill interactions (ML-ready)`);
+      // Prefer AURA integration if available (handles auth properly)
+      if (auraIntegration.isEnabled()) {
+        await auraIntegration.saveGlobalInteractions(batch);
+        console.log(`📦 Flushed ${batch.length} motor skill interactions via AURA`);
+      } else {
+        // Fallback to direct API call
+        await logGlobalInteractions(this.sessionId, batch);
+        console.log(`📦 Flushed ${batch.length} motor skill interactions (ML-ready)`);
+      }
     } catch (error) {
       console.error('Error flushing motor skills batch:', error);
-      // Re-add to buffer on error
-      this.interactionBuffer.unshift(...batch);
+      // Re-add to buffer on error (limit to prevent infinite growth)
+      if (this.interactionBuffer.length < 100) {
+        this.interactionBuffer.unshift(...batch);
+      }
     }
   }
 
@@ -726,7 +736,7 @@ class MotorSkillsTracker {
       }
     }
     
-    // ========== ORIGINAL TRACKING (unchanged) ==========
+    // ========== ORIGINAL TRACKING (only when NOT in AURA mode) ==========
     // Flush remaining raw interactions
     try {
       await this.flushBatch();
@@ -734,13 +744,15 @@ class MotorSkillsTracker {
       console.error('Error flushing final batch:', error);
     }
     
-    // Compute session summary on backend (aggregates all rounds)
-    try {
-      const result = await computeSessionSummary(this.sessionId, this.participantId);
-      console.log(`📊 Session summary computed on backend`, result);
-    } catch (error) {
-      console.error('❌ Error computing session summary:', error);
-      console.error('Error details:', error.response?.data || error.message);
+    // Compute session summary on backend (aggregates all rounds) - skip if AURA mode
+    if (!auraIntegration.isEnabled()) {
+      try {
+        const result = await computeSessionSummary(this.sessionId, this.participantId);
+        console.log(`📊 Session summary computed on backend`, result);
+      } catch (error) {
+        console.error('❌ Error computing session summary:', error);
+        console.error('Error details:', error.response?.data || error.message);
+      }
     }
     
     console.log(`✅ Motor skills tracking complete. Total interactions: ${this.interactions.length}`);

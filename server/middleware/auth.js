@@ -3,8 +3,13 @@ const User = require('../models/User');
 
 const authMiddleware = async (req, res, next) => {
   try {
-    // Get token from header
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    // Get token from header OR query params (query params needed for sendBeacon)
+    let token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    // Fallback to query param token (for sendBeacon which can't send headers)
+    if (!token && req.query.token) {
+      token = req.query.token;
+    }
     
     if (!token) {
       return res.status(401).json({ error: 'No authentication token provided' });

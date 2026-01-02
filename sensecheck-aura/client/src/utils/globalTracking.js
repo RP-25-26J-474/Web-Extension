@@ -5,6 +5,7 @@
  */
 
 import { logGlobalInteractions } from './api';
+import auraIntegration from './auraIntegration';
 
 class GlobalTracker {
   constructor() {
@@ -106,24 +107,36 @@ class GlobalTracker {
     try {
       if (synchronous) {
         // Use sendBeacon for synchronous unload
+        // Note: sendBeacon doesn't support auth headers, so this may fail in AURA mode
+        // We include token in URL as fallback (not ideal but necessary for unload)
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token');
+        const url = token 
+          ? `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding/global/interactions?token=${token}`
+          : `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding/global/interactions`;
+        
         const blob = new Blob([JSON.stringify({
           sessionId: this.sessionId,
           interactions: batch,
         })], { type: 'application/json' });
         
-        navigator.sendBeacon(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/global/interactions`,
-          blob
-        );
+        navigator.sendBeacon(url, blob);
       } else {
-        // Async batch - Use ML-ready endpoint
-        await logGlobalInteractions(this.sessionId, batch);
-        console.log(`📦 Flushed ${batch.length} global interactions (ML-ready)`);
+        // Async batch - prefer AURA integration if available
+        if (auraIntegration.isEnabled()) {
+          await auraIntegration.saveGlobalInteractions(batch);
+          console.log(`📦 Flushed ${batch.length} global interactions via AURA`);
+        } else {
+          await logGlobalInteractions(this.sessionId, batch);
+          console.log(`📦 Flushed ${batch.length} global interactions (ML-ready)`);
+        }
       }
     } catch (error) {
       console.error('Error flushing interaction batch:', error);
-      // Re-add to buffer on error
-      this.interactionBuffer.unshift(...batch);
+      // Re-add to buffer on error (but limit to prevent infinite growth)
+      if (this.interactionBuffer.length < 100) {
+        this.interactionBuffer.unshift(...batch);
+      }
     }
   }
 
