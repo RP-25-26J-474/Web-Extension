@@ -1,0 +1,222 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* AURA Brand Colors - Change primary-color here to update everywhere */
+:root {
+  --primary-color: #1FB854;
+  --primary-color-dark: #18944a;
+  --primary-color-light: #3ed46f;
+  --primary-color-glow: rgba(31, 184, 84, 0.3);
+  --primary-color-rgb: 31, 184, 84;
+}
+
+@layer base {
+  html {
+    /* Prevent zoom */
+    touch-action: none;
+    -ms-touch-action: none;
+  }
+
+  * {
+    /* Prevent zoom on double-tap */
+    touch-action: manipulation;
+    -ms-touch-action: manipulation;
+    /* Prevent text selection during interaction */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    /* Prevent callout on long press */
+    -webkit-touch-callout: none;
+  }
+
+  /* Allow text selection only in inputs and text areas */
+  input,
+  textarea {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+  }
+
+  body {
+    @apply bg-gradient-to-br from-gray-950 via-gray-900 to-black;
+    @apply text-white font-sans antialiased;
+    @apply min-h-screen;
+    /* Prevent pinch zoom */
+    touch-action: pan-x pan-y;
+    -ms-touch-action: pan-x pan-y;
+    /* Prevent overscroll bounce */
+    overscroll-behavior: none;
+    /* Prevent momentum scrolling */
+    -webkit-overflow-scrolling: touch;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  #root {
+    /* Ensure root also prevents zoom */
+    touch-action: pan-x pan-y;
+    -ms-touch-action: pan-x pan-y;
+  }
+}
+
+@layer components {
+  .animate-fade-in {
+    animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* AURA Primary Button */
+  .btn-primary {
+    @apply px-6 py-3 rounded-xl font-semibold text-white;
+    @apply transition-all duration-300;
+    @apply shadow-lg hover:shadow-xl;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100;
+    @apply hover:scale-[1.02] active:scale-[0.98];
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%);
+    box-shadow: 0 4px 20px var(--primary-color-glow);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--primary-color-light) 0%, var(--primary-color) 100%);
+    box-shadow: 0 6px 30px var(--primary-color-glow);
+  }
+
+  /* AURA Secondary Button */
+  .btn-secondary {
+    @apply px-6 py-3 rounded-xl font-semibold text-white;
+    @apply transition-all duration-300;
+    @apply border border-gray-700 hover:border-gray-600;
+    background: rgba(55, 65, 81, 0.5);
+    backdrop-filter: blur(10px);
+  }
+
+  .btn-secondary:hover {
+    background: rgba(75, 85, 99, 0.5);
+  }
+
+  /* AURA Card */
+  .card {
+    @apply rounded-2xl p-6;
+    @apply shadow-xl;
+    background: rgba(17, 24, 39, 0.7);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(55, 65, 81, 0.5);
+  }
+
+  .card-highlight {
+    @apply card;
+    border: 1px solid rgba(var(--primary-color-rgb), 0.3);
+    box-shadow: 0 0 40px rgba(var(--primary-color-rgb), 0.1);
+  }
+
+  /* AURA Input Field */
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl text-white placeholder-gray-500;
+    @apply focus:outline-none transition-all duration-300;
+    background: rgba(31, 41, 55, 0.5);
+    border: 2px solid rgba(75, 85, 99, 0.5);
+  }
+
+  .input-field:focus {
+    border-color: rgba(var(--primary-color-rgb), 0.5);
+    box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
+  }
+
+  /* AURA Glow Effect */
+  .aura-glow {
+    box-shadow: 0 0 40px var(--primary-color-glow);
+  }
+
+  /* Loading Spinner */
+  .loading-spinner {
+    @apply inline-block w-6 h-6 rounded-full animate-spin;
+    border-width: 3px;
+    border-color: rgba(var(--primary-color-rgb), 0.2);
+    border-top-color: var(--primary-color);
+  }
+
+  /* AURA Text Gradient */
+  .text-aura-gradient {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* AURA Background Gradient */
+  .bg-aura-gradient {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%);
+  }
+
+  /* Primary color utility class */
+  .text-primary {
+    color: var(--primary-color);
+  }
+
+  .bg-primary {
+    background-color: var(--primary-color);
+  }
+
+  .border-primary {
+    border-color: var(--primary-color);
+  }
+
+  /* Glass morphism effect */
+  .glass {
+    background: rgba(17, 24, 39, 0.6);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(55, 65, 81, 0.4);
+  }
+
+  /* Decorative swoosh background */
+  .aura-swoosh {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 200px;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 0.15;
+  }
+
+  /* Floating animation */
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+}
+
+/* Custom scrollbar - AURA themed */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #111827;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--primary-color-dark), var(--primary-color));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--primary-color), var(--primary-color-light));
+}

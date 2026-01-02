@@ -1,0 +1,41 @@
+# Resources Directory
+
+## Required Ishihara Plate Images
+
+Place the following images in this directory:
+- **ishihara_1.jpg** - Control plate (both normal and color blind see "12")
+- **ishihara_3.jpg** - Normal sees "6", red/green deficiency sees "5"
+- **ishihara_11.jpg** - Normal sees "6", red/green deficiency sees nothing
+- **ishihara_19.jpg** - Normal sees nothing, red/green deficiency sees "2"
+
+## Where to Get the Images
+
+### Option 1: Wikipedia
+Download Ishihara test plates from:
+https://en.wikipedia.org/wiki/Ishihara_test
+
+### Option 2: Public Domain Sources
+Search for "Ishihara test plates public domain" or use research-approved sources.
+
+### Option 3: Create Your Own
+For testing only, you can create simple dot patterns that simulate the test.
+
+## Image Requirements
+
+- **Format:** JPG (JPEG)
+- **Size:** At least 800x800 pixels recommended
+- **Quality:** High resolution for accurate testing
+- **Shape:** Square images work best (will be displayed as circles)
+
+## Important Notes
+
+⚠️ **Copyright Notice:** Ishihara test plates may be copyrighted. Ensure you have the right to use any images you download.
+
+📋 **Testing Without Images:** The app includes fallback placeholders. If images are not found, gradient circles will display instead.
+
+🔬 **Research Use:** For clinical or research purposes, use official Ishihara test plates from approved sources.
+
+## Current Status
+
+The application is configured to load these images automatically. Simply place them in this directory with the exact filenames listed above, and they will appear in the Color Blindness Test module.
+

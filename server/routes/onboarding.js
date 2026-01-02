@@ -5,6 +5,10 @@ const OnboardingSession = require('../models/OnboardingSession');
 const OnboardingMotorResult = require('../models/OnboardingMotorResult');
 const OnboardingLiteracyResult = require('../models/OnboardingLiteracyResult');
 const OnboardingVisionResult = require('../models/OnboardingVisionResult');
+const MotorPointerTraceBucket = require('../models/MotorPointerTraceBucket');
+const MotorAttemptBucket = require('../models/MotorAttemptBucket');
+const GlobalInteractionBucket = require('../models/GlobalInteractionBucket');
+const { MotorRoundSummary, MotorSessionSummary, computeRoundFeatures, computeSessionFeatures } = require('../models/MotorSummary');
 
 // Check if user has completed onboarding
 router.get('/status', authMiddleware, async (req, res) => {
@@ -68,6 +72,181 @@ router.post('/start', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Failed to start onboarding' });
   }
 });
+
+// ========== MOTOR SKILLS BUCKET-BASED ENDPOINTS (Sensecheck-Compatible) ==========
+
+// Log pointer trace samples
+router.post('/motor/trace', authMiddleware, async (req, res) => {
+  try {
+    const { samples } = req.body;
+    
+    if (!Array.isArray(samples) || samples.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Samples array is required',
+      });
+    }
+    
+    const bucket = await MotorPointerTraceBucket.addSamples(req.userId, samples);
+    
+    res.json({
+      success: true,
+      data: {
+        bucketNumber: bucket.bucketNumber,
+        totalSamples: bucket.count,
+      },
+    });
+    
+  } catch (error) {
+    console.error('Error logging pointer samples:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Log motor attempts (with automatic feature extraction)
+router.post('/motor/attempts', authMiddleware, async (req, res) => {
+  try {
+    const { attempts } = req.body;
+    
+    if (!Array.isArray(attempts) || attempts.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Attempts array is required',
+      });
+    }
+    
+    const bucket = await MotorAttemptBucket.addAttempts(req.userId, attempts);
+    
+    res.json({
+      success: true,
+      data: {
+        bucketNumber: bucket.bucketNumber,
+        totalAttempts: bucket.count,
+      },
+    });
+    
+  } catch (error) {
+    console.error('Error logging motor attempts:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Compute and save round summary
+router.post('/motor/summary/round', authMiddleware, async (req, res) => {
+  try {
+    const { round } = req.body;
+    
+    if (!round || round < 1 || round > 3) {
+      return res.status(400).json({
+        success: false,
+        error: 'Round must be 1, 2, or 3',
+      });
+    }
+    
+    // Compute features from attempts
+    const features = await computeRoundFeatures(req.userId, round);
+    
+    if (!features) {
+      return res.status(404).json({
+        success: false,
+        error: `No attempts found for round ${round}`,
+      });
+    }
+    
+    // Save or update round summary
+    const summary = await MotorRoundSummary.findOneAndUpdate(
+      { userId: req.userId, round },
+      {
+        counts: {
+          nTargets: features.nAttempts,
+          nHits: features.nHits,
+          nMisses: features.nMisses,
+          hitRate: features.hitRate,
+        },
+        features,
+      },
+      { upsert: true, new: true }
+    );
+    
+    res.json({
+      success: true,
+      data: summary,
+    });
+    
+  } catch (error) {
+    console.error('Error computing round summary:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Compute and save session summary
+router.post('/motor/summary/session', authMiddleware, async (req, res) => {
+  try {
+    // Compute features from all rounds
+    const features = await computeSessionFeatures(req.userId);
+    
+    // Save or update session summary
+    const summary = await MotorSessionSummary.findOneAndUpdate(
+      { userId: req.userId },
+      { features },
+      { upsert: true, new: true }
+    );
+    
+    res.json({
+      success: true,
+      data: summary,
+    });
+    
+  } catch (error) {
+    console.error('Error computing session summary:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Log global interactions
+router.post('/global/interactions', authMiddleware, async (req, res) => {
+  try {
+    const { interactions } = req.body;
+    
+    if (!Array.isArray(interactions) || interactions.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Interactions array is required',
+      });
+    }
+    
+    const bucket = await GlobalInteractionBucket.addInteractions(req.userId, interactions);
+    
+    res.json({
+      success: true,
+      data: {
+        bucketNumber: bucket.bucketNumber,
+        totalInteractions: bucket.count,
+      },
+    });
+    
+  } catch (error) {
+    console.error('Error logging global interactions:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// ========== LEGACY ENDPOINT (kept for backward compatibility) ==========
 
 // Save motor skills result
 router.post('/motor', authMiddleware, async (req, res) => {
