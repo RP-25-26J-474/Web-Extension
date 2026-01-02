@@ -71,17 +71,17 @@ const useStore = create((set, get) => ({
     const state = get();
     const sessionId = state.sessionId;
     
-    // Save to backend
-    try {
-      console.log(`🎉 Completing module: ${moduleName} for session: ${sessionId}`);
-      const response = await updateModuleCompletion(sessionId, moduleName);
-      console.log('✅ Module completion saved to backend:', response);
-    } catch (error) {
-      console.error('❌ Failed to save module completion to backend:', error);
-      throw error; // Re-throw to let caller handle it
+    // Check if module is already completed to prevent duplicates
+    const alreadyCompleted = state.completedModules.some(
+      (m) => m.moduleName === moduleName || m.name === moduleName
+    );
+    
+    if (alreadyCompleted) {
+      console.log(`ℹ️ Module ${moduleName} already completed, skipping`);
+      return;
     }
     
-    // Update local state
+    // Update local state FIRST (ensures UI updates even if backend fails)
     set((state) => ({
       completedModules: [...state.completedModules, {
         moduleName, // Use moduleName to match backend
@@ -92,6 +92,16 @@ const useStore = create((set, get) => ({
     }));
     
     console.log('✅ Local state updated. Completed modules:', get().completedModules);
+    
+    // Save to backend (non-blocking, errors logged but don't break flow)
+    try {
+      console.log(`🎉 Saving module completion to backend: ${moduleName} for session: ${sessionId}`);
+      const response = await updateModuleCompletion(sessionId, moduleName);
+      console.log('✅ Module completion saved to backend:', response);
+    } catch (error) {
+      console.error('❌ Failed to save module completion to backend:', error);
+      // Don't throw - local state is already updated, continue with the flow
+    }
   },
   
   // Load session data from backend
