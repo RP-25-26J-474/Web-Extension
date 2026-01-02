@@ -31,6 +31,15 @@ document.addEventListener('DOMContentLoaded', async function() {
   try {
     const userData = await apiClient.getCurrentUser();
     
+    // Check onboarding status
+    const onboardingStatus = await apiClient.getOnboardingStatus();
+    console.log('📋 Onboarding status:', onboardingStatus);
+    
+    if (!onboardingStatus.completed) {
+      showOnboardingPrompt(userData.user);
+      return;
+    }
+    
     if (!userData.user.consentGiven) {
       showConsentSection();
     } else {
@@ -54,6 +63,109 @@ function showAuthSection() {
   document.getElementById('authSection').style.display = 'block';
   document.getElementById('consentSection').style.display = 'none';
   document.getElementById('mainContent').style.display = 'none';
+}
+
+// Show onboarding prompt
+function showOnboardingPrompt(user) {
+  console.log('🎮 Showing onboarding prompt');
+  document.getElementById('authSection').style.display = 'none';
+  document.getElementById('consentSection').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'none';
+  
+  // Create onboarding prompt (we'll add HTML for this)
+  const container = document.querySelector('.container');
+  let onboardingPrompt = document.getElementById('onboardingPrompt');
+  
+  if (!onboardingPrompt) {
+    onboardingPrompt = document.createElement('div');
+    onboardingPrompt.id = 'onboardingPrompt';
+    onboardingPrompt.className = 'section';
+    container.insertBefore(onboardingPrompt, container.querySelector('footer'));
+  }
+  
+  onboardingPrompt.style.display = 'block';
+  onboardingPrompt.innerHTML = `
+    <div class="onboarding-prompt">
+      <h2>Welcome ${user.name}! 🎉</h2>
+      <p class="onboarding-description">
+        Before you start tracking, let's complete a quick onboarding assessment.
+        This helps us understand your device capabilities and preferences.
+      </p>
+      
+      <div class="onboarding-tests">
+        <div class="test-card">
+          <span class="test-icon">🎯</span>
+          <h3>Motor Skills</h3>
+          <p>Test reaction time and accuracy</p>
+        </div>
+        <div class="test-card">
+          <span class="test-icon">📚</span>
+          <h3>Computer Literacy</h3>
+          <p>Quick quiz on UI concepts</p>
+        </div>
+        <div class="test-card">
+          <span class="test-icon">👁️</span>
+          <h3>Vision Tests</h3>
+          <p>Color blindness & visual acuity</p>
+        </div>
+      </div>
+      
+      <p class="onboarding-note">
+        ⏱️ Takes about 5-7 minutes • Your data is private and secure
+      </p>
+      
+      <div class="onboarding-actions">
+        <button id="startOnboardingBtn" class="btn btn-primary full-width">
+          Start Onboarding Game
+        </button>
+        <button id="skipOnboardingBtn" class="btn btn-secondary full-width" style="margin-top: 10px;">
+          Skip for Now
+        </button>
+      </div>
+    </div>
+  `;
+  
+  // Add event listeners
+  document.getElementById('startOnboardingBtn').addEventListener('click', startOnboardingGame);
+  document.getElementById('skipOnboardingBtn').addEventListener('click', skipOnboarding);
+}
+
+// Start onboarding game in new tab
+async function startOnboardingGame() {
+  try {
+    const token = await apiClient.getToken();
+    const userData = await apiClient.getCurrentUser();
+    
+    // Build game URL with parameters
+    const gameUrl = `${API_CONFIG.ONBOARDING_GAME_URL}?userId=${userData.user._id}&token=${token}&mode=aura`;
+    
+    console.log('🎮 Opening onboarding game:', gameUrl);
+    
+    // Open in new tab
+    chrome.tabs.create({ url: gameUrl }, (tab) => {
+      console.log('✅ Onboarding game opened in tab:', tab.id);
+      showNotification('Onboarding game opened in new tab!', 'success');
+      
+      // Store tab ID to listen for completion
+      chrome.storage.local.set({ onboardingTabId: tab.id });
+    });
+    
+    // Close popup
+    window.close();
+    
+  } catch (error) {
+    console.error('Failed to start onboarding:', error);
+    showNotification('Failed to open onboarding game', 'error');
+  }
+}
+
+// Skip onboarding (proceed to consent)
+async function skipOnboarding() {
+  if (!confirm('Are you sure you want to skip the onboarding assessment? You can always complete it later from settings.')) {
+    return;
+  }
+  
+  showConsentSection();
 }
 
 // Show consent section

@@ -129,6 +129,11 @@ class APIClient {
   async getStats() {
     return await this.request(API_CONFIG.ENDPOINTS.GET_STATS);
   }
+  
+  // Onboarding methods
+  async getOnboardingStatus() {
+    return await this.request(API_CONFIG.ENDPOINTS.ONBOARDING_STATUS);
+  }
 }
 
 // Export for use in extension

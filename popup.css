@@ -629,3 +629,75 @@ footer {
   background: linear-gradient(135deg, #1aa647 0%, #7cb342 100%);
 }
 
+/* Onboarding Prompt */
+.onboarding-prompt {
+  text-align: center;
+  padding: 20px;
+}
+
+.onboarding-prompt h2 {
+  font-size: 24px;
+  color: #1FB854;
+  margin-bottom: 15px;
+}
+
+.onboarding-description {
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 25px;
+}
+
+.onboarding-tests {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  margin-bottom: 25px;
+}
+
+.test-card {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e8f5e9 100%);
+  border: 2px solid #1FB854;
+  border-radius: 12px;
+  padding: 20px 10px;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.test-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 5px 15px rgba(31, 184, 84, 0.3);
+}
+
+.test-icon {
+  font-size: 36px;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.test-card h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 5px;
+}
+
+.test-card p {
+  font-size: 11px;
+  color: #666;
+  line-height: 1.4;
+}
+
+.onboarding-note {
+  background: #fff3cd;
+  border-left: 4px solid #ffc107;
+  padding: 12px;
+  margin: 20px 0;
+  font-size: 13px;
+  color: #856404;
+  text-align: left;
+}
+
+.onboarding-actions {
+  margin-top: 20px;
+}
+

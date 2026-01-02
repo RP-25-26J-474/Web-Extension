@@ -4,6 +4,10 @@ const API_CONFIG = {
   // Change this to your production URL when deploying
   // BASE_URL: 'https://your-server.com/api',
   
+  // Onboarding game URL (sensecheck)
+  ONBOARDING_GAME_URL: 'http://localhost:5173',
+  // Production: 'https://your-sensecheck-app.vercel.app',
+  
   ENDPOINTS: {
     REGISTER: '/auth/register',
     LOGIN: '/auth/login',
@@ -14,7 +18,8 @@ const API_CONFIG = {
     GET_INTERACTIONS: '/interactions',
     GET_RECENT: '/interactions/recent',
     CLEAR_INTERACTIONS: '/interactions/clear',
-    GET_STATS: '/stats'
+    GET_STATS: '/stats',
+    ONBOARDING_STATUS: '/onboarding/status',
   },
   
   // Batch size for sending interactions
