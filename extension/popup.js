@@ -368,56 +368,82 @@ async function handleAcceptConsent() {
     // Disable button to prevent double clicks
     if (acceptBtn) {
       acceptBtn.disabled = true;
-      acceptBtn.textContent = 'Enabling...';
+      acceptBtn.textContent = 'Please wait...';
     }
     
-    console.log('📝 Updating settings...');
-    await apiClient.updateSettings(true, true);
-    console.log('✅ Settings updated');
-    
-    console.log('📤 Sending consent to background...');
+    // Enable tracking in background first (this always works)
+    console.log('📤 Enabling tracking...');
     await chrome.runtime.sendMessage({ 
       type: 'SET_CONSENT', 
       consent: true 
     });
-    console.log('✅ Background notified');
+    console.log('✅ Tracking enabled');
     
-    // Check onboarding status
+    // Try to update server settings (non-blocking)
+    console.log('📝 Updating server settings...');
+    apiClient.updateSettings(true, true).catch(err => {
+      console.warn('⚠️ Could not update server settings:', err.message);
+    });
+    
+    // Check onboarding status with timeout
     console.log('🔍 Checking onboarding status...');
-    let onboardingStatus;
-    try {
-      onboardingStatus = await apiClient.getOnboardingStatus();
-      console.log('📋 Onboarding status:', onboardingStatus);
-    } catch (statusError) {
-      console.warn('⚠️ Could not get onboarding status, assuming not completed:', statusError);
-      onboardingStatus = { completed: false };
-    }
+    let onboardingStatus = { completed: false };
+    let userData = null;
     
-    // Get user data
-    console.log('👤 Getting user data...');
-    const userData = await apiClient.getCurrentUser();
-    console.log('✅ User data:', userData.user?.name);
+    try {
+      // Add 5 second timeout
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 5000)
+      );
+      
+      const [status, user] = await Promise.race([
+        Promise.all([
+          apiClient.getOnboardingStatus(),
+          apiClient.getCurrentUser()
+        ]),
+        timeoutPromise
+      ]);
+      
+      onboardingStatus = status;
+      userData = user;
+      console.log('📋 Onboarding status:', onboardingStatus);
+      console.log('👤 User:', userData?.user?.name);
+    } catch (err) {
+      console.warn('⚠️ Could not get status, showing onboarding prompt:', err.message);
+      // Try to get user data separately
+      try {
+        userData = await apiClient.getCurrentUser();
+      } catch (userErr) {
+        console.warn('⚠️ Could not get user data');
+      }
+    }
     
     if (!onboardingStatus.completed) {
       // User needs to complete onboarding game - show prompt
       console.log('🎮 Showing onboarding prompt...');
-      showOnboardingPrompt(userData.user);
+      if (userData?.user) {
+        showOnboardingPrompt(userData.user);
+      } else {
+        // Fallback: show prompt with default name
+        showOnboardingPrompt({ name: 'User' });
+      }
     } else {
       // User has completed onboarding, show main content
       console.log('✅ Onboarding complete, showing main content...');
       showMainContent();
-      displayUserInfo(userData.user);
-      await loadData();
-      showNotification('Tracking enabled! Your privacy is protected.', 'success');
+      if (userData?.user) {
+        displayUserInfo(userData.user);
+      }
+      showNotification('Tracking enabled!', 'success');
     }
   } catch (error) {
-    console.error('❌ Failed to accept consent:', error);
-    showNotification('Failed to enable tracking: ' + error.message, 'error');
-  } finally {
-    // Re-enable button
+    console.error('❌ Failed:', error);
+    showNotification('Error: ' + error.message, 'error');
+    
+    // Re-enable button on error
     if (acceptBtn) {
       acceptBtn.disabled = false;
-      acceptBtn.textContent = 'Accept & Enable Tracking';
+      acceptBtn.textContent = 'I Understand, Continue';
     }
   }
 }
