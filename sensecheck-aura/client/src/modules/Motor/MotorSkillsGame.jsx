@@ -369,6 +369,9 @@ const MotorSkillsGame = () => {
     isEndingRoundRef.current = true;
     
     console.log(`🏁 Ending round ${currentRound}...`);
+    
+    // IMMEDIATELY set transitioning to prevent button from showing during async operations
+    setIsTransitioning(true);
     setIsPlaying(false);
     isPlayingRef.current = false; // Set ref synchronously to stop animation
     
@@ -421,8 +424,7 @@ const MotorSkillsGame = () => {
     // Move to next round or complete
     if (currentRound < 3) {
       console.log(`➡️ Transitioning from round ${currentRound} to round ${currentRound + 1}...`);
-      // Set transitioning state to keep button disabled
-      setIsTransitioning(true);
+      // isTransitioning is already true from the start of endRound
       setTimeout(() => {
         const nextRound = currentRound + 1;
         console.log(`✅ Setting currentRound to ${nextRound}`);
@@ -437,8 +439,9 @@ const MotorSkillsGame = () => {
       }, 2000);
     } else {
       console.log(`🎊 All 3 rounds complete! Completing test...`);
-      // Mark as completing to prevent button from showing
+      // Mark as completing to prevent button from showing (isTransitioning already true)
       setIsCompleting(true);
+      setIsTransitioning(false); // Reset since we're completing, not transitioning to next round
       // Clear motor round progress on completion
       sessionStorage.removeItem('sensecheck_motor_current_round');
       sessionStorage.removeItem('sensecheck_motor_started');
