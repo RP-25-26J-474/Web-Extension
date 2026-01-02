@@ -88,6 +88,7 @@ const MotorSkillsGame = () => {
   const animationFrameRef = useRef(null);
   const spawnTimerRef = useRef(null);
   const roundTimerRef = useRef(null);
+  const isEndingRoundRef = useRef(false); // Prevent multiple endRound calls
   const patternIndexRef = useRef(0);
   const isPlayingRef = useRef(false);
   const cursorSamplingRef = useRef(null);
@@ -304,6 +305,8 @@ const MotorSkillsGame = () => {
   // Start round
   const startRound = () => {
     console.log(`🎮 Starting round ${currentRound}...`);
+    // Reset endRound guard in case it was stuck
+    isEndingRoundRef.current = false;
     setIsPlaying(true);
     isPlayingRef.current = true; // Set ref synchronously for animation loop
     setRoundStartTime(Date.now());
@@ -345,6 +348,11 @@ const MotorSkillsGame = () => {
       setTimeRemaining(remaining);
 
       if (remaining === 0) {
+        // Clear timer IMMEDIATELY to prevent multiple endRound calls
+        if (roundTimerRef.current) {
+          clearInterval(roundTimerRef.current);
+          roundTimerRef.current = null;
+        }
         console.log(`⏰ Round ${currentRound} timer expired, ending round...`);
         endRound();
       }
@@ -353,6 +361,13 @@ const MotorSkillsGame = () => {
 
   // End round
   const endRound = async () => {
+    // Prevent multiple endRound calls
+    if (isEndingRoundRef.current) {
+      console.log(`⚠️ endRound already in progress, skipping...`);
+      return;
+    }
+    isEndingRoundRef.current = true;
+    
     console.log(`🏁 Ending round ${currentRound}...`);
     setIsPlaying(false);
     isPlayingRef.current = false; // Set ref synchronously to stop animation
@@ -417,6 +432,8 @@ const MotorSkillsGame = () => {
         console.log(`🔓 Transition complete, isTransitioning = false`);
         // Allow button to be clickable again after round is updated
         setIsTransitioning(false);
+        // Reset endRound guard for next round
+        isEndingRoundRef.current = false;
       }, 2000);
     } else {
       console.log(`🎊 All 3 rounds complete! Completing test...`);
