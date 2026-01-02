@@ -205,6 +205,21 @@ const useStore = create((set, get) => ({
     },
   })),
   
+  // Check if a specific module is completed
+  isModuleCompleted: (moduleName) => {
+    const state = get();
+    return state.completedModules.some((m) => m.moduleName === moduleName || m.name === moduleName);
+  },
+  
+  // Check if all modules are completed
+  isAllModulesCompleted: () => {
+    const state = get();
+    const requiredModules = ['perception', 'reaction', 'knowledge'];
+    return requiredModules.every(moduleName => 
+      state.completedModules.some((m) => m.moduleName === moduleName || m.name === moduleName)
+    );
+  },
+  
   // Reset (for testing)
   resetStore: () => set({
     currentModule: null,

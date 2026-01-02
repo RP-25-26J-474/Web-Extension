@@ -15,7 +15,7 @@ import auraIntegration from '../../utils/auraIntegration';
 const LiteracyQuiz = () => {
   const navigate = useNavigate();
   const sessionId = useStore((state) => state.sessionId);
-  const { recordLiteracyResponse, completeLiteracyTest, completeModule } = useStore();
+  const { recordLiteracyResponse, completeLiteracyTest, completeModule, isAllModulesCompleted } = useStore();
   const { trackEvent, trackClick, trackHover, trackFocus } = useInteractionTracking('literacy', true);
 
   // Load initial state from sessionStorage for persistence
@@ -224,14 +224,14 @@ const LiteracyQuiz = () => {
             <h3 className="relative text-2xl font-bold mb-6 text-white">Quiz Complete!</h3>
 
             <button
-              onClick={() => navigate('/complete')}
+              onClick={() => navigate(isAllModulesCompleted() ? '/complete' : '/')}
               className="relative w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 shadow-lg"
               style={{ 
                 background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%)',
                 boxShadow: '0 4px 20px var(--primary-color-glow)'
               }}
             >
-              Finish Assessment
+              {isAllModulesCompleted() ? 'Finish Assessment' : 'Return to Home'}
             </button>
           </div>
         </div>

@@ -44,7 +44,7 @@ const BUBBLE_RADIUS = 25;
 const MotorSkillsGame = () => {
   const navigate = useNavigate();
   const sessionId = useStore((state) => state.sessionId);
-  const { setMotorRound, completeMotorSkillsTest, completeModule } = useStore();
+  const { setMotorRound, completeMotorSkillsTest, completeModule, isAllModulesCompleted } = useStore();
   
   // Enhanced motor skills tracking (only for this module)
   const motorTrackerRef = useRef(null);
@@ -668,14 +668,14 @@ const MotorSkillsGame = () => {
               <h3 className="relative text-3xl font-bold text-center mb-2 text-white">Assessment Complete!</h3>
               <p className="text-center text-gray-400 mb-8">All rounds finished successfully</p>
               <button
-                onClick={() => navigate('/')}
+                onClick={() => navigate(isAllModulesCompleted() ? '/complete' : '/')}
                 className="w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 shadow-lg hover:scale-[1.02] active:scale-[0.98]"
                 style={{ 
                   background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%)',
                   boxShadow: '0 4px 20px var(--primary-color-glow)'
                 }}
               >
-                Return to Home
+                {isAllModulesCompleted() ? 'Finish Assessment' : 'Return to Home'}
               </button>
             </div>
           </div>

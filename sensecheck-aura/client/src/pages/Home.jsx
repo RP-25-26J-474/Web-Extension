@@ -8,6 +8,7 @@ const Home = () => {
   const navigate = useNavigate();
   const completedModules = useStore((state) => state.completedModules);
   const loadSessionData = useStore((state) => state.loadSessionData);
+  const isAllModulesCompleted = useStore((state) => state.isAllModulesCompleted);
   const [loading, setLoading] = useState(true);
 
   // Load session data on mount
@@ -26,6 +27,14 @@ const Home = () => {
     
     initializeSession();
   }, [loadSessionData]);
+  
+  // Redirect to complete page if all modules are already completed
+  useEffect(() => {
+    if (!loading && isAllModulesCompleted()) {
+      console.log('🎉 All modules completed, redirecting to complete page...');
+      navigate('/complete');
+    }
+  }, [loading, isAllModulesCompleted, navigate]);
   
   useEffect(() => {
     const handleVisibilityChange = () => {

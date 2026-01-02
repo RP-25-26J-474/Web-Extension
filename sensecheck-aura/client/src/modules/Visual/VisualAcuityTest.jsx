@@ -15,6 +15,7 @@ const VisualAcuityTest = () => {
     setVisualAcuitySize,
     completeVisualAcuityTest,
     completeModule,
+    isAllModulesCompleted,
   } = useStore();
   const { trackEvent, trackClick } = useInteractionTracking('visualAcuity', true);
 
@@ -161,7 +162,12 @@ const VisualAcuityTest = () => {
   };
 
   const handleContinue = () => {
-    navigate('/');
+    // Check if all modules are completed
+    if (isAllModulesCompleted()) {
+      navigate('/complete');
+    } else {
+      navigate('/');
+    }
   };
 
   // Calculate progress (80 -> 20, so 7 steps: 80, 70, 60, 50, 40, 30, 20)
@@ -201,7 +207,7 @@ const VisualAcuityTest = () => {
                 boxShadow: '0 4px 20px var(--primary-color-glow)'
               }}
             >
-              Return to Home
+              {isAllModulesCompleted() ? 'Finish Assessment' : 'Return to Home'}
             </button>
           </div>
         </div>
