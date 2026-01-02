@@ -25,11 +25,11 @@ const Complete = () => {
         });
     } else {
       // Standalone mode: redirect to home after 10 seconds
-      const timer = setTimeout(() => {
-        navigate('/');
-      }, 10000);
-      
-      return () => clearTimeout(timer);
+    const timer = setTimeout(() => {
+      navigate('/');
+    }, 10000);
+
+    return () => clearTimeout(timer);
     }
   }, [navigate]);
 
