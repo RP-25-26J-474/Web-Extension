@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import UserInfoModal from '../components/UserInfoModal';
 import useStore from '../state/store';
 import logo from '../resources/logo.png';
 import auraIntegration from '../utils/auraIntegration';
@@ -9,27 +8,17 @@ const Home = () => {
   const navigate = useNavigate();
   const completedModules = useStore((state) => state.completedModules);
   const loadSessionData = useStore((state) => state.loadSessionData);
-  const [showUserInfoModal, setShowUserInfoModal] = useState(false);
-  const [userInfoCollected, setUserInfoCollected] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Load session data and check if user info has been collected
+  // Load session data on mount
   useEffect(() => {
     const initializeSession = async () => {
       console.log('🏠 Home page: Loading session data...');
       await loadSessionData();
       
-      // Skip user info modal if in AURA mode (already have user data from registration)
+      // In AURA mode, user data comes from registration
       if (auraIntegration.isEnabled()) {
-        console.log('✅ AURA mode: Skipping age/gender modal (data already in user profile)');
-        setUserInfoCollected(true);
-      } else {
-        const infoCollected = sessionStorage.getItem('sensecheck_user_info_collected');
-        if (infoCollected === 'true') {
-          setUserInfoCollected(true);
-        } else {
-          setShowUserInfoModal(true);
-        }
+        console.log('✅ AURA mode: User data from registration');
       }
       
       setLoading(false);
@@ -50,17 +39,9 @@ const Home = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [loadSessionData, loading]);
 
-  const handleUserInfoSubmit = (formData) => {
-    sessionStorage.setItem('sensecheck_user_info_collected', 'true');
-    sessionStorage.setItem('sensecheck_user_age', formData.age);
-    sessionStorage.setItem('sensecheck_user_gender', formData.gender);
-    setUserInfoCollected(true);
-  };
-
-  const handleModuleClick = (path) => {
-    if (!userInfoCollected) {
-      setShowUserInfoModal(true);
-    } else {
+  const handleModuleClick = (path, moduleId) => {
+    const completed = isModuleCompleted(moduleId);
+    if (!completed) {
       navigate(path);
     }
   };
@@ -128,12 +109,6 @@ const Home = () => {
 
   return (
     <>
-      <UserInfoModal 
-        isOpen={showUserInfoModal}
-        onClose={() => setShowUserInfoModal(false)}
-        onSubmit={handleUserInfoSubmit}
-      />
-      
       <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black relative overflow-hidden">
         {/* Decorative background */}
         <div className="fixed inset-0 pointer-events-none overflow-hidden">
@@ -235,17 +210,24 @@ const Home = () => {
                       {module.tests.map((test) => (
                         <button
                           key={test.path}
-                          onClick={() => !completed && handleModuleClick(test.path)}
+                          onClick={() => handleModuleClick(test.path, module.id)}
                           disabled={completed}
-                          className="w-full px-4 py-3 rounded-xl font-medium text-sm transition-all duration-300 flex items-center justify-between text-white"
+                          className="w-full px-4 py-3 rounded-xl font-medium text-sm transition-all duration-300 flex items-center justify-between"
                           style={{ 
-                            background: completed ? 'rgba(31, 41, 55, 0.5)' : 'linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%)',
+                            background: completed 
+                              ? 'rgba(31, 41, 55, 0.5)' 
+                              : 'linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%)',
                             color: completed ? '#6b7280' : 'white',
-                            cursor: completed ? 'not-allowed' : 'pointer'
+                            cursor: completed ? 'not-allowed' : 'pointer',
+                            opacity: completed ? 0.5 : 1
                           }}
                         >
                           <span>{test.name}</span>
-                          {!completed && (
+                          {completed ? (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} style={{ color: '#6b7280' }}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>

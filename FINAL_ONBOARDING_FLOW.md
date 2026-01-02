@@ -67,33 +67,46 @@
 - ✅ Cleaner, more focused UI
 
 ### 2. **Game - `Home.jsx`** ✅
-**Skip age/gender modal in AURA mode**
+**Completely removed UserInfoModal and improved chamber UX**
 
 ```javascript
-useEffect(() => {
-  const initializeSession = async () => {
-    await loadSessionData();
-    
-    // ✅ Skip user info modal if in AURA mode
-    if (auraIntegration.isEnabled()) {
-      console.log('✅ AURA mode: Skipping age/gender modal');
-      setUserInfoCollected(true); // Already have data from registration
-    } else {
-      // Standalone mode: show modal
-      const infoCollected = sessionStorage.getItem('sensecheck_user_info_collected');
-      if (infoCollected === 'true') {
-        setUserInfoCollected(true);
-      } else {
-        setShowUserInfoModal(true);
-      }
-    }
-    
-    setLoading(false);
-  };
-  
-  initializeSession();
-}, [loadSessionData]);
+// BEFORE:
+import UserInfoModal from '../components/UserInfoModal';
+const [showUserInfoModal, setShowUserInfoModal] = useState(false);
+const [userInfoCollected, setUserInfoCollected] = useState(false);
+
+// AFTER:
+// NO MODAL IMPORTS AT ALL! ✅
+// Age/gender comes from user registration in extension
+
+// Enhanced completed chamber display:
+<button
+  onClick={() => handleModuleClick(test.path, module.id)}
+  disabled={completed}
+  style={{ 
+    background: completed 
+      ? 'rgba(31, 41, 55, 0.5)' 
+      : 'linear-gradient(...)',
+    cursor: completed ? 'not-allowed' : 'pointer',
+    opacity: completed ? 0.5 : 1  // Visually disabled
+  }}
+>
+  {completed ? (
+    <svg><!-- Checkmark icon --></svg>
+  ) : (
+    <svg><!-- Arrow icon --></svg>
+  )}
+</button>
 ```
+
+**Key Changes:**
+- ✅ Completely removed UserInfoModal component
+- ✅ Deleted `UserInfoModal.jsx` file
+- ✅ Removed all modal-related state and functions
+- ✅ Enhanced completed chamber styling (grayed out, 50% opacity)
+- ✅ Shows checkmark icon instead of arrow for completed modules
+- ✅ Disabled state prevents clicking completed chambers
+- ✅ Matches original sensecheck behavior exactly
 
 ### 3. **Game - `MotorSkillsGame.jsx`** ✅
 **Added comprehensive logging for debugging round progression**
@@ -287,19 +300,25 @@ ANALYSIS
 └──────────────────────────────┘
 ```
 
-### **3. Game Home Screen** ⭐ NO MODAL
+### **3. Game Home Screen** ⭐ NO MODAL, WITH COMPLETED STATE
 ```
-┌──────────────────────────────┐
-│  AURA Assessment             │
-├──────────────────────────────┤
-│  Choose a module:            │
-│                              │
-│  [Perception Lab]            │
-│  [Reaction Lab]              │
-│  [Knowledge Console]         │
-│                              │
-│  NO age/gender popup! ✅     │
-└──────────────────────────────┘
+┌──────────────────────────────────────────┐
+│  AURA Assessment                         │
+├──────────────────────────────────────────┤
+│  Choose a module:                        │
+│                                          │
+│  ┌────────────┐  ┌────────────┐         │
+│  │ Perception │  │ Reaction   │ ✓       │
+│  │    Lab     │  │    Lab     │ (done)  │
+│  │            │  │ [Disabled] │         │
+│  │ [Start] →  │  └────────────┘         │
+│  └────────────┘                          │
+│                                          │
+│  • NO age/gender popup! ✅               │
+│  • Completed chambers are grayed out ✅  │
+│  • Checkmark icon instead of arrow ✅    │
+│  • Cannot re-click completed tests ✅    │
+└──────────────────────────────────────────┘
 ```
 
 ---
@@ -310,12 +329,16 @@ ANALYSIS
 - [x] Prompt has ONLY "Start Onboarding Game" button (no skip)
 - [x] Game opens in new tab when button clicked
 - [x] Popup closes automatically
-- [x] Game skips age/gender modal in AURA mode
+- [x] Game has NO age/gender modal (removed completely)
 - [x] User completes 3 modules (with proper round progression)
+- [x] Completed chambers are visually disabled (grayed out, 50% opacity)
+- [x] Completed chambers show checkmark icon instead of arrow
+- [x] Completed chambers cannot be clicked again
 - [x] Comprehensive logging for debugging motor skills
 - [x] Tab auto-closes after completion
 - [x] Main interface shows when user reopens extension
 - [x] Age/gender accessible via User model for analysis
+- [x] UserInfoModal.jsx component deleted (no longer needed)
 
 ---
 
@@ -325,11 +348,13 @@ ANALYSIS
 |--------|--------|-------|
 | **Age/Gender Collection** | During game (modal) | During registration ✅ |
 | **Game Start** | Immediate on consent | After info screen ✅ |
-| **User Modal in Game** | Always shown | Skipped in AURA mode ✅ |
+| **User Modal in Game** | Always shown | Completely removed ✅ |
 | **Skip Option** | Available | Removed ✅ |
+| **Completed Chambers** | No visual indication | Grayed out, disabled, checkmark ✅ |
 | **User Experience** | Confusing options | Clear, guided flow ✅ |
 | **Data Redundancy** | Asked twice | Asked once ✅ |
 | **Motor Round Debug** | No logging | Comprehensive logs ✅ |
+| **Component Cleanup** | Modal file exists | Modal file deleted ✅ |
 
 ---
 
@@ -343,8 +368,12 @@ ANALYSIS
 ---
 
 **Implementation Date:** January 2, 2026  
-**Last Updated:** January 2, 2026 (Added motor debug logging, removed skip button)  
+**Last Updated:** January 2, 2026 (Removed UserInfoModal, enhanced completed chambers)  
 **Status:** ✅ Complete  
-**Files Modified:** 3 files (popup.js, Home.jsx, MotorSkillsGame.jsx)  
-**Key Achievement:** Mandatory onboarding, no redundant data, comprehensive debugging
+**Files Modified:** 3 files  
+  - `extension/popup.js` - Removed skip button  
+  - `sensecheck-aura/client/src/pages/Home.jsx` - Removed modal, enhanced completed state  
+  - `sensecheck-aura/client/src/components/UserInfoModal.jsx` - **DELETED** ✅  
+  - `sensecheck-aura/client/src/modules/Motor/MotorSkillsGame.jsx` - Added debug logging  
+**Key Achievement:** Mandatory onboarding, no redundant data, professional completed state, comprehensive debugging
 

@@ -112,7 +112,7 @@ class GlobalTracker {
         })], { type: 'application/json' });
         
         navigator.sendBeacon(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/global/interactions`,
+          `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/global/interactions`,
           blob
         );
       } else {
