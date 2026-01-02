@@ -97,11 +97,24 @@ header h1 {
   cursor: pointer;
   transition: all 0.3s;
   border-bottom: 3px solid transparent;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.auth-tab:hover {
+  background: rgba(31, 184, 84, 0.05);
+  color: #1FB854;
+}
+
+.auth-tab:active {
+  transform: translateY(1px);
 }
 
 .auth-tab.active {
   color: #1FB854;
   border-bottom-color: #1FB854;
+  background: rgba(31, 184, 84, 0.05);
 }
 
 .auth-form h2 {
