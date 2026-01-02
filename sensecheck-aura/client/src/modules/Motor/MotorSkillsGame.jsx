@@ -369,10 +369,9 @@ const MotorSkillsGame = () => {
     isEndingRoundRef.current = true;
     
     console.log(`🏁 Ending round ${currentRound}...`);
-    
-    // IMMEDIATELY set transitioning to prevent button from showing during async operations
-    setIsTransitioning(true);
+    // Set both states together to prevent button flash (React will batch these)
     setIsPlaying(false);
+    setIsTransitioning(true); // Prevent button from showing during transition
     isPlayingRef.current = false; // Set ref synchronously to stop animation
     
     // Clear timers
@@ -393,28 +392,27 @@ const MotorSkillsGame = () => {
       cursorSamplingRef.current = null;
     }
 
-    // Track round completion and send to ML schemas
+    // Track round completion and send to ML schemas (fire-and-forget, don't block transition)
     if (motorTrackerRef.current) {
-      try {
-        // Calculate hits and misses from tracker's logged interactions
-        const allInteractions = motorTrackerRef.current.getAllInteractions();
-        const roundInteractions = allInteractions.filter(i => i.round === currentRound);
-        const hits = roundInteractions.filter(i => i.eventType === 'bubble_hit').length;
-        const misses = roundInteractions.filter(i => i.eventType === 'bubble_miss').length;
-        
-        console.log(`📊 Round ${currentRound} stats: ${hits} hits, ${misses} misses`);
-        
-        await motorTrackerRef.current.trackRoundComplete({
-          hits: hits,
-          misses: misses,
-          escaped: misses, // Escaped bubbles are the same as misses
-          duration: BUBBLE_PATTERNS[currentRound - 1].duration,
-          averageReactionTime: 0, // Could calculate this if needed
-        });
-      } catch (error) {
+      // Calculate hits and misses from tracker's logged interactions
+      const allInteractions = motorTrackerRef.current.getAllInteractions();
+      const roundInteractions = allInteractions.filter(i => i.round === currentRound);
+      const hits = roundInteractions.filter(i => i.eventType === 'bubble_hit').length;
+      const misses = roundInteractions.filter(i => i.eventType === 'bubble_miss').length;
+      
+      console.log(`📊 Round ${currentRound} stats: ${hits} hits, ${misses} misses`);
+      
+      // Fire-and-forget: don't await, let it run in background
+      motorTrackerRef.current.trackRoundComplete({
+        hits: hits,
+        misses: misses,
+        escaped: misses, // Escaped bubbles are the same as misses
+        duration: BUBBLE_PATTERNS[currentRound - 1].duration,
+        averageReactionTime: 0, // Could calculate this if needed
+      }).catch(error => {
         console.error('Error tracking round completion:', error);
         // Continue game even if tracking fails
-      }
+      });
     }
 
     // Clear remaining bubbles
@@ -424,7 +422,7 @@ const MotorSkillsGame = () => {
     // Move to next round or complete
     if (currentRound < 3) {
       console.log(`➡️ Transitioning from round ${currentRound} to round ${currentRound + 1}...`);
-      // isTransitioning is already true from the start of endRound
+      // isTransitioning already set at start of endRound
       setTimeout(() => {
         const nextRound = currentRound + 1;
         console.log(`✅ Setting currentRound to ${nextRound}`);
@@ -439,9 +437,9 @@ const MotorSkillsGame = () => {
       }, 2000);
     } else {
       console.log(`🎊 All 3 rounds complete! Completing test...`);
-      // Mark as completing to prevent button from showing (isTransitioning already true)
+      // Mark as completing to prevent button from showing
+      setIsTransitioning(false); // Use isCompleting instead
       setIsCompleting(true);
-      setIsTransitioning(false); // Reset since we're completing, not transitioning to next round
       // Clear motor round progress on completion
       sessionStorage.removeItem('sensecheck_motor_current_round');
       sessionStorage.removeItem('sensecheck_motor_started');
