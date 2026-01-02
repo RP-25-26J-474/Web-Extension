@@ -49,14 +49,99 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   }
 });
 
-// Listen for messages from content scripts
+// SINGLE message listener for all messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Content script interactions
   if (message.type === 'INTERACTION') {
     handleInteraction(message.data, sender.tab);
     sendResponse({ success: true });
+    return false;
   }
   
-  return true; // Keep message channel open
+  // Get stats
+  if (message.type === 'GET_STATS') {
+    chrome.storage.local.get(['stats', 'interactions']).then(result => {
+      sendResponse({ stats: result.stats, recentCount: result.interactions?.length || 0 });
+    });
+    return true;
+  }
+  
+  // Clear data
+  if (message.type === 'CLEAR_DATA') {
+    clearAllData().then(() => sendResponse({ success: true }));
+    return true;
+  }
+  
+  // Export data
+  if (message.type === 'EXPORT_DATA') {
+    chrome.storage.local.get(['interactions']).then(result => {
+      sendResponse({ interactions: result.interactions || [] });
+    });
+    return true;
+  }
+  
+  // Sync to server
+  if (message.type === 'SYNC_TO_SERVER') {
+    syncInteractionsToServer().then(result => sendResponse(result));
+    return true;
+  }
+  
+  // Toggle tracking
+  if (message.type === 'TOGGLE_TRACKING') {
+    toggleTracking(message.enabled).then(() => sendResponse({ success: true }));
+    return true;
+  }
+  
+  // Set consent
+  if (message.type === 'SET_CONSENT') {
+    const storageUpdate = { 
+      consentGiven: message.consent,
+      trackingEnabled: message.consent
+    };
+    if (message.consent) {
+      storageUpdate.trackingConfig = {
+        clicks: true, keystrokes: true, mouseMovements: true,
+        pageViews: true, doubleClicks: true, rightClicks: true,
+        mouseHovers: true, dragAndDrop: true, touchEvents: true, zoomEvents: true
+      };
+    }
+    chrome.storage.local.set(storageUpdate).then(() => {
+      if (message.consent) {
+        updateBadge(0);
+      } else {
+        chrome.action.setBadgeText({ text: '' });
+      }
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+  
+  // Update config
+  if (message.type === 'UPDATE_CONFIG') {
+    chrome.storage.local.set({ trackingConfig: message.config }).then(() => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+  
+  // Onboarding complete
+  if (message.type === 'ONBOARDING_COMPLETE') {
+    console.log('🎉 Onboarding completed!');
+    chrome.storage.local.remove('onboardingTabId');
+    if (sender.tab?.id) {
+      chrome.tabs.remove(sender.tab.id).catch(() => {});
+    }
+    sendResponse({ success: true });
+    return false;
+  }
+  
+  // Page unload sync
+  if (message.type === 'PAGE_UNLOAD_SYNC') {
+    syncInteractionsToServer().then(result => sendResponse(result));
+    return true;
+  }
+  
+  return false;
 });
 
 // Handle and store interaction data
@@ -208,87 +293,6 @@ setInterval(async () => {
   }
 }, API_CONFIG?.SYNC_INTERVAL || 30000); // Sync every 30 seconds
 
-// Handle messages from popup
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'GET_STATS') {
-    chrome.storage.local.get(['stats', 'interactions']).then(result => {
-      sendResponse({ 
-        stats: result.stats, 
-        recentCount: result.interactions?.length || 0 
-      });
-    });
-    return true;
-  }
-  
-  if (message.type === 'CLEAR_DATA') {
-    clearAllData().then(() => {
-      sendResponse({ success: true });
-    });
-    return true;
-  }
-  
-  if (message.type === 'EXPORT_DATA') {
-    chrome.storage.local.get(['interactions']).then(result => {
-      sendResponse({ interactions: result.interactions || [] });
-    });
-    return true;
-  }
-  
-  if (message.type === 'SYNC_TO_SERVER') {
-    syncInteractionsToServer().then(result => {
-      sendResponse(result);
-    });
-    return true;
-  }
-  
-  if (message.type === 'TOGGLE_TRACKING') {
-    toggleTracking(message.enabled).then(() => {
-      sendResponse({ success: true });
-    });
-    return true;
-  }
-  
-  if (message.type === 'SET_CONSENT') {
-    // When consent is given, enable ALL tracking options by default
-    const storageUpdate = { 
-      consentGiven: message.consent,
-      trackingEnabled: message.consent
-    };
-    
-    // Ensure all tracking options are enabled when consent is given
-    if (message.consent) {
-      storageUpdate.trackingConfig = {
-        clicks: true,
-        keystrokes: true,
-        mouseMovements: true,
-        pageViews: true,
-        doubleClicks: true,
-        rightClicks: true,
-        mouseHovers: true,
-        dragAndDrop: true,
-        touchEvents: true,
-        zoomEvents: true
-      };
-    }
-    
-    chrome.storage.local.set(storageUpdate).then(() => {
-      if (message.consent) {
-        updateBadge(0);
-      } else {
-        chrome.action.setBadgeText({ text: '' });
-      }
-      sendResponse({ success: true });
-    });
-    return true;
-  }
-  
-  if (message.type === 'UPDATE_CONFIG') {
-    chrome.storage.local.set({ trackingConfig: message.config }).then(() => {
-      sendResponse({ success: true });
-    });
-    return true;
-  }
-});
 
 // Toggle tracking on/off
 async function toggleTracking(enabled) {
@@ -471,34 +475,6 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   }
 });
 
-// Listen for messages from onboarding game (via window.postMessage)
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'ONBOARDING_COMPLETE') {
-    console.log('🎉 Onboarding completed!');
-    
-    // Clear the onboarding tab ID
-    chrome.storage.local.remove('onboardingTabId');
-    
-    // Close the tab if it's still open
-    if (sender.tab?.id) {
-      chrome.tabs.remove(sender.tab.id).catch(() => {
-        console.log('Tab already closed');
-      });
-    }
-    
-    sendResponse({ success: true });
-  }
-  
-  // Sync on page unload request from content script
-  if (message.type === 'PAGE_UNLOAD_SYNC') {
-    syncInteractionsToServer().then(result => {
-      sendResponse(result);
-    });
-    return true;
-  }
-  
-  return true;
-});
 
 // Sync when browser is about to suspend (for graceful shutdown)
 chrome.runtime.onSuspend?.addListener(() => {

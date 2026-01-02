@@ -364,87 +364,68 @@ async function handleLogout() {
 async function handleAcceptConsent() {
   const acceptBtn = document.getElementById('acceptConsent');
   
+  // Disable button immediately
+  if (acceptBtn) {
+    acceptBtn.disabled = true;
+    acceptBtn.textContent = 'Please wait...';
+  }
+  
+  console.log('📤 Enabling tracking...');
+  
+  // Enable tracking locally (don't await - fire and forget)
+  chrome.runtime.sendMessage({ type: 'SET_CONSENT', consent: true })
+    .catch(err => console.warn('Background message error:', err));
+  
+  // Also set directly in storage as backup
+  chrome.storage.local.set({
+    consentGiven: true,
+    trackingEnabled: true,
+    trackingConfig: {
+      clicks: true, keystrokes: true, mouseMovements: true,
+      pageViews: true, doubleClicks: true, rightClicks: true,
+      mouseHovers: true, dragAndDrop: true, touchEvents: true, zoomEvents: true
+    }
+  });
+  
+  // Update server settings (fire and forget)
+  apiClient.updateSettings(true, true).catch(() => {});
+  
+  // Get user data and check onboarding status
+  let userData = null;
+  let onboardingCompleted = false;
+  
   try {
-    // Disable button to prevent double clicks
-    if (acceptBtn) {
-      acceptBtn.disabled = true;
-      acceptBtn.textContent = 'Please wait...';
-    }
+    // Quick timeout - 3 seconds max
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
     
-    // Enable tracking in background first (this always works)
-    console.log('📤 Enabling tracking...');
-    await chrome.runtime.sendMessage({ 
-      type: 'SET_CONSENT', 
-      consent: true 
-    });
-    console.log('✅ Tracking enabled');
+    userData = await apiClient.getCurrentUser();
+    clearTimeout(timeoutId);
     
-    // Try to update server settings (non-blocking)
-    console.log('📝 Updating server settings...');
-    apiClient.updateSettings(true, true).catch(err => {
-      console.warn('⚠️ Could not update server settings:', err.message);
-    });
+    console.log('👤 User:', userData?.user?.name);
     
-    // Check onboarding status with timeout
-    console.log('🔍 Checking onboarding status...');
-    let onboardingStatus = { completed: false };
-    let userData = null;
-    
+    // Check onboarding status
     try {
-      // Add 5 second timeout
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), 5000)
-      );
-      
-      const [status, user] = await Promise.race([
-        Promise.all([
-          apiClient.getOnboardingStatus(),
-          apiClient.getCurrentUser()
-        ]),
-        timeoutPromise
-      ]);
-      
-      onboardingStatus = status;
-      userData = user;
-      console.log('📋 Onboarding status:', onboardingStatus);
-      console.log('👤 User:', userData?.user?.name);
-    } catch (err) {
-      console.warn('⚠️ Could not get status, showing onboarding prompt:', err.message);
-      // Try to get user data separately
-      try {
-        userData = await apiClient.getCurrentUser();
-      } catch (userErr) {
-        console.warn('⚠️ Could not get user data');
-      }
+      const status = await apiClient.getOnboardingStatus();
+      onboardingCompleted = status?.completed || false;
+      console.log('📋 Onboarding completed:', onboardingCompleted);
+    } catch (e) {
+      console.warn('⚠️ Could not check onboarding status');
     }
-    
-    if (!onboardingStatus.completed) {
-      // User needs to complete onboarding game - show prompt
-      console.log('🎮 Showing onboarding prompt...');
-      if (userData?.user) {
-        showOnboardingPrompt(userData.user);
-      } else {
-        // Fallback: show prompt with default name
-        showOnboardingPrompt({ name: 'User' });
-      }
-    } else {
-      // User has completed onboarding, show main content
-      console.log('✅ Onboarding complete, showing main content...');
-      showMainContent();
-      if (userData?.user) {
-        displayUserInfo(userData.user);
-      }
-      showNotification('Tracking enabled!', 'success');
+  } catch (err) {
+    console.warn('⚠️ Could not get user data:', err.message);
+  }
+  
+  // Proceed with UI
+  if (onboardingCompleted) {
+    console.log('✅ Showing main content...');
+    showMainContent();
+    if (userData?.user) {
+      displayUserInfo(userData.user);
     }
-  } catch (error) {
-    console.error('❌ Failed:', error);
-    showNotification('Error: ' + error.message, 'error');
-    
-    // Re-enable button on error
-    if (acceptBtn) {
-      acceptBtn.disabled = false;
-      acceptBtn.textContent = 'I Understand, Continue';
-    }
+  } else {
+    console.log('🎮 Showing onboarding prompt...');
+    showOnboardingPrompt(userData?.user || { name: 'User' });
   }
 }
 
