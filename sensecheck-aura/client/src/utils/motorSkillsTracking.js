@@ -20,11 +20,13 @@ class MotorSkillsTracker {
     this.trajectoryPoints = [];
     this.round = 1;
     
-    // Batching for performance
+    // Batching for performance - larger batches, less frequent sends
     this.interactionBuffer = [];
-    this.BATCH_SIZE = 10;
-    this.BATCH_TIMEOUT = 2000; // 2 seconds
+    this.BATCH_SIZE = 50; // Increased from 10
+    this.BATCH_TIMEOUT = 10000; // 10 seconds (increased from 2s)
     this.batchTimer = null;
+    this.isFlushing = false; // Prevent concurrent flushes
+    this.MAX_BUFFER_SIZE = 500; // Memory protection
     
     // ========== AURA INTEGRATION ==========
     // Buffers for sending data to AURA backend
@@ -32,10 +34,11 @@ class MotorSkillsTracker {
     this.auraAttempts = []; // Bubble attempts
     this.auraGlobalInteractions = []; // Other interactions
     
-    // Batching config for AURA
-    this.AURA_POINTER_BATCH_SIZE = 100; // Send every 100 samples
-    this.AURA_ATTEMPT_BATCH_SIZE = 10;  // Send every 10 attempts
-    this.AURA_INTERACTION_BATCH_SIZE = 50; // Send every 50 interactions
+    // Batching config for AURA - larger batches to reduce requests
+    this.AURA_POINTER_BATCH_SIZE = 200; // Increased from 100
+    this.AURA_ATTEMPT_BATCH_SIZE = 20;  // Increased from 10
+    this.AURA_INTERACTION_BATCH_SIZE = 100; // Increased from 50
+    this.MAX_AURA_BUFFER_SIZE = 1000; // Memory protection
     
     this.roundStartTime = Date.now(); // For calculating tms (time since round start)
   }
@@ -398,16 +401,18 @@ class MotorSkillsTracker {
 
   // Helper: Add interaction to buffer
   addToBuffer(data) {
+    // Prevent buffer from growing too large (memory protection)
+    if (this.interactionBuffer.length >= this.MAX_BUFFER_SIZE) {
+      this.interactionBuffer = this.interactionBuffer.slice(-this.MAX_BUFFER_SIZE + 1);
+    }
+    
     this.interactionBuffer.push(data);
     
-    // Auto-flush if buffer is full
-    if (this.interactionBuffer.length >= this.BATCH_SIZE) {
+    // Auto-flush if buffer is full (but don't flood with requests)
+    if (this.interactionBuffer.length >= this.BATCH_SIZE && !this.isFlushing) {
       this.flushBatch();
-    } else {
-      // Reset batch timer
-      if (this.batchTimer) {
-        clearTimeout(this.batchTimer);
-      }
+    } else if (!this.batchTimer) {
+      // Set batch timer only if not already set
       this.batchTimer = setTimeout(() => {
         this.flushBatch();
       }, this.BATCH_TIMEOUT);
@@ -416,15 +421,17 @@ class MotorSkillsTracker {
 
   // Helper: Flush batch to backend
   async flushBatch() {
+    // Prevent concurrent flushes
+    if (this.isFlushing) return;
     if (this.interactionBuffer.length === 0) return;
     
-    // ONLY send data in AURA mode (when properly authenticated)
-    // This prevents 401 errors when running in standalone mode
+    // ONLY send data in AURA mode
     if (!auraIntegration.isEnabled()) {
       this.interactionBuffer = []; // Clear buffer in standalone mode
       return;
     }
     
+    this.isFlushing = true;
     const batch = [...this.interactionBuffer];
     this.interactionBuffer = [];
     
@@ -437,11 +444,10 @@ class MotorSkillsTracker {
       await auraIntegration.saveGlobalInteractions(batch);
       console.log(`📦 Flushed ${batch.length} motor skill interactions via AURA`);
     } catch (error) {
-      console.error('Error flushing motor skills batch:', error);
-      // Don't re-add to buffer on auth errors to prevent infinite retries
-      if (error?.response?.status !== 401 && this.interactionBuffer.length < 100) {
-        this.interactionBuffer.unshift(...batch);
-      }
+      // Don't retry on errors - just drop the batch to prevent request floods
+      console.error('Error flushing motor skills batch (data dropped):', error.message);
+    } finally {
+      this.isFlushing = false;
     }
   }
 
@@ -523,13 +529,15 @@ class MotorSkillsTracker {
   async flushAuraPointerSamples() {
     if (!auraIntegration.isEnabled() || this.auraPointerSamples.length === 0) return;
     
+    const samples = [...this.auraPointerSamples];
+    this.auraPointerSamples = []; // Clear BEFORE sending to prevent buildup
+    
     try {
-      console.log(`🖱️ Flushing ${this.auraPointerSamples.length} pointer samples to AURA`);
-      await auraIntegration.savePointerSamples([...this.auraPointerSamples]);
-      this.auraPointerSamples = []; // Clear buffer after successful send
+      console.log(`🖱️ Flushing ${samples.length} pointer samples to AURA`);
+      await auraIntegration.savePointerSamples(samples);
     } catch (error) {
-      console.error('Error flushing AURA pointer samples:', error);
-      // Keep samples in buffer to retry later
+      // Don't retry - just drop data to prevent request floods
+      console.error('Error flushing AURA pointer samples (data dropped):', error.message);
     }
   }
   
@@ -537,13 +545,15 @@ class MotorSkillsTracker {
   async flushAuraAttempts() {
     if (!auraIntegration.isEnabled() || this.auraAttempts.length === 0) return;
     
+    const attempts = [...this.auraAttempts];
+    this.auraAttempts = []; // Clear BEFORE sending
+    
     try {
-      console.log(`🎯 Flushing ${this.auraAttempts.length} attempts to AURA`);
-      await auraIntegration.saveMotorAttempts([...this.auraAttempts]);
-      this.auraAttempts = []; // Clear buffer after successful send
+      console.log(`🎯 Flushing ${attempts.length} attempts to AURA`);
+      await auraIntegration.saveMotorAttempts(attempts);
     } catch (error) {
-      console.error('Error flushing AURA attempts:', error);
-      // Keep attempts in buffer to retry later
+      // Don't retry - just drop data to prevent request floods
+      console.error('Error flushing AURA attempts (data dropped):', error.message);
     }
   }
   
@@ -551,13 +561,15 @@ class MotorSkillsTracker {
   async flushAuraGlobalInteractions() {
     if (!auraIntegration.isEnabled() || this.auraGlobalInteractions.length === 0) return;
     
+    const interactions = [...this.auraGlobalInteractions];
+    this.auraGlobalInteractions = []; // Clear BEFORE sending
+    
     try {
-      console.log(`🌍 Flushing ${this.auraGlobalInteractions.length} global interactions to AURA`);
-      await auraIntegration.saveGlobalInteractions([...this.auraGlobalInteractions]);
-      this.auraGlobalInteractions = []; // Clear buffer after successful send
+      console.log(`🌍 Flushing ${interactions.length} global interactions to AURA`);
+      await auraIntegration.saveGlobalInteractions(interactions);
     } catch (error) {
-      console.error('Error flushing AURA global interactions:', error);
-      // Keep interactions in buffer to retry later
+      // Don't retry - just drop data to prevent request floods
+      console.error('Error flushing AURA global interactions (data dropped):', error.message);
     }
   }
   

@@ -15,11 +15,13 @@ class GlobalTracker {
     this.pointerStartData = {};
     this.isInitialized = false;
     
-    // Batching for performance
+    // Batching for performance - larger batches, less frequent sends
     this.interactionBuffer = [];
-    this.BATCH_SIZE = 10;
-    this.BATCH_TIMEOUT = 2000; // 2 seconds
+    this.BATCH_SIZE = 50; // Increased from 10 to reduce request frequency
+    this.BATCH_TIMEOUT = 10000; // 10 seconds (increased from 2s)
     this.batchTimer = null;
+    this.isFlushing = false; // Prevent concurrent flushes
+    this.MAX_BUFFER_SIZE = 500; // Prevent memory bloat
   }
 
   initialize(sessionId) {
@@ -68,16 +70,19 @@ class GlobalTracker {
     // Skip if data is null (no sessionId)
     if (!data) return;
     
+    // Prevent buffer from growing too large (memory protection)
+    if (this.interactionBuffer.length >= this.MAX_BUFFER_SIZE) {
+      // Drop oldest interactions to make room
+      this.interactionBuffer = this.interactionBuffer.slice(-this.MAX_BUFFER_SIZE + 1);
+    }
+    
     this.interactionBuffer.push(data);
     
-    // Auto-flush if buffer is full
-    if (this.interactionBuffer.length >= this.BATCH_SIZE) {
+    // Auto-flush if buffer is full (but don't flood with requests)
+    if (this.interactionBuffer.length >= this.BATCH_SIZE && !this.isFlushing) {
       this.flushBatch();
-    } else {
-      // Reset batch timer
-      if (this.batchTimer) {
-        clearTimeout(this.batchTimer);
-      }
+    } else if (!this.batchTimer) {
+      // Set batch timer only if not already set
       this.batchTimer = setTimeout(() => {
         this.flushBatch();
       }, this.BATCH_TIMEOUT);
@@ -86,24 +91,26 @@ class GlobalTracker {
 
   // Helper: Flush batch to backend
   async flushBatch(synchronous = false) {
+    // Prevent concurrent flushes (which cause ERR_INSUFFICIENT_RESOURCES)
+    if (this.isFlushing && !synchronous) {
+      return;
+    }
+    
     if (this.interactionBuffer.length === 0) return;
     
     // Skip if no sessionId
     if (!this.sessionId) {
-      console.warn('⚠️ GlobalTracker: Cannot flush batch, sessionId not set');
       this.interactionBuffer = []; // Clear invalid buffer
       return;
     }
     
     // ONLY send data in AURA mode (when properly authenticated)
-    // This prevents 401 errors when running in standalone mode
     if (!auraIntegration.isEnabled()) {
-      // Not in AURA mode - skip API calls silently
-      // This is standalone mode without backend authentication
-      this.interactionBuffer = []; // Clear buffer to prevent buildup
+      this.interactionBuffer = []; // Clear buffer in standalone mode
       return;
     }
     
+    this.isFlushing = true;
     const batch = [...this.interactionBuffer];
     this.interactionBuffer = [];
     
@@ -115,7 +122,6 @@ class GlobalTracker {
     try {
       if (synchronous) {
         // Use sendBeacon for synchronous unload
-        // Include token in URL (sendBeacon can't send headers)
         const token = auraIntegration.getToken();
         const url = token 
           ? `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding/global/interactions?token=${token}`
@@ -133,11 +139,10 @@ class GlobalTracker {
         console.log(`📦 Flushed ${batch.length} global interactions via AURA`);
       }
     } catch (error) {
-      console.error('Error flushing interaction batch:', error);
-      // Don't re-add to buffer on auth errors to prevent infinite retries
-      if (error?.response?.status !== 401 && this.interactionBuffer.length < 100) {
-        this.interactionBuffer.unshift(...batch);
-      }
+      // Don't retry on errors - just drop the batch to prevent request floods
+      console.error('Error flushing interaction batch (data dropped):', error.message);
+    } finally {
+      this.isFlushing = false;
     }
   }
 

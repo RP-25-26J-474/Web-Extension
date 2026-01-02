@@ -8,6 +8,12 @@ class AuraIntegration {
     this.isAuraMode = false;
     this.auraAPI = 'http://localhost:3000/api/onboarding';
     
+    // Request queue to prevent ERR_INSUFFICIENT_RESOURCES
+    this.requestQueue = [];
+    this.isProcessingQueue = false;
+    this.MAX_CONCURRENT_REQUESTS = 2; // Browser allows 6, we use 2 to be safe
+    this.activeRequests = 0;
+    
     this.initialize();
   }
   
@@ -69,11 +75,39 @@ class AuraIntegration {
     return this.userId;
   }
   
-  // API call helper
+  // Queued API call - prevents too many concurrent requests
   async callAuraAPI(endpoint, data) {
     if (!this.isEnabled()) {
       throw new Error('Not in AURA mode');
     }
+    
+    // Add to queue and wait for turn
+    return new Promise((resolve, reject) => {
+      this.requestQueue.push({
+        endpoint,
+        data,
+        resolve,
+        reject,
+      });
+      this.processQueue();
+    });
+  }
+  
+  // Process queued requests with concurrency limit
+  async processQueue() {
+    // Already at max concurrent requests
+    if (this.activeRequests >= this.MAX_CONCURRENT_REQUESTS) {
+      return;
+    }
+    
+    // Nothing in queue
+    if (this.requestQueue.length === 0) {
+      return;
+    }
+    
+    // Get next request from queue
+    const { endpoint, data, resolve, reject } = this.requestQueue.shift();
+    this.activeRequests++;
     
     try {
       const response = await fetch(`${this.auraAPI}/${endpoint}`, {
@@ -86,14 +120,19 @@ class AuraIntegration {
       });
       
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({ error: 'API call failed' }));
         throw new Error(error.error || 'API call failed');
       }
       
-      return await response.json();
+      const result = await response.json();
+      resolve(result);
     } catch (error) {
-      console.error(`AURA API error (${endpoint}):`, error);
-      throw error;
+      console.error(`AURA API error (${endpoint}):`, error.message);
+      reject(error);
+    } finally {
+      this.activeRequests--;
+      // Process next request in queue
+      this.processQueue();
     }
   }
   
