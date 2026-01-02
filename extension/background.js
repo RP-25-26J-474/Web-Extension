@@ -287,3 +287,43 @@ chrome.storage.local.get(['stats']).then(result => {
   }
 });
 
+// Listen for tab removal (when onboarding game closes)
+chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
+  try {
+    const result = await chrome.storage.local.get(['onboardingTabId']);
+    
+    if (result.onboardingTabId === tabId) {
+      console.log('🎮 Onboarding tab closed:', tabId);
+      
+      // Clear the stored tab ID
+      await chrome.storage.local.remove('onboardingTabId');
+      
+      // Note: The popup will check onboarding status when it reopens
+      // No need to do anything else here
+    }
+  } catch (error) {
+    console.error('Error handling tab removal:', error);
+  }
+});
+
+// Listen for messages from onboarding game (via window.postMessage)
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'ONBOARDING_COMPLETE') {
+    console.log('🎉 Onboarding completed!');
+    
+    // Clear the onboarding tab ID
+    chrome.storage.local.remove('onboardingTabId');
+    
+    // Close the tab if it's still open
+    if (sender.tab?.id) {
+      chrome.tabs.remove(sender.tab.id).catch(() => {
+        console.log('Tab already closed');
+      });
+    }
+    
+    sendResponse({ success: true });
+  }
+  
+  return true;
+});
+

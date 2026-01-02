@@ -403,13 +403,30 @@ async function handleAcceptConsent() {
       consent: true 
     });
     
-    const userData = await apiClient.getCurrentUser();
-    showMainContent();
-    displayUserInfo(userData.user);
-    await loadData();
-    showNotification('Tracking enabled! Your privacy is protected.', 'success');
+    // Check onboarding status
+    console.log('🔍 Checking onboarding status after consent...');
+    const onboardingStatus = await apiClient.getOnboardingStatus();
+    console.log('📋 Onboarding status:', onboardingStatus);
+    
+    if (!onboardingStatus.completed) {
+      // User needs to complete onboarding game - START IMMEDIATELY
+      console.log('🎮 Starting onboarding game immediately...');
+      showNotification('Starting onboarding game...', 'info');
+      
+      // Start the game right away (no prompt)
+      await startOnboardingGame();
+      
+    } else {
+      // User has completed onboarding, show main content
+      console.log('✅ Onboarding already complete, showing main content...');
+      const userData = await apiClient.getCurrentUser();
+      showMainContent();
+      displayUserInfo(userData.user);
+      await loadData();
+      showNotification('Tracking enabled! Your privacy is protected.', 'success');
+    }
   } catch (error) {
-    console.error('Failed to accept consent:', error);
+    console.error('❌ Failed to accept consent:', error);
     showNotification('Failed to enable tracking', 'error');
   }
 }
