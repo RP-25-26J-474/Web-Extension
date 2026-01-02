@@ -4,7 +4,6 @@
  * Uses ML-ready GlobalInteractionBucket for efficient storage
  */
 
-import { logGlobalInteractions } from './api';
 import auraIntegration from './auraIntegration';
 
 class GlobalTracker {
@@ -96,6 +95,15 @@ class GlobalTracker {
       return;
     }
     
+    // ONLY send data in AURA mode (when properly authenticated)
+    // This prevents 401 errors when running in standalone mode
+    if (!auraIntegration.isEnabled()) {
+      // Not in AURA mode - skip API calls silently
+      // This is standalone mode without backend authentication
+      this.interactionBuffer = []; // Clear buffer to prevent buildup
+      return;
+    }
+    
     const batch = [...this.interactionBuffer];
     this.interactionBuffer = [];
     
@@ -107,10 +115,8 @@ class GlobalTracker {
     try {
       if (synchronous) {
         // Use sendBeacon for synchronous unload
-        // Note: sendBeacon doesn't support auth headers, so this may fail in AURA mode
-        // We include token in URL as fallback (not ideal but necessary for unload)
-        const params = new URLSearchParams(window.location.search);
-        const token = params.get('token');
+        // Include token in URL (sendBeacon can't send headers)
+        const token = auraIntegration.token;
         const url = token 
           ? `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding/global/interactions?token=${token}`
           : `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding/global/interactions`;
@@ -122,19 +128,14 @@ class GlobalTracker {
         
         navigator.sendBeacon(url, blob);
       } else {
-        // Async batch - prefer AURA integration if available
-        if (auraIntegration.isEnabled()) {
-          await auraIntegration.saveGlobalInteractions(batch);
-          console.log(`📦 Flushed ${batch.length} global interactions via AURA`);
-        } else {
-          await logGlobalInteractions(this.sessionId, batch);
-          console.log(`📦 Flushed ${batch.length} global interactions (ML-ready)`);
-        }
+        // Async batch - use AURA integration
+        await auraIntegration.saveGlobalInteractions(batch);
+        console.log(`📦 Flushed ${batch.length} global interactions via AURA`);
       }
     } catch (error) {
       console.error('Error flushing interaction batch:', error);
-      // Re-add to buffer on error (but limit to prevent infinite growth)
-      if (this.interactionBuffer.length < 100) {
+      // Don't re-add to buffer on auth errors to prevent infinite retries
+      if (error?.response?.status !== 401 && this.interactionBuffer.length < 100) {
         this.interactionBuffer.unshift(...batch);
       }
     }

@@ -100,7 +100,18 @@ const Home = () => {
   ];
 
   const isModuleCompleted = (moduleName) => {
-    return completedModules.some((m) => m.moduleName === moduleName || m.name === moduleName);
+    // Map between sensecheck and AURA module names
+    const moduleNameMap = {
+      'perception': ['perception', 'vision'],
+      'reaction': ['reaction', 'motor'],
+      'knowledge': ['knowledge', 'literacy'],
+    };
+    
+    const namesToCheck = moduleNameMap[moduleName] || [moduleName];
+    
+    return completedModules.some((m) => 
+      namesToCheck.includes(m.moduleName) || namesToCheck.includes(m.name)
+    );
   };
 
   const completedCount = modules.filter(m => isModuleCompleted(m.id)).length;

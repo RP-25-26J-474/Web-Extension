@@ -6,13 +6,6 @@
  * AURA INTEGRATION: Sends data to both original sensecheck backend AND AURA backend
  */
 
-import { 
-  logGlobalInteractions, 
-  logPointerSamples, 
-  logMotorAttempts,
-  computeRoundSummary,
-  computeSessionSummary,
-} from './api';
 import auraIntegration from './auraIntegration';
 
 class MotorSkillsTracker {
@@ -326,152 +319,10 @@ class MotorSkillsTracker {
       }
     }
     
-    // ========== ORIGINAL TRACKING (only when NOT in AURA mode) ==========
-    if (!auraIntegration.isEnabled()) {
-      // Send round-specific data to ML schemas
-      try {
-        await this.sendRoundDataToML(this.round);
-      } catch (error) {
-        console.error(`Error sending round ${this.round} data to ML:`, error);
-      }
-      
-      // Compute round summary on backend
-      try {
-        const result = await computeRoundSummary(this.sessionId, this.participantId, this.round);
-        console.log(`📊 Round ${this.round} summary computed on backend`, result);
-      } catch (error) {
-        console.error(`❌ Error computing round ${this.round} summary:`, error);
-        console.error('Error details:', error.response?.data || error.message);
-      }
-    }
+    // NOTE: Original tracking (non-AURA mode) is disabled to prevent 401 errors
+    // All backend calls require AURA authentication
     
     this.round++;
-  }
-  
-  // Send round-specific data to ML schemas
-  async sendRoundDataToML(round) {
-    console.log(`🔍 sendRoundDataToML called for round ${round}`);
-    console.log(`   Total interactions tracked: ${this.interactions.length}`);
-    
-    // Debug: Show what event types we have
-    const eventTypes = {};
-    this.interactions.forEach(i => {
-      eventTypes[i.eventType] = (eventTypes[i.eventType] || 0) + 1;
-    });
-    console.log(`   Event types:`, eventTypes);
-    
-    // Extract pointer traces for this round
-    const roundMoves = this.interactions.filter(i => 
-      i.eventType === 'pointer_move' && i.round === round
-    );
-    
-    console.log(`   Pointer moves for round ${round}: ${roundMoves.length}`);
-    
-    if (roundMoves.length > 0) {
-      const pointerSamples = roundMoves.map(event => {
-        const screenWidth = window.innerWidth;
-        const screenHeight = window.innerHeight;
-        
-        return {
-          round: event.round,
-          tms: event.timestamp ? new Date(event.timestamp).getTime() : Date.now(),
-          x: (event.coordinates?.x || 0) / screenWidth,
-          y: (event.coordinates?.y || 0) / screenHeight,
-          isDown: false,
-          pointerType: 'mouse',
-        };
-      });
-      
-      try {
-        await logPointerSamples(this.sessionId, pointerSamples);
-        console.log(`📊 Sent ${pointerSamples.length} pointer samples for round ${round}`);
-      } catch (error) {
-        console.error(`❌ Error sending pointer samples for round ${round}:`, error);
-        console.error('Sample data:', pointerSamples.slice(0, 2)); // Show first 2 samples
-      }
-    }
-    
-    // Extract attempts for this round
-    const roundAttempts = this.interactions.filter(i => 
-      (i.eventType === 'bubble_hit' || i.eventType === 'bubble_miss') && i.round === round
-    );
-    
-    console.log(`   Bubble attempts for round ${round}: ${roundAttempts.length}`);
-    if (roundAttempts.length > 0) {
-      console.log(`   Sample attempt:`, roundAttempts[0]);
-    }
-    
-    if (roundAttempts.length > 0) {
-      const screenWidth = window.innerWidth;
-      const screenHeight = window.innerHeight;
-      const minDim = Math.min(screenWidth, screenHeight);
-      
-      const attempts = roundAttempts.map((event, idx) => {
-        // Validate required fields
-        if (!event.bubbleId) {
-          console.warn(`⚠️ Attempt ${idx} (${event.eventType}) missing bubbleId:`, event);
-        }
-        if (event.column === undefined || event.column === null) {
-          console.warn(`⚠️ Attempt ${idx} (${event.eventType}) missing column. Event:`, {
-            eventType: event.eventType,
-            bubbleId: event.bubbleId,
-            column: event.column,
-            bubblePosition: event.bubblePosition,
-            round: event.round
-          });
-        }
-        if (!event.bubblePosition) {
-          console.warn(`⚠️ Attempt ${idx} (${event.eventType}) missing bubblePosition. Event:`, {
-            eventType: event.eventType,
-            bubbleId: event.bubbleId,
-            column: event.column,
-            bubblePosition: event.bubblePosition,
-            round: event.round
-          });
-        }
-        
-        return {
-          round: event.round,
-          attemptId: `r${event.round}_${event.bubbleId || 'unknown'}`,
-          bubbleId: event.bubbleId || 'unknown',
-          spawnTms: event.spawnTime || 0,
-          column: event.column !== undefined ? event.column : null, // Preserve null/undefined
-          speedNorm: event.bubbleSpeed ? event.bubbleSpeed / minDim : 0,
-          
-          target: {
-            x: event.bubblePosition ? event.bubblePosition.x / screenWidth : 0,
-            y: event.bubblePosition ? event.bubblePosition.y / screenHeight : 0,
-            radius: 40 / minDim,
-          },
-          
-          click: {
-            clicked: event.eventType === 'bubble_hit',
-            hit: event.eventType === 'bubble_hit',
-            missType: event.eventType === 'bubble_hit' ? 'hit' : (event.eventType === 'bubble_miss' ? 'timeout' : 'unknown'),
-            tms: event.timestamp ? new Date(event.timestamp).getTime() : Date.now(),
-            x: event.coordinates ? event.coordinates.x / screenWidth : null,
-            y: event.coordinates ? event.coordinates.y / screenHeight : null,
-          },
-          
-          timing: {
-            reactionTimeMs: event.reactionTime || null,
-          },
-          
-          spatial: {
-            errorDistNorm: event.clickAccuracy || null,
-          },
-        };
-      });
-      
-      try {
-        await logMotorAttempts(this.sessionId, attempts);
-        console.log(`🎯 Sent ${attempts.length} attempts for round ${round}`);
-      } catch (error) {
-        console.error(`❌ Error sending attempts for round ${round}:`, error);
-        console.error('Error details:', error.response?.data || error.message);
-        console.error('Sample attempt:', attempts.slice(0, 1)); // Show first attempt
-      }
-    }
   }
 
   // Helper: Get coordinates from event
@@ -567,6 +418,13 @@ class MotorSkillsTracker {
   async flushBatch() {
     if (this.interactionBuffer.length === 0) return;
     
+    // ONLY send data in AURA mode (when properly authenticated)
+    // This prevents 401 errors when running in standalone mode
+    if (!auraIntegration.isEnabled()) {
+      this.interactionBuffer = []; // Clear buffer in standalone mode
+      return;
+    }
+    
     const batch = [...this.interactionBuffer];
     this.interactionBuffer = [];
     
@@ -576,19 +434,12 @@ class MotorSkillsTracker {
     }
     
     try {
-      // Prefer AURA integration if available (handles auth properly)
-      if (auraIntegration.isEnabled()) {
-        await auraIntegration.saveGlobalInteractions(batch);
-        console.log(`📦 Flushed ${batch.length} motor skill interactions via AURA`);
-      } else {
-        // Fallback to direct API call
-        await logGlobalInteractions(this.sessionId, batch);
-        console.log(`📦 Flushed ${batch.length} motor skill interactions (ML-ready)`);
-      }
+      await auraIntegration.saveGlobalInteractions(batch);
+      console.log(`📦 Flushed ${batch.length} motor skill interactions via AURA`);
     } catch (error) {
       console.error('Error flushing motor skills batch:', error);
-      // Re-add to buffer on error (limit to prevent infinite growth)
-      if (this.interactionBuffer.length < 100) {
+      // Don't re-add to buffer on auth errors to prevent infinite retries
+      if (error?.response?.status !== 401 && this.interactionBuffer.length < 100) {
         this.interactionBuffer.unshift(...batch);
       }
     }
@@ -736,24 +587,15 @@ class MotorSkillsTracker {
       }
     }
     
-    // ========== ORIGINAL TRACKING (only when NOT in AURA mode) ==========
-    // Flush remaining raw interactions
+    // Flush remaining raw interactions (only in AURA mode)
     try {
       await this.flushBatch();
     } catch (error) {
       console.error('Error flushing final batch:', error);
     }
     
-    // Compute session summary on backend (aggregates all rounds) - skip if AURA mode
-    if (!auraIntegration.isEnabled()) {
-      try {
-        const result = await computeSessionSummary(this.sessionId, this.participantId);
-        console.log(`📊 Session summary computed on backend`, result);
-      } catch (error) {
-        console.error('❌ Error computing session summary:', error);
-        console.error('Error details:', error.response?.data || error.message);
-      }
-    }
+    // NOTE: Original tracking (non-AURA mode) session summary is disabled
+    // All backend calls require AURA authentication
     
     console.log(`✅ Motor skills tracking complete. Total interactions: ${this.interactions.length}`);
   }
