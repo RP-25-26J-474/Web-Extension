@@ -97,18 +97,17 @@
     <div id="consentSection" class="section consent-section" style="display: none;">
       <div class="consent-box">
         <h2>Privacy & Consent</h2>
-        <p>This extension tracks user interactions on web pages. Your data is stored locally and never sent to external servers without your explicit action.</p>
+        <p>This extension tracks your interactions to help improve UI/UX experiences. Data is securely synced to our servers.</p>
         <h3>What we track:</h3>
         <ul>
           <li>Mouse clicks and movements</li>
           <li>Keyboard interactions (keys masked for privacy)</li>
-          <li>Form submissions (no form data captured)</li>
           <li>Page views and scroll behavior</li>
+          <li>Touch and zoom interactions</li>
         </ul>
-        <p class="privacy-note">⚠️ You can disable tracking at any time and delete all collected data.</p>
+        <p class="privacy-note">🔒 Your data is processed securely and used only to improve user experiences.</p>
         <div class="consent-buttons">
-          <button id="acceptConsent" class="btn btn-primary">Accept & Enable Tracking</button>
-          <button id="declineConsent" class="btn btn-secondary">Decline</button>
+          <button id="acceptConsent" class="btn btn-primary full-width">I Understand, Continue</button>
         </div>
       </div>
     </div>
@@ -128,29 +127,14 @@
 
       <!-- Tracking Status -->
       <div class="section status-section">
-        <div class="status-header">
-          <span class="status-label">Tracking Status:</span>
-          <span id="statusIndicator" class="status-indicator">●</span>
-          <span id="statusText">Disabled</span>
+        <div class="tracking-active">
+          <span class="tracking-dot"></span>
+          <span class="tracking-text">Tracking Active</span>
         </div>
-        <div class="toggle-container">
-          <label class="switch">
-            <input type="checkbox" id="trackingToggle">
-            <span class="slider"></span>
-          </label>
-          <span class="toggle-label">Enable Tracking</span>
-        </div>
-      </div>
-      <!-- Privacy Info -->
-      <div class="section privacy-section">
-        <h2>Privacy Information</h2>
-        <p class="privacy-text">
-          Interactions are automatically synced to the server every 30 seconds and removed from local storage.
+        <p class="tracking-info">
+          Your interactions are being tracked to improve your experience. 
+          Data is automatically synced to the server and processed securely.
         </p>
-        <div style="display: flex; gap: 8px; margin-top: 12px;">
-          <button id="exportBtn" class="btn btn-secondary btn-small">📥 Export Local</button>
-          <button id="revokeConsent" class="btn btn-warning btn-small">Revoke Consent</button>
-        </div>
       </div>
     </div>
 

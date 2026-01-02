@@ -8,7 +8,7 @@ const EXPORT_BATCH_SIZE = 100;
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log('Interaction Tracker installed:', details.reason);
   
-  // Set default values on install
+  // Set default values on install - ALL tracking enabled by default
   if (details.reason === 'install') {
     await chrome.storage.local.set({
       consentGiven: false,
@@ -25,19 +25,25 @@ chrome.runtime.onInstalled.addListener(async (details) => {
         touchEvents: true,
         zoomEvents: true
       },
-      interactions: [],
-      stats: {
-        totalInteractions: 0,
-        clicks: 0,
-        keystrokes: 0,
-        mouseMovements: 0,
-        pageViews: 0,
-        doubleClicks: 0,
-        rightClicks: 0,
-        mouseHovers: 0,
-        dragAndDrop: 0,
-        touchEvents: 0,
-        zoomEvents: 0
+      interactions: []
+    });
+  }
+  
+  // Ensure tracking config always has all options enabled (for upgrades)
+  const result = await chrome.storage.local.get(['trackingConfig']);
+  if (!result.trackingConfig) {
+    await chrome.storage.local.set({
+      trackingConfig: {
+        clicks: true,
+        keystrokes: true,
+        mouseMovements: true,
+        pageViews: true,
+        doubleClicks: true,
+        rightClicks: true,
+        mouseHovers: true,
+        dragAndDrop: true,
+        touchEvents: true,
+        zoomEvents: true
       }
     });
   }
@@ -243,10 +249,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   if (message.type === 'SET_CONSENT') {
-    chrome.storage.local.set({ 
+    // When consent is given, enable ALL tracking options by default
+    const storageUpdate = { 
       consentGiven: message.consent,
-      trackingEnabled: message.consent // Enable tracking when consent is given
-    }).then(() => {
+      trackingEnabled: message.consent
+    };
+    
+    // Ensure all tracking options are enabled when consent is given
+    if (message.consent) {
+      storageUpdate.trackingConfig = {
+        clicks: true,
+        keystrokes: true,
+        mouseMovements: true,
+        pageViews: true,
+        doubleClicks: true,
+        rightClicks: true,
+        mouseHovers: true,
+        dragAndDrop: true,
+        touchEvents: true,
+        zoomEvents: true
+      };
+    }
+    
+    chrome.storage.local.set(storageUpdate).then(() => {
       if (message.consent) {
         updateBadge(0);
       } else {

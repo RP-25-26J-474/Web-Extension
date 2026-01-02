@@ -67,6 +67,7 @@ header h1 {
   border-bottom: 1px solid #e0e0e0;
 }
 
+.section:last-of-type {
   border-bottom: none;
 }
 
@@ -284,7 +285,38 @@ header h1 {
 
 /* Status Section */
 .status-section {
-  background: #f8f9fa;
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  text-align: center;
+}
+
+.tracking-active {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.tracking-dot {
+  width: 12px;
+  height: 12px;
+  background: #4CAF50;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+}
+
+.tracking-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2e7d32;
+}
+
+.tracking-info {
+  font-size: 12px;
+  color: #555;
+  line-height: 1.5;
+  margin: 0;
 }
 
 /* Sync Section */
