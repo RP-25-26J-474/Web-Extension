@@ -185,8 +185,8 @@ async function startOnboardingGame() {
       console.warn('Could not get user data:', err.message);
     }
     
-    // Build game URL with parameters
-    let gameUrl = `${API_CONFIG.ONBOARDING_GAME_URL}?token=${token}&mode=aura`;
+    // Build game URL with parameters - go directly to /play route (skip module selection)
+    let gameUrl = `${API_CONFIG.ONBOARDING_GAME_URL}/play?token=${token}&mode=aura`;
     if (userId) {
       gameUrl += `&userId=${userId}`;
     }

@@ -272,7 +272,7 @@ setInterval(async () => {
     // Only sync if tracking is enabled and user is logged in
     if (!result.trackingEnabled || !result.authToken) {
       return;
-    }
+  }
     
     const interactions = result.interactions || [];
     
