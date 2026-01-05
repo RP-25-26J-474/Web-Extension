@@ -32,10 +32,16 @@ document.addEventListener('DOMContentLoaded', async function() {
     const userData = await apiClient.getCurrentUser();
     
     // Check onboarding status
-    const onboardingStatus = await apiClient.getOnboardingStatus();
+    let onboardingStatus = { completed: false };
+    try {
+      onboardingStatus = await apiClient.getOnboardingStatus() || { completed: false };
+    } catch (err) {
+      console.warn('Could not get onboarding status:', err.message);
+    }
     console.log('📋 Onboarding status:', onboardingStatus);
     
     if (!onboardingStatus.completed) {
+      // Show onboarding prompt
       showOnboardingPrompt(userData.user);
       return;
     }
@@ -52,9 +58,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     await apiClient.clearToken();
     showAuthSection();
   }
-  
-  // Initialize event listeners (moved to top, but keep here for safety)
-  // initializeEventListeners(); // Already called at the top
 });
 
 // Show auth section
@@ -427,7 +430,7 @@ async function handleLogout() {
   }
 }
 
-// Handle consent acceptance
+// Handle consent acceptance - shows onboarding prompt
 async function handleAcceptConsent() {
   const acceptBtn = document.getElementById('acceptConsent');
   
@@ -458,7 +461,7 @@ async function handleAcceptConsent() {
       console.warn('⚠️ Could not update server settings:', err.message);
     });
     
-    // Check onboarding status with SHORT timeout (3 seconds)
+    // Check onboarding status
     console.log('🔍 Checking onboarding status...');
     let onboardingStatus = { completed: false };
     let userData = null;
@@ -467,7 +470,6 @@ async function handleAcceptConsent() {
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Timeout')), 3000)
       );
-      
       const [status, user] = await Promise.race([
         Promise.all([
           apiClient.getOnboardingStatus(),
@@ -475,24 +477,17 @@ async function handleAcceptConsent() {
         ]),
         timeoutPromise
       ]);
-      
       onboardingStatus = status || { completed: false };
       userData = user;
       console.log('📋 Onboarding status:', onboardingStatus);
     } catch (err) {
       console.warn('⚠️ Could not get status:', err.message);
-      // Try to get user data separately with timeout
       try {
-        const userTimeout = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('User timeout')), 2000)
-        );
-        userData = await Promise.race([apiClient.getCurrentUser(), userTimeout]);
-      } catch (userErr) {
-        console.warn('⚠️ Could not get user data');
-      }
+        userData = await apiClient.getCurrentUser();
+      } catch (userErr) {}
     }
     
-    // Always proceed - show onboarding prompt (default) or main content
+    // If onboarding complete, show main content
     if (onboardingStatus?.completed) {
       console.log('✅ Onboarding complete, showing main content...');
       showMainContent();
@@ -501,7 +496,7 @@ async function handleAcceptConsent() {
       }
       showNotification('Tracking enabled!', 'success');
     } else {
-      // Default: show onboarding prompt
+      // Show onboarding prompt
       console.log('🎮 Showing onboarding prompt...');
       const userName = userData?.user?.name || 'User';
       showOnboardingPrompt({ name: userName, _id: userData?.user?._id });
@@ -510,10 +505,9 @@ async function handleAcceptConsent() {
   } catch (error) {
     console.error('❌ Consent handling failed:', error);
     
-    // Even on error, try to show something useful
+    // Even on error, show onboarding prompt
     try {
       showOnboardingPrompt({ name: 'User' });
-      showNotification('Continuing to onboarding...', 'info');
     } catch (fallbackErr) {
       // Last resort: re-enable button
       if (acceptBtn) {

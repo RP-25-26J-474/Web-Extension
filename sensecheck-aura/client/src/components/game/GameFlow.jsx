@@ -5,7 +5,6 @@ import JourneyProgress from './JourneyProgress';
 import StatsPanel from './StatsPanel';
 import ProfileBuilder from './ProfileBuilder';
 import TransitionOverlay from './TransitionOverlay';
-import IntroScreen from './IntroScreen';
 import FinalProfile from './FinalProfile';
 import ColorChallenge from './challenges/ColorChallenge';
 import AcuityChallenge from './challenges/AcuityChallenge';
@@ -16,11 +15,6 @@ import logo from '../../resources/logo.png';
 const GameFlow = () => {
   const { state, progress } = useGame();
   const { isDark } = useTheme();
-  
-  // Show intro screen
-  if (state.currentPhase === 'intro') {
-    return <IntroScreen />;
-  }
   
   // Show final profile
   if (state.currentPhase === 'profile-complete') {

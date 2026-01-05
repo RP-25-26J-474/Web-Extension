@@ -12,7 +12,12 @@ import ishihara3 from '../../../resources/Ishihara_3.jpg';
 import ishihara11 from '../../../resources/Ishihara_11.jpg';
 import ishihara19 from '../../../resources/Ishihara_19.jpg';
 
+// Map both lowercase and uppercase variants to handle different naming conventions
 const imageMap = {
+  'ishihara_1.jpg': ishihara1,
+  'ishihara_3.jpg': ishihara3,
+  'ishihara_11.jpg': ishihara11,
+  'ishihara_19.jpg': ishihara19,
   'Ishihara_1.jpg': ishihara1,
   'Ishihara_3.jpg': ishihara3,
   'Ishihara_11.jpg': ishihara11,
