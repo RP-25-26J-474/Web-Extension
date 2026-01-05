@@ -2,8 +2,9 @@ import { createContext, useContext, useReducer, useCallback, useEffect } from 'r
 import useStore from '../state/store';
 import auraIntegration from '../utils/auraIntegration';
 
-// Challenge phases in order (no intro - starts directly with first challenge)
+// Challenge phases in order
 export const CHALLENGE_ORDER = [
+  'intro',
   'color-blindness',
   'visual-acuity', 
   'motor-skills',
@@ -43,8 +44,8 @@ const initialState = {
   // User identifier (from AURA extension registration - no sessionId needed)
   userId: null,
   
-  // Current phase - starts directly at first challenge (no intro screen)
-  currentPhase: 'color-blindness',
+  // Current phase
+  currentPhase: 'intro',
   
   // Overall progress
   completedChallenges: [],
@@ -79,9 +80,9 @@ const initialState = {
     knowledgeQuiz: { currentQuestion: 0, responses: [] },
   },
   
-  // Game timing - starts immediately
-  startTime: Date.now(),
-  phaseStartTime: Date.now(),
+  // Game timing
+  startTime: null,
+  phaseStartTime: null,
   
   // UI states
   showingTransition: false,
@@ -271,8 +272,8 @@ export function GameProvider({ children }) {
       const saved = sessionStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsedState = JSON.parse(saved);
-        // Restore if there's saved state with a start time
-        if (parsedState.startTime) {
+        // Only restore if game was actually started
+        if (parsedState.startTime && parsedState.currentPhase !== 'intro') {
           dispatch({ type: ACTIONS.LOAD_SAVED_STATE, payload: parsedState });
         }
       }
