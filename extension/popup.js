@@ -67,91 +67,158 @@ function showAuthSection() {
 
 // Show onboarding prompt
 function showOnboardingPrompt(user) {
-  console.log('🎮 Showing onboarding prompt');
-  document.getElementById('authSection').style.display = 'none';
-  document.getElementById('consentSection').style.display = 'none';
-  document.getElementById('mainContent').style.display = 'none';
+  console.log('🎮 Showing onboarding prompt for user:', user?.name);
   
-  // Create onboarding prompt (we'll add HTML for this)
-  const container = document.querySelector('.container');
-  let onboardingPrompt = document.getElementById('onboardingPrompt');
-  
-  if (!onboardingPrompt) {
-    onboardingPrompt = document.createElement('div');
-    onboardingPrompt.id = 'onboardingPrompt';
-    onboardingPrompt.className = 'section';
-    container.insertBefore(onboardingPrompt, container.querySelector('footer'));
+  try {
+    // Hide other sections
+    const authSection = document.getElementById('authSection');
+    const consentSection = document.getElementById('consentSection');
+    const mainContent = document.getElementById('mainContent');
+    
+    if (authSection) authSection.style.display = 'none';
+    if (consentSection) consentSection.style.display = 'none';
+    if (mainContent) mainContent.style.display = 'none';
+    
+    // Create or find onboarding prompt
+    const container = document.querySelector('.container');
+    if (!container) {
+      console.error('❌ Container not found!');
+      return;
+    }
+    
+    let onboardingPrompt = document.getElementById('onboardingPrompt');
+    
+    if (!onboardingPrompt) {
+      onboardingPrompt = document.createElement('div');
+      onboardingPrompt.id = 'onboardingPrompt';
+      onboardingPrompt.className = 'section';
+      
+      // Try to insert before footer, or just append
+      const footer = container.querySelector('footer');
+      if (footer) {
+        container.insertBefore(onboardingPrompt, footer);
+      } else {
+        container.appendChild(onboardingPrompt);
+      }
+    }
+    
+    const userName = user?.name || 'User';
+    
+    onboardingPrompt.style.display = 'block';
+    onboardingPrompt.innerHTML = `
+      <div class="onboarding-prompt">
+        <h2>Welcome ${userName}! 🎉</h2>
+        <p class="onboarding-description">
+          Before you start tracking, let's complete a quick onboarding assessment.
+          This helps us understand your device capabilities and preferences.
+        </p>
+        
+        <div class="onboarding-tests">
+          <div class="test-card">
+            <span class="test-icon">🎯</span>
+            <h3>Motor Skills</h3>
+            <p>Test reaction time and accuracy</p>
+          </div>
+          <div class="test-card">
+            <span class="test-icon">📚</span>
+            <h3>Computer Literacy</h3>
+            <p>Quick quiz on UI concepts</p>
+          </div>
+          <div class="test-card">
+            <span class="test-icon">👁️</span>
+            <h3>Vision Tests</h3>
+            <p>Color blindness & visual acuity</p>
+          </div>
+        </div>
+        
+        <p class="onboarding-note">
+          ⏱️ Takes about 5-7 minutes • Your data is private and secure
+        </p>
+        
+        <div class="onboarding-actions">
+          <button id="startOnboardingBtn" class="btn btn-primary full-width">
+            Start Onboarding Game
+          </button>
+        </div>
+      </div>
+    `;
+    
+    // Add event listener
+    const startBtn = document.getElementById('startOnboardingBtn');
+    if (startBtn) {
+      startBtn.addEventListener('click', startOnboardingGame);
+    }
+    
+    console.log('✅ Onboarding prompt displayed');
+    
+  } catch (error) {
+    console.error('❌ Error showing onboarding prompt:', error);
   }
-  
-  onboardingPrompt.style.display = 'block';
-  onboardingPrompt.innerHTML = `
-    <div class="onboarding-prompt">
-      <h2>Welcome ${user.name}! 🎉</h2>
-      <p class="onboarding-description">
-        Before you start tracking, let's complete a quick onboarding assessment.
-        This helps us understand your device capabilities and preferences.
-      </p>
-      
-      <div class="onboarding-tests">
-        <div class="test-card">
-          <span class="test-icon">🎯</span>
-          <h3>Motor Skills</h3>
-          <p>Test reaction time and accuracy</p>
-        </div>
-        <div class="test-card">
-          <span class="test-icon">📚</span>
-          <h3>Computer Literacy</h3>
-          <p>Quick quiz on UI concepts</p>
-        </div>
-        <div class="test-card">
-          <span class="test-icon">👁️</span>
-          <h3>Vision Tests</h3>
-          <p>Color blindness & visual acuity</p>
-        </div>
-      </div>
-      
-      <p class="onboarding-note">
-        ⏱️ Takes about 5-7 minutes • Your data is private and secure
-      </p>
-      
-      <div class="onboarding-actions">
-        <button id="startOnboardingBtn" class="btn btn-primary full-width">
-          Start Onboarding Game
-        </button>
-      </div>
-    </div>
-  `;
-  
-  // Add event listener
-  document.getElementById('startOnboardingBtn').addEventListener('click', startOnboardingGame);
 }
 
 // Start onboarding game in new tab
 async function startOnboardingGame() {
+  const startBtn = document.getElementById('startOnboardingBtn');
+  
   try {
+    // Disable button during processing
+    if (startBtn) {
+      startBtn.disabled = true;
+      startBtn.textContent = 'Opening...';
+    }
+    
     const token = await apiClient.getToken();
-    const userData = await apiClient.getCurrentUser();
+    
+    if (!token) {
+      throw new Error('No authentication token');
+    }
+    
+    // Try to get user data, but proceed even if it fails
+    let userId = null;
+    try {
+      const userData = await apiClient.getCurrentUser();
+      userId = userData?.user?._id;
+    } catch (err) {
+      console.warn('Could not get user data:', err.message);
+    }
     
     // Build game URL with parameters
-    const gameUrl = `${API_CONFIG.ONBOARDING_GAME_URL}?userId=${userData.user._id}&token=${token}&mode=aura`;
+    let gameUrl = `${API_CONFIG.ONBOARDING_GAME_URL}?token=${token}&mode=aura`;
+    if (userId) {
+      gameUrl += `&userId=${userId}`;
+    }
     
     console.log('🎮 Opening onboarding game:', gameUrl);
     
     // Open in new tab
     chrome.tabs.create({ url: gameUrl }, (tab) => {
-      console.log('✅ Onboarding game opened in tab:', tab.id);
+      if (chrome.runtime.lastError) {
+        console.error('Tab creation error:', chrome.runtime.lastError);
+        showNotification('Failed to open game tab', 'error');
+        return;
+      }
+      
+      console.log('✅ Onboarding game opened in tab:', tab?.id);
       showNotification('Onboarding game opened in new tab!', 'success');
       
       // Store tab ID to listen for completion
-      chrome.storage.local.set({ onboardingTabId: tab.id });
+      if (tab?.id) {
+        chrome.storage.local.set({ onboardingTabId: tab.id });
+      }
     });
     
-    // Close popup
-    window.close();
+    // Close popup after a short delay
+    setTimeout(() => window.close(), 500);
     
   } catch (error) {
     console.error('Failed to start onboarding:', error);
-    showNotification('Failed to open onboarding game', 'error');
+    showNotification('Failed to open onboarding game: ' + error.message, 'error');
+    
+    // Re-enable button
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.textContent = 'Start Onboarding Game';
+    }
   }
 }
 
@@ -364,36 +431,41 @@ async function handleLogout() {
 async function handleAcceptConsent() {
   const acceptBtn = document.getElementById('acceptConsent');
   
+  // Disable button to prevent double clicks
+  if (acceptBtn) {
+    acceptBtn.disabled = true;
+    acceptBtn.textContent = 'Please wait...';
+  }
+  
   try {
-    // Disable button to prevent double clicks
-    if (acceptBtn) {
-      acceptBtn.disabled = true;
-      acceptBtn.textContent = 'Please wait...';
-    }
-    
-    // Enable tracking in background first (this always works)
+    // Enable tracking in background (fire and forget - don't await)
     console.log('📤 Enabling tracking...');
-    await chrome.runtime.sendMessage({ 
+    chrome.runtime.sendMessage({ 
       type: 'SET_CONSENT', 
       consent: true 
+    }).catch(() => {}); // Ignore errors
+    
+    // Also set in storage directly as backup
+    chrome.storage.local.set({ 
+      trackingEnabled: true, 
+      consentGiven: true 
     });
-    console.log('✅ Tracking enabled');
+    
+    console.log('✅ Tracking enabled locally');
     
     // Try to update server settings (non-blocking)
-    console.log('📝 Updating server settings...');
     apiClient.updateSettings(true, true).catch(err => {
       console.warn('⚠️ Could not update server settings:', err.message);
     });
     
-    // Check onboarding status with timeout
+    // Check onboarding status with SHORT timeout (3 seconds)
     console.log('🔍 Checking onboarding status...');
     let onboardingStatus = { completed: false };
     let userData = null;
     
     try {
-      // Add 5 second timeout
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), 5000)
+        setTimeout(() => reject(new Error('Timeout')), 3000)
       );
       
       const [status, user] = await Promise.race([
@@ -404,46 +476,51 @@ async function handleAcceptConsent() {
         timeoutPromise
       ]);
       
-      onboardingStatus = status;
+      onboardingStatus = status || { completed: false };
       userData = user;
       console.log('📋 Onboarding status:', onboardingStatus);
-      console.log('👤 User:', userData?.user?.name);
     } catch (err) {
-      console.warn('⚠️ Could not get status, showing onboarding prompt:', err.message);
-      // Try to get user data separately
+      console.warn('⚠️ Could not get status:', err.message);
+      // Try to get user data separately with timeout
       try {
-        userData = await apiClient.getCurrentUser();
+        const userTimeout = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('User timeout')), 2000)
+        );
+        userData = await Promise.race([apiClient.getCurrentUser(), userTimeout]);
       } catch (userErr) {
         console.warn('⚠️ Could not get user data');
       }
     }
     
-    if (!onboardingStatus.completed) {
-      // User needs to complete onboarding game - show prompt
-      console.log('🎮 Showing onboarding prompt...');
-      if (userData?.user) {
-        showOnboardingPrompt(userData.user);
-      } else {
-        // Fallback: show prompt with default name
-        showOnboardingPrompt({ name: 'User' });
-      }
-    } else {
-      // User has completed onboarding, show main content
+    // Always proceed - show onboarding prompt (default) or main content
+    if (onboardingStatus?.completed) {
       console.log('✅ Onboarding complete, showing main content...');
       showMainContent();
       if (userData?.user) {
         displayUserInfo(userData.user);
       }
       showNotification('Tracking enabled!', 'success');
+    } else {
+      // Default: show onboarding prompt
+      console.log('🎮 Showing onboarding prompt...');
+      const userName = userData?.user?.name || 'User';
+      showOnboardingPrompt({ name: userName, _id: userData?.user?._id });
     }
-  } catch (error) {
-    console.error('❌ Failed:', error);
-    showNotification('Error: ' + error.message, 'error');
     
-    // Re-enable button on error
-    if (acceptBtn) {
-      acceptBtn.disabled = false;
-      acceptBtn.textContent = 'I Understand, Continue';
+  } catch (error) {
+    console.error('❌ Consent handling failed:', error);
+    
+    // Even on error, try to show something useful
+    try {
+      showOnboardingPrompt({ name: 'User' });
+      showNotification('Continuing to onboarding...', 'info');
+    } catch (fallbackErr) {
+      // Last resort: re-enable button
+      if (acceptBtn) {
+        acceptBtn.disabled = false;
+        acceptBtn.textContent = 'I Understand, Continue';
+      }
+      showNotification('Error: ' + error.message, 'error');
     }
   }
 }

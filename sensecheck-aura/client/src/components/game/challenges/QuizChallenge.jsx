@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGame } from '../../../context/GameContext';
+import { useTheme } from '../../../context/ThemeContext';
 import useStore from '../../../state/store';
 import { LITERACY_QUESTIONS, calculateLiteracyScore, calculateCategoryScores } from '../../../utils/literacyQuestions';
 import { saveLiteracyResults } from '../../../utils/api';
@@ -7,6 +8,7 @@ import auraIntegration from '../../../utils/auraIntegration';
 
 const QuizChallenge = () => {
   const { completeChallenge, recordCorrectAnswer, recordIncorrectAnswer, state, updateChallengeProgress } = useGame();
+  const { isDark } = useTheme();
   const { recordLiteracyResponse, completeLiteracyTest, completeModule } = useStore();
   
   const savedProgress = state.challengeProgress?.knowledgeQuiz || {};
@@ -157,8 +159,11 @@ const QuizChallenge = () => {
             Q{currentQuestionIndex + 1} of {totalQuestions}
           </span>
         </div>
-        <h3 className="text-xl font-bold text-white mb-2">Quick Think!</h3>
-        <div className="inline-block px-3 py-1 rounded-full text-xs font-medium capitalize bg-gray-800/50" style={{ color: 'var(--primary-color)' }}>
+        <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Quick Think!</h3>
+        <div 
+          className="inline-block px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors duration-300" 
+          style={{ backgroundColor: 'var(--bg-input)', color: 'var(--primary-color)' }}
+        >
           {currentQuestion.category === 'icons' ? '🎨 Icons' : 
            currentQuestion.category === 'terminology' ? '📚 Tech Terms' :
            '🖱️ Interaction'}
@@ -167,7 +172,7 @@ const QuizChallenge = () => {
       
       {/* Progress bar */}
       <div className="mb-6">
-        <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+        <div className="w-full h-1.5 rounded-full overflow-hidden transition-colors duration-300" style={{ backgroundColor: 'var(--bg-input)' }}>
           <div
             className="h-full rounded-full transition-all duration-500"
             style={{ 
@@ -179,8 +184,14 @@ const QuizChallenge = () => {
       </div>
       
       {/* Question */}
-      <div className="bg-gray-900/50 rounded-xl p-5 mb-6 border border-gray-800">
-        <p className="text-lg font-medium text-white leading-relaxed">
+      <div 
+        className="rounded-xl p-5 mb-6 transition-colors duration-300"
+        style={{ 
+          backgroundColor: 'var(--bg-input)',
+          border: '1px solid var(--border-primary)'
+        }}
+      >
+        <p className="text-lg font-medium leading-relaxed" style={{ color: 'var(--text-primary)' }}>
           {currentQuestion.question}
         </p>
       </div>
@@ -203,9 +214,9 @@ const QuizChallenge = () => {
                   border: '2px solid var(--primary-color)'
                 }
               : { 
-                  backgroundColor: 'rgba(31, 41, 55, 0.5)',
-                  color: '#d1d5db',
-                  border: '2px solid rgba(55, 65, 81, 0.5)'
+                  backgroundColor: 'var(--bg-input)',
+                  color: 'var(--text-secondary)',
+                  border: '2px solid var(--border-secondary)'
                 }
             }
           >
@@ -213,7 +224,7 @@ const QuizChallenge = () => {
               className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center transition-all duration-300"
               style={selectedAnswer === option
                 ? { border: '2px solid white', backgroundColor: 'white' }
-                : { border: '2px solid #6b7280' }
+                : { border: `2px solid ${isDark ? '#6b7280' : '#9ca3af'}` }
               }
             >
               {selectedAnswer === option && (

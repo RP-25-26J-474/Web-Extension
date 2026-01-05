@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGame } from '../../../context/GameContext';
+import { useTheme } from '../../../context/ThemeContext';
 import useStore from '../../../state/store';
 import { ISHIHARA_PLATES, analyzeColorBlindness } from '../../../utils/colorBlindnessAnalysis';
 import { saveVisionResults } from '../../../utils/api';
@@ -20,6 +21,7 @@ const imageMap = {
 
 const ColorChallenge = () => {
   const { completeChallenge, recordCorrectAnswer, recordIncorrectAnswer, state, updateChallengeProgress } = useGame();
+  const { isDark } = useTheme();
   const { recordColorBlindnessResponse, completeColorBlindnessTest } = useStore();
   
   // Get saved progress from session
@@ -147,8 +149,8 @@ const ColorChallenge = () => {
             Pattern {currentPlateIndex + 1} of {ISHIHARA_PLATES.length}
           </span>
         </div>
-        <h3 className="text-xl font-bold text-white mb-2">Pattern Hunt</h3>
-        <p className="text-gray-400">Can you spot the hidden number in the dots?</p>
+        <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Pattern Hunt</h3>
+        <p style={{ color: 'var(--text-secondary)' }}>Can you spot the hidden number in the dots?</p>
       </div>
       
       {/* Progress dots */}
@@ -160,7 +162,7 @@ const ColorChallenge = () => {
               index < currentPlateIndex ? 'scale-100' : index === currentPlateIndex ? 'scale-125' : 'scale-75 opacity-50'
             }`}
             style={{ 
-              backgroundColor: index <= currentPlateIndex ? 'var(--primary-color)' : '#374151',
+              backgroundColor: index <= currentPlateIndex ? 'var(--primary-color)' : 'var(--border-secondary)',
               boxShadow: index === currentPlateIndex ? '0 0 8px var(--primary-color-glow)' : 'none'
             }}
           />
@@ -168,11 +170,18 @@ const ColorChallenge = () => {
       </div>
       
       {/* Image Container */}
-      <div className="bg-gray-950 rounded-2xl p-6 mb-6 flex justify-center items-center min-h-[300px] border border-gray-800">
+      <div 
+        className="rounded-2xl p-6 mb-6 flex justify-center items-center min-h-[300px] transition-colors duration-300"
+        style={{ 
+          backgroundColor: 'var(--bg-stage)',
+          border: '1px solid var(--border-primary)'
+        }}
+      >
         <img
           src={imageMap[currentPlate.imageName]}
           alt={`Color plate ${currentPlate.plateId}`}
-          className="w-56 h-56 sm:w-72 sm:h-72 rounded-full object-cover shadow-2xl ring-4 ring-gray-800"
+          className="w-56 h-56 sm:w-72 sm:h-72 rounded-full object-cover shadow-2xl"
+          style={{ boxShadow: 'var(--shadow-xl)' }}
         />
       </div>
       
@@ -186,10 +195,14 @@ const ColorChallenge = () => {
             e.target.style.borderColor = 'rgba(var(--primary-color-rgb), 0.5)';
           }}
           onBlur={(e) => {
-            e.target.style.borderColor = 'rgba(55, 65, 81, 0.5)';
+            e.target.style.borderColor = 'var(--border-secondary)';
           }}
-          className="w-full px-4 py-4 rounded-xl bg-gray-800/50 text-white text-center text-2xl placeholder-gray-500 transition-all duration-300 focus:outline-none"
-          style={{ border: '2px solid rgba(55, 65, 81, 0.5)' }}
+          className="w-full px-4 py-4 rounded-xl text-center text-2xl placeholder-gray-500 transition-all duration-300 focus:outline-none"
+          style={{ 
+            backgroundColor: 'var(--bg-input)',
+            color: 'var(--text-primary)',
+            border: '2px solid var(--border-secondary)'
+          }}
           placeholder="Enter the number you see"
           autoFocus
         />
@@ -197,7 +210,12 @@ const ColorChallenge = () => {
         <div className="flex gap-3">
           <button
             onClick={handleNothingClick}
-            className="flex-1 py-3 px-6 rounded-xl font-medium text-gray-300 bg-gray-800/50 border border-gray-700/50 hover:border-gray-600 transition-all duration-300"
+            className="flex-1 py-3 px-6 rounded-xl font-medium transition-all duration-300"
+            style={{ 
+              backgroundColor: 'var(--bg-input)',
+              color: 'var(--text-secondary)',
+              border: '1px solid var(--border-secondary)'
+            }}
           >
             I See Nothing
           </button>

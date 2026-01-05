@@ -1,4 +1,6 @@
 import { useGame } from '../../context/GameContext';
+import { useTheme } from '../../context/ThemeContext';
+import ThemeToggle from '../ThemeToggle';
 import JourneyProgress from './JourneyProgress';
 import StatsPanel from './StatsPanel';
 import ProfileBuilder from './ProfileBuilder';
@@ -13,6 +15,7 @@ import logo from '../../resources/logo.png';
 
 const GameFlow = () => {
   const { state, progress } = useGame();
+  const { isDark } = useTheme();
   
   // Show intro screen
   if (state.currentPhase === 'intro') {
@@ -41,10 +44,10 @@ const GameFlow = () => {
   };
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black relative overflow-hidden">
+    <div className="min-h-screen relative overflow-hidden transition-colors duration-300" style={{ background: 'var(--gradient-bg)' }}>
       {/* Background decorations */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <svg viewBox="0 0 1200 200" className="absolute -top-20 left-0 w-full opacity-10">
+        <svg viewBox="0 0 1200 200" className="absolute -top-20 left-0 w-full" style={{ opacity: isDark ? 0.1 : 0.15 }}>
           <path d="M0,100 Q300,180 600,100 T1200,100 L1200,0 L0,0 Z" fill="url(#swooshGradient)" />
           <defs>
             <linearGradient id="swooshGradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -53,32 +56,45 @@ const GameFlow = () => {
             </linearGradient>
           </defs>
         </svg>
-        <div className="absolute top-1/3 right-1/4 w-64 h-64 rounded-full blur-3xl animate-pulse" style={{ backgroundColor: 'rgba(var(--primary-color-rgb), 0.06)' }} />
-        <div className="absolute bottom-1/4 left-1/3 w-48 h-48 rounded-full blur-3xl animate-pulse" style={{ backgroundColor: 'rgba(var(--primary-color-rgb), 0.04)', animationDelay: '1s' }} />
+        <div 
+          className="absolute top-1/3 right-1/4 w-64 h-64 rounded-full blur-3xl animate-pulse" 
+          style={{ backgroundColor: `rgba(var(--primary-color-rgb), ${isDark ? 0.06 : 0.08})` }} 
+        />
+        <div 
+          className="absolute bottom-1/4 left-1/3 w-48 h-48 rounded-full blur-3xl animate-pulse" 
+          style={{ backgroundColor: `rgba(var(--primary-color-rgb), ${isDark ? 0.04 : 0.06})`, animationDelay: '1s' }} 
+        />
       </div>
       
       {/* Transition Overlay */}
       <TransitionOverlay />
       
       {/* Header */}
-      <header className="relative z-10 border-b border-gray-800/50 bg-gray-950/50 backdrop-blur-xl">
+      <header 
+        className="relative z-10 backdrop-blur-xl transition-colors duration-300"
+        style={{ 
+          borderBottom: `1px solid var(--border-primary)`,
+          backgroundColor: isDark ? 'rgba(3, 7, 18, 0.5)' : 'rgba(255, 255, 255, 0.8)'
+        }}
+      >
         <div className="max-w-6xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             {/* Logo */}
             <div className="flex items-center gap-2">
               <img src={logo} alt="AURA" className="w-8 h-8" />
               <div>
-                <span className="font-bold text-white">AURA</span>
-                <span className="text-xs text-gray-500 ml-2 hidden sm:inline">Digital Profile</span>
+                <span className="font-bold" style={{ color: 'var(--text-primary)' }}>AURA</span>
+                <span className="text-xs ml-2 hidden sm:inline" style={{ color: 'var(--text-tertiary)' }}>Digital Profile</span>
               </div>
             </div>
             
-            {/* Progress */}
+            {/* Progress & Theme Toggle */}
             <div className="flex items-center gap-4">
               <JourneyProgress minimal />
               <div className="hidden sm:block">
                 <StatsPanel compact />
               </div>
+              <ThemeToggle />
             </div>
           </div>
         </div>
@@ -90,7 +106,14 @@ const GameFlow = () => {
           {/* Desktop Layout: Challenge + Sidebar */}
           <div className="lg:grid lg:grid-cols-[1fr,280px] lg:gap-6">
             {/* Challenge Area */}
-            <div className="bg-gray-900/70 backdrop-blur-xl border border-gray-800 rounded-2xl p-5 sm:p-6 shadow-xl mb-6 lg:mb-0">
+            <div 
+              className="backdrop-blur-xl rounded-2xl p-5 sm:p-6 mb-6 lg:mb-0 transition-colors duration-300"
+              style={{ 
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-primary)',
+                boxShadow: 'var(--shadow-xl)'
+              }}
+            >
               {getChallengeComponent()}
             </div>
             
@@ -106,7 +129,13 @@ const GameFlow = () => {
           
           {/* Mobile Stats - Shown only on mobile */}
           <div className="lg:hidden mt-6">
-            <div className="bg-gray-900/70 backdrop-blur-xl border border-gray-800 rounded-2xl p-4">
+            <div 
+              className="backdrop-blur-xl rounded-2xl p-4 transition-colors duration-300"
+              style={{ 
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-primary)'
+              }}
+            >
               <ProfileBuilder />
             </div>
           </div>
@@ -114,8 +143,11 @@ const GameFlow = () => {
       </main>
       
       {/* Footer */}
-      <footer className="relative z-10 text-center py-4 border-t border-gray-800/50">
-        <p className="text-xs text-gray-600">
+      <footer 
+        className="relative z-10 text-center py-4 transition-colors duration-300"
+        style={{ borderTop: '1px solid var(--border-primary)' }}
+      >
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
           Game {progress.current + 1} of 4 • Auto-saved 💾
         </p>
       </footer>
@@ -124,4 +156,3 @@ const GameFlow = () => {
 };
 
 export default GameFlow;
-

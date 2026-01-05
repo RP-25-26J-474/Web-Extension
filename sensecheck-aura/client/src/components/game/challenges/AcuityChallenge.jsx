@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useGame } from '../../../context/GameContext';
+import { useTheme } from '../../../context/ThemeContext';
 import useStore from '../../../state/store';
 import { calculateVisualAcuityFromThreshold, getVisionCategory } from '../../../utils/visualAcuityCalculations';
 import { saveVisionResults } from '../../../utils/api';
@@ -39,6 +40,7 @@ const REQUIRED_DISTANCE_CM = 50;
 
 const AcuityChallenge = () => {
   const { completeChallenge, recordCorrectAnswer, recordIncorrectAnswer, state, updateChallengeProgress } = useGame();
+  const { isDark } = useTheme();
   const { recordVisualAcuityAttempt, setVisualAcuitySize, completeVisualAcuityTest, completeModule } = useStore();
   
   const screenCalibration = useMemo(() => calculateAdaptiveSizes(), []);
@@ -204,39 +206,51 @@ const AcuityChallenge = () => {
           </span>
         </div>
         
-        <h3 className="text-2xl font-bold text-white mb-2">Position Yourself</h3>
-        <p className="text-gray-400 mb-8 max-w-md mx-auto">
+        <h3 className="text-2xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Position Yourself</h3>
+        <p className="mb-8 max-w-md mx-auto" style={{ color: 'var(--text-secondary)' }}>
           For accurate results, maintain the correct viewing distance throughout the test.
         </p>
         
-        <div className="bg-gray-950 rounded-2xl p-8 mb-6 border border-gray-800">
+        <div 
+          className="rounded-2xl p-8 mb-6 transition-colors duration-300"
+          style={{ 
+            backgroundColor: 'var(--bg-stage)',
+            border: '1px solid var(--border-primary)'
+          }}
+        >
           <div className="flex flex-col items-center gap-6">
             <div className="relative">
               <div className="text-6xl mb-2">👤</div>
               <div className="flex items-center gap-2">
-                <div className="h-1 bg-gradient-to-r from-gray-600 to-[var(--primary-color)] rounded" style={{ width: '150px' }}></div>
+                <div className="h-1 rounded" style={{ width: '150px', background: `linear-gradient(to right, var(--border-secondary), var(--primary-color))` }}></div>
                 <div className="text-4xl">🖥️</div>
               </div>
               <div className="mt-2 text-2xl font-bold" style={{ color: 'var(--primary-color)' }}>
                 {REQUIRED_DISTANCE_CM} cm
               </div>
-              <div className="text-sm text-gray-500">≈ arm's length</div>
+              <div className="text-sm" style={{ color: 'var(--text-tertiary)' }}>≈ arm's length</div>
             </div>
             
             <div className="space-y-3 text-left max-w-sm">
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-800/50">
+              <div 
+                className="flex items-start gap-3 p-3 rounded-xl transition-colors duration-300"
+                style={{ backgroundColor: 'var(--bg-input)' }}
+              >
                 <span className="text-xl">💪</span>
                 <div>
-                  <div className="font-medium text-white">Arm's Length</div>
-                  <div className="text-sm text-gray-400">Stretch your arm - your fingertips should almost touch the screen</div>
+                  <div className="font-medium" style={{ color: 'var(--text-primary)' }}>Arm's Length</div>
+                  <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Stretch your arm - your fingertips should almost touch the screen</div>
                 </div>
               </div>
               
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-800/50">
+              <div 
+                className="flex items-start gap-3 p-3 rounded-xl transition-colors duration-300"
+                style={{ backgroundColor: 'var(--bg-input)' }}
+              >
                 <span className="text-xl">👓</span>
                 <div>
-                  <div className="font-medium text-white">Wear Glasses?</div>
-                  <div className="text-sm text-gray-400">Keep them on if you normally use them for screens</div>
+                  <div className="font-medium" style={{ color: 'var(--text-primary)' }}>Wear Glasses?</div>
+                  <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Keep them on if you normally use them for screens</div>
                 </div>
               </div>
             </div>
@@ -245,7 +259,7 @@ const AcuityChallenge = () => {
         
         <button
           onClick={handleDistanceConfirm}
-          className="w-full py-4 px-6 rounded-xl font-semibold text-black transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg"
+          className="w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg"
           style={{ 
             background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%)',
             boxShadow: '0 4px 20px var(--primary-color-glow)'
@@ -260,10 +274,16 @@ const AcuityChallenge = () => {
   // Main test UI
   return (
     <div>
-      <div className="mb-4 p-2 rounded-lg bg-gray-800/50 border border-gray-700/50 flex items-center justify-center gap-2 text-sm">
+      <div 
+        className="mb-4 p-2 rounded-lg flex items-center justify-center gap-2 text-sm transition-colors duration-300"
+        style={{ 
+          backgroundColor: 'var(--bg-input)',
+          border: '1px solid var(--border-secondary)'
+        }}
+      >
         <span>📏</span>
-        <span className="text-gray-400">
-          Remember: Stay <span className="text-white font-medium">{REQUIRED_DISTANCE_CM}cm</span> from screen
+        <span style={{ color: 'var(--text-secondary)' }}>
+          Remember: Stay <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{REQUIRED_DISTANCE_CM}cm</span> from screen
         </span>
       </div>
       
@@ -280,8 +300,8 @@ const AcuityChallenge = () => {
             Level {currentLevel} of 7
           </span>
         </div>
-        <h3 className="text-xl font-bold text-white mb-2">Eagle Eye Challenge</h3>
-        <p className={`${attemptNumber === 2 ? 'text-amber-400' : 'text-gray-400'}`}>
+        <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Eagle Eye Challenge</h3>
+        <p style={{ color: attemptNumber === 2 ? '#fbbf24' : 'var(--text-secondary)' }}>
           {attemptNumber === 1 
             ? currentLevel === 7 
               ? '🎯 Final level - 20/20 vision test!'
@@ -292,10 +312,10 @@ const AcuityChallenge = () => {
       
       <div className="mb-6">
         <div className="flex justify-between text-xs mb-2">
-          <span className="text-gray-500">Focus Level</span>
+          <span style={{ color: 'var(--text-tertiary)' }}>Focus Level</span>
           <span style={{ color: 'var(--primary-color)' }}>{currentLevel}/7</span>
         </div>
-        <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+        <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-input)' }}>
           <div
             className="h-full rounded-full transition-all duration-500"
             style={{ 
@@ -306,13 +326,21 @@ const AcuityChallenge = () => {
         </div>
       </div>
       
-      <div className="bg-gray-950 rounded-2xl p-6 mb-6 flex justify-center items-center min-h-[280px] border border-gray-800">
+      <div 
+        className="rounded-2xl p-6 mb-6 flex justify-center items-center min-h-[280px] transition-colors duration-300"
+        style={{ 
+          backgroundColor: 'var(--bg-stage)',
+          border: '1px solid var(--border-primary)'
+        }}
+      >
         <div
-          className="rounded-full bg-white flex items-center justify-center font-bold text-gray-900 shadow-2xl transition-all duration-500"
+          className="rounded-full flex items-center justify-center font-bold shadow-2xl transition-all duration-500"
           style={{
             width: `${currentSize}px`,
             height: `${currentSize}px`,
             fontSize: `${currentSize * 0.5}px`,
+            backgroundColor: isDark ? '#ffffff' : '#1f2937',
+            color: isDark ? '#1f2937' : '#ffffff',
           }}
         >
           {currentNumber}
@@ -325,8 +353,12 @@ const AcuityChallenge = () => {
           value={userAnswer}
           onChange={(e) => setUserAnswer(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
-          className="w-full px-4 py-4 rounded-xl bg-gray-800/50 text-white text-center text-2xl placeholder-gray-500 transition-all duration-300 focus:outline-none"
-          style={{ border: `2px solid ${attemptNumber === 2 ? 'rgba(251, 191, 36, 0.5)' : 'rgba(55, 65, 81, 0.5)'}` }}
+          className="w-full px-4 py-4 rounded-xl text-center text-2xl placeholder-gray-500 transition-all duration-300 focus:outline-none"
+          style={{ 
+            backgroundColor: 'var(--bg-input)',
+            color: 'var(--text-primary)',
+            border: `2px solid ${attemptNumber === 2 ? 'rgba(251, 191, 36, 0.5)' : 'var(--border-secondary)'}`
+          }}
           placeholder="Enter number"
           autoFocus
         />
