@@ -377,8 +377,19 @@ const AcuityChallenge = () => {
       </div>
       
       {attemptNumber === 2 && (
-        <div className="mt-4 p-3 rounded-xl bg-amber-900/20 border border-amber-500/30 text-center">
-          <span className="text-amber-400 text-sm font-medium">🎯 Focus - last attempt at Level {currentLevel}!</span>
+        <div 
+          className="mt-4 p-3 rounded-xl text-center transition-colors duration-300"
+          style={{ 
+            backgroundColor: isDark ? 'rgba(120, 53, 15, 0.2)' : 'rgba(254, 243, 199, 0.8)',
+            border: isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(217, 119, 6, 0.4)'
+          }}
+        >
+          <span 
+            className="text-sm font-medium"
+            style={{ color: isDark ? '#fbbf24' : '#b45309' }}
+          >
+            🎯 Focus - last attempt at Level {currentLevel}!
+          </span>
         </div>
       )}
     </div>

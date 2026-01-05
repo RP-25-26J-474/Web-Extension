@@ -186,7 +186,7 @@ const FinalProfile = () => {
               className="text-center p-5 rounded-xl transition-colors duration-300"
               style={{ backgroundColor: 'var(--bg-input)' }}
             >
-              <div className="text-4xl font-black text-amber-400">{stats.maxStreak}🔥</div>
+              <div className="text-4xl font-black" style={{ color: isDark ? '#fbbf24' : '#d97706' }}>{stats.maxStreak}🔥</div>
               <div className="text-sm mt-2" style={{ color: 'var(--text-tertiary)' }}>Best Streak</div>
             </div>
             <div 

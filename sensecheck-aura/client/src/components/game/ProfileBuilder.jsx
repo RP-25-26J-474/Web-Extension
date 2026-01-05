@@ -1,14 +1,16 @@
 import { useGame, PROFILE_TRAITS } from '../../context/GameContext';
+import { useTheme } from '../../context/ThemeContext';
 
 const ProfileBuilder = ({ expanded = false }) => {
   const { state } = useGame();
+  const { isDark } = useTheme();
   const allTraits = Object.values(PROFILE_TRAITS);
   
   if (!expanded) {
     // Compact version - just show unlocked trait icons
     return (
       <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-500">Profile:</span>
+        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Profile:</span>
         <div className="flex gap-1">
           {allTraits.map((trait) => {
             const isUnlocked = state.unlockedTraits.some(t => t.id === trait.id);
@@ -19,7 +21,7 @@ const ProfileBuilder = ({ expanded = false }) => {
                   isUnlocked ? 'scale-100' : 'scale-75 opacity-30 grayscale'
                 }`}
                 style={{ 
-                  backgroundColor: isUnlocked ? 'rgba(var(--primary-color-rgb), 0.2)' : 'rgba(55, 65, 81, 0.3)',
+                  backgroundColor: isUnlocked ? 'rgba(var(--primary-color-rgb), 0.2)' : 'var(--bg-input)',
                   border: isUnlocked ? '1px solid var(--primary-color)' : '1px solid transparent'
                 }}
                 title={trait.name}
@@ -34,8 +36,14 @@ const ProfileBuilder = ({ expanded = false }) => {
   }
   
   return (
-    <div className="bg-gray-900/70 backdrop-blur-xl border border-gray-800 rounded-2xl p-5">
-      <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+    <div 
+      className="backdrop-blur-xl rounded-2xl p-5 transition-colors duration-300"
+      style={{ 
+        backgroundColor: 'var(--bg-card)',
+        border: '1px solid var(--border-primary)'
+      }}
+    >
+      <h3 className="text-lg font-bold mb-4 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
         <span>⚡</span> Skills Unlocked
       </h3>
       
@@ -47,12 +55,13 @@ const ProfileBuilder = ({ expanded = false }) => {
           return (
             <div
               key={trait.id}
-              className={`p-4 rounded-xl transition-all duration-500 ${
-                isUnlocked 
-                  ? 'bg-gradient-to-r from-gray-800/50 to-gray-800/30' 
-                  : 'bg-gray-800/20 opacity-50'
-              }`}
+              className={`p-4 rounded-xl transition-all duration-500 ${!isUnlocked ? 'opacity-50' : ''}`}
               style={{ 
+                background: isUnlocked 
+                  ? isDark 
+                    ? 'linear-gradient(to right, rgba(31, 41, 55, 0.5), rgba(31, 41, 55, 0.3))'
+                    : 'linear-gradient(to right, rgba(243, 244, 246, 0.8), rgba(249, 250, 251, 0.5))'
+                  : 'var(--bg-input)',
                 borderLeft: isUnlocked ? '3px solid var(--primary-color)' : '3px solid transparent'
               }}
             >
@@ -62,7 +71,7 @@ const ProfileBuilder = ({ expanded = false }) => {
                     isUnlocked ? '' : 'grayscale'
                   }`}
                   style={{ 
-                    backgroundColor: isUnlocked ? 'rgba(var(--primary-color-rgb), 0.15)' : 'rgba(55, 65, 81, 0.3)'
+                    backgroundColor: isUnlocked ? 'rgba(var(--primary-color-rgb), 0.15)' : 'var(--bg-input)'
                   }}
                 >
                   {trait.icon}
@@ -70,14 +79,14 @@ const ProfileBuilder = ({ expanded = false }) => {
                 
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <h4 className="font-semibold text-white">{trait.name}</h4>
+                    <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>{trait.name}</h4>
                     {isUnlocked && (
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--primary-color)' }}>
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500">{trait.description}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{trait.description}</p>
                   
                   {/* Result preview if available */}
                   {isUnlocked && result && (
@@ -88,7 +97,7 @@ const ProfileBuilder = ({ expanded = false }) => {
                 </div>
                 
                 {!isUnlocked && (
-                  <div className="text-xs text-gray-600">
+                  <div style={{ color: 'var(--text-muted)' }}>
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
@@ -101,12 +110,12 @@ const ProfileBuilder = ({ expanded = false }) => {
       </div>
       
       {/* Progress indicator */}
-      <div className="mt-4 pt-4 border-t border-gray-800">
+      <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border-primary)' }}>
         <div className="flex justify-between text-sm mb-2">
-          <span className="text-gray-500">Skills Collected</span>
+          <span style={{ color: 'var(--text-tertiary)' }}>Skills Collected</span>
           <span style={{ color: 'var(--primary-color)' }}>{state.unlockedTraits.length}/4</span>
         </div>
-        <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+        <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-input)' }}>
           <div 
             className="h-full rounded-full transition-all duration-700"
             style={{ 
