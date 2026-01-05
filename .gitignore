@@ -34,3 +34,7 @@ node_modules/
 # Environment files
 .env
 .env.local
+venv/
+.venv/
+server/.venv/
+ml/training/.venv/

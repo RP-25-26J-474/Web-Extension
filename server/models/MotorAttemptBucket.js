@@ -150,7 +150,7 @@ motorAttemptBucketSchema.statics.addAttempts = async function(userId, attemptsAr
   const MotorPointerTraceBucket = mongoose.model('MotorPointerTraceBucket');
   const allSamples = await MotorPointerTraceBucket.getUserSamples(userId);
   
-  console.log(`\n📊 Processing ${attemptsArray.length} attempts with ${allSamples.length} pointer samples`);
+  console.log(`\nProcessing ${attemptsArray.length} attempts with ${allSamples.length} pointer samples`);
   
   // Debug: Show first attempt structure
   if (attemptsArray.length > 0) {
