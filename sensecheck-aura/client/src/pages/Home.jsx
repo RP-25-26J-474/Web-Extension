@@ -48,6 +48,11 @@ const Home = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [loadSessionData, loading]);
 
+  // Start unified game flow
+  const handleStartGame = () => {
+    navigate('/play');
+  };
+
   const handleModuleClick = (path, moduleId) => {
     const completed = isModuleCompleted(moduleId);
     if (!completed) {
@@ -185,6 +190,26 @@ const Home = () => {
               <span className="text-sm text-gray-400">
                 <span className="font-bold" style={{ color: 'var(--primary-color)' }}>{completedCount}</span> of 3 modules complete
               </span>
+            </div>
+
+            {/* Start Game CTA - Unified Game Flow */}
+            <div className="mt-8">
+              <button
+                onClick={handleStartGame}
+                className="px-10 py-5 rounded-xl font-bold text-lg text-black transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg group"
+                style={{ 
+                  background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%)',
+                  boxShadow: '0 8px 30px var(--primary-color-glow)'
+                }}
+              >
+                <span className="flex items-center gap-3">
+                  🎮 Start Games
+                  <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </span>
+              </button>
+              <p className="text-xs text-gray-500 mt-3">Quick 4-game assessment • Only 5 minutes</p>
             </div>
           </div>
 

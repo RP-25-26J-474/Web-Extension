@@ -1,7 +1,105 @@
 /**
  * Visual Acuity Calculation Utilities
  * Based on standard optometric formulas
+ * 
+ * IMPORTANT: All calculations assume 50cm viewing distance (arm's length)
+ * This is the standard for near vision testing on screens.
  */
+
+// Standard viewing distance for screen-based vision test (arm's length)
+export const STANDARD_VIEWING_DISTANCE_CM = 50;
+
+/**
+ * Calculate visual acuity based on resolved size vs 20/20 threshold
+ * This is the PRIMARY method for screen-based vision testing
+ * 
+ * @param {number} resolvedSize - Smallest size the user could resolve (pixels)
+ * @param {number} twentyTwentyThreshold - 20/20 threshold for this screen (pixels)
+ * @returns {object} Visual acuity metrics
+ */
+export const calculateVisualAcuityFromThreshold = (resolvedSize, twentyTwentyThreshold) => {
+  if (!resolvedSize || resolvedSize <= 0) {
+    return {
+      visualAcuityDecimal: 0,
+      visionLoss: 1.0,
+      snellenDenominator: 400,
+      snellenEstimate: '20/400',
+    };
+  }
+  
+  if (!twentyTwentyThreshold || twentyTwentyThreshold <= 0) {
+    twentyTwentyThreshold = 12; // Fallback default
+  }
+  
+  // Visual acuity = threshold / resolvedSize
+  // If resolved = threshold (e.g., 12px), acuity = 1.0 (20/20)
+  // If resolved = 2x threshold (e.g., 24px), acuity = 0.5 (20/40) - worse vision
+  // If resolved = 0.5x threshold (e.g., 6px), acuity = 2.0 (20/10) - better vision
+  const visualAcuityDecimal = Math.round((twentyTwentyThreshold / resolvedSize) * 100) / 100;
+  
+  // Snellen denominator: 20 / acuity
+  // acuity 1.0 = 20/20, acuity 0.5 = 20/40
+  const snellenDenominator = Math.round(20 / Math.max(0.05, visualAcuityDecimal));
+  const clampedDenominator = Math.max(10, Math.min(400, snellenDenominator));
+  
+  // Vision loss: how much worse than 20/20
+  // acuity >= 1.0 = no loss (0.0)
+  // acuity 0.5 = 50% loss (0.5)
+  const visionLoss = visualAcuityDecimal >= 1.0 
+    ? 0.0 
+    : Math.round(Math.max(0, Math.min(1, 1 - visualAcuityDecimal)) * 100) / 100;
+  
+  return {
+    visualAcuityDecimal: Math.min(2.0, visualAcuityDecimal), // Cap at 2.0 (20/10)
+    visionLoss,
+    snellenDenominator: clampedDenominator,
+    snellenEstimate: `20/${clampedDenominator}`,
+  };
+};
+
+/**
+ * Get vision category based on WHO/ICD-11 classification
+ * @param {number} visualAcuityDecimal - Visual acuity decimal
+ * @returns {object} Vision category with name and description
+ */
+export const getVisionCategory = (visualAcuityDecimal) => {
+  if (visualAcuityDecimal >= 1.0) {
+    return {
+      category: 'normal',
+      name: 'Normal Vision',
+      snellenRange: '20/20 or better',
+      description: 'No visual impairment'
+    };
+  } else if (visualAcuityDecimal >= 0.5) {
+    return {
+      category: 'mild',
+      name: 'Mild Vision Loss',
+      snellenRange: '20/25 to 20/40',
+      description: 'Mild visual impairment - may need corrective lenses'
+    };
+  } else if (visualAcuityDecimal >= 0.3) {
+    return {
+      category: 'moderate',
+      name: 'Moderate Vision Loss',
+      snellenRange: '20/50 to 20/70',
+      description: 'Moderate visual impairment'
+    };
+  } else if (visualAcuityDecimal >= 0.1) {
+    return {
+      category: 'severe',
+      name: 'Severe Vision Loss',
+      snellenRange: '20/100 to 20/200',
+      description: 'Severe visual impairment'
+    };
+  } else {
+    return {
+      category: 'profound',
+      name: 'Profound Vision Loss',
+      snellenRange: 'Worse than 20/200',
+      description: 'Profound visual impairment - legal blindness threshold'
+    };
+  }
+};
 
 /**
  * Calculate visual angle in degrees

@@ -175,7 +175,7 @@ const VisualAcuityTest = () => {
     if (isAllModulesCompleted()) {
       navigate('/complete');
     } else {
-      navigate('/');
+    navigate('/');
     }
   };
 
