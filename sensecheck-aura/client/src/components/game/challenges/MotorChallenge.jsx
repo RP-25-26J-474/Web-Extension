@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Stage, Layer, Circle, Rect } from 'react-konva';
 import { useGame } from '../../../context/GameContext';
+import { useTheme } from '../../../context/ThemeContext';
 import useStore from '../../../state/store';
 import MotorSkillsTracker from '../../../utils/motorSkillsTracking';
 import usePerformanceMetrics from '../../../hooks/usePerformanceMetrics';
@@ -22,6 +23,7 @@ const getPrimaryColor = () => getComputedStyle(document.documentElement).getProp
 
 const MotorChallenge = () => {
   const { completeChallenge, updateStats, recordCorrectAnswer, recordIncorrectAnswer, state, updateChallengeProgress } = useGame();
+  const { isDark } = useTheme();
   const { setMotorRound, completeMotorSkillsTest, completeModule } = useStore();
   
   const motorTrackerRef = useRef(null);
@@ -318,11 +320,11 @@ const MotorChallenge = () => {
           </span>
         </div>
         
-        <h3 className="text-2xl font-bold text-white mb-4">
+        <h3 className="text-2xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
           {currentRound === 1 ? 'Bubble Pop!' : currentRound === 2 ? 'Faster Bubbles!' : 'Final Wave!'}
         </h3>
         
-        <p className="text-gray-400 mb-6 max-w-md mx-auto">
+        <p className="mb-6 max-w-md mx-auto" style={{ color: 'var(--text-secondary)' }}>
           {currentRound === 1 
             ? 'Pop the rising bubbles before they float away! Tap fast!'
             : currentRound === 2
@@ -338,7 +340,7 @@ const MotorChallenge = () => {
                 round <= currentRound ? 'opacity-100' : 'opacity-30'
               }`}
               style={{ 
-                backgroundColor: round <= currentRound ? 'var(--primary-color)' : '#374151',
+                backgroundColor: round <= currentRound ? 'var(--primary-color)' : 'var(--border-secondary)',
                 width: `${40 + round * 10}px`
               }}
             />
@@ -347,7 +349,7 @@ const MotorChallenge = () => {
         
         <button
           onClick={startRound}
-          className="px-8 py-4 rounded-xl font-semibold text-black transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg"
+          className="px-8 py-4 rounded-xl font-semibold text-white transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg"
           style={{ 
             background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%)',
             boxShadow: '0 4px 20px var(--primary-color-glow)'
@@ -357,14 +359,17 @@ const MotorChallenge = () => {
         </button>
         
         {displayTotalStats.hits > 0 && (
-          <div className="mt-6 p-4 rounded-xl bg-gray-800/50">
+          <div 
+            className="mt-6 p-4 rounded-xl transition-colors duration-300"
+            style={{ backgroundColor: 'var(--bg-input)' }}
+          >
             <div className="flex justify-center gap-6 text-sm">
               <div>
-                <span className="text-gray-500">Popped:</span>
+                <span style={{ color: 'var(--text-tertiary)' }}>Popped:</span>
                 <span className="ml-2 font-bold" style={{ color: 'var(--primary-color)' }}>{displayTotalStats.hits}</span>
               </div>
               <div>
-                <span className="text-gray-500">Best Streak:</span>
+                <span style={{ color: 'var(--text-tertiary)' }}>Best Streak:</span>
                 <span className="ml-2 font-bold text-amber-400">{displayTotalStats.bestStreak}🔥</span>
               </div>
             </div>
@@ -375,12 +380,15 @@ const MotorChallenge = () => {
   }
   
   // Game stage
+  const stageBgColor = isDark ? '#030712' : '#f1f5f9';
+  const columnColor = isDark ? '#1f2937' : '#e2e8f0';
+  
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <span className="text-xl">🎯</span>
-          <span className="font-semibold text-white">Wave {currentRound}</span>
+          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Wave {currentRound}</span>
         </div>
         
         <div 
@@ -398,16 +406,22 @@ const MotorChallenge = () => {
         <div className="flex gap-4 text-sm">
           <div className="text-center">
             <div className="font-bold" style={{ color: 'var(--primary-color)' }}>{displayRoundStats.hits}</div>
-            <div className="text-xs text-gray-500">Popped</div>
+            <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Popped</div>
           </div>
           <div className="text-center">
             <div className="font-bold text-amber-400">{displayRoundStats.streak}🔥</div>
-            <div className="text-xs text-gray-500">Streak</div>
+            <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Streak</div>
           </div>
         </div>
       </div>
       
-      <div className="bg-gray-950 rounded-2xl border border-gray-800 overflow-hidden flex justify-center">
+      <div 
+        className="rounded-2xl overflow-hidden flex justify-center transition-colors duration-300"
+        style={{ 
+          backgroundColor: 'var(--bg-stage)',
+          border: '1px solid var(--border-primary)'
+        }}
+      >
         <Stage
           width={STAGE_WIDTH}
           height={STAGE_HEIGHT}
@@ -424,7 +438,7 @@ const MotorChallenge = () => {
           }}
         >
           <Layer>
-            <Rect x={0} y={0} width={STAGE_WIDTH} height={STAGE_HEIGHT} fill="#030712" />
+            <Rect x={0} y={0} width={STAGE_WIDTH} height={STAGE_HEIGHT} fill={stageBgColor} />
             
             {[1, 2, 3, 4].map((i) => (
               <Rect
@@ -433,7 +447,7 @@ const MotorChallenge = () => {
                 y={0}
                 width={1}
                 height={STAGE_HEIGHT}
-                fill="#1f2937"
+                fill={columnColor}
               />
             ))}
             
@@ -455,7 +469,7 @@ const MotorChallenge = () => {
         </Stage>
       </div>
       
-      <div className="mt-4 text-center text-sm text-gray-500">
+      <div className="mt-4 text-center text-sm" style={{ color: 'var(--text-tertiary)' }}>
         🎯 Tap fast! Don't let them float away!
       </div>
     </div>

@@ -2,6 +2,9 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
 import auraIntegration from './utils/auraIntegration';
 
+// Theme
+import { ThemeProvider } from './context/ThemeContext';
+
 // Game Flow
 import { GameProvider } from './context/GameContext';
 import GameFlow from './components/game/GameFlow';
@@ -53,25 +56,27 @@ function App() {
   }, []);
   
   return (
-    <Router>
-      <GameProvider>
-        <div className="min-h-screen">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            
-            {/* Unified game flow */}
-            <Route path="/play" element={<GameFlow />} />
-            
-            {/* Legacy routes - kept for backwards compatibility */}
-            <Route path="/perception/color-blindness" element={<ColorBlindnessTest />} />
-            <Route path="/perception/visual-acuity" element={<VisualAcuityTest />} />
-            <Route path="/reaction/motor-skills" element={<MotorSkillsGame />} />
-            <Route path="/knowledge/literacy" element={<LiteracyQuiz />} />
-            <Route path="/complete" element={<Complete />} />
-          </Routes>
-        </div>
-      </GameProvider>
-    </Router>
+    <ThemeProvider>
+      <Router>
+        <GameProvider>
+          <div className="min-h-screen">
+            <Routes>
+              <Route path="/" element={<Home />} />
+              
+              {/* Unified game flow */}
+              <Route path="/play" element={<GameFlow />} />
+              
+              {/* Legacy routes - kept for backwards compatibility */}
+              <Route path="/perception/color-blindness" element={<ColorBlindnessTest />} />
+              <Route path="/perception/visual-acuity" element={<VisualAcuityTest />} />
+              <Route path="/reaction/motor-skills" element={<MotorSkillsGame />} />
+              <Route path="/knowledge/literacy" element={<LiteracyQuiz />} />
+              <Route path="/complete" element={<Complete />} />
+            </Routes>
+          </div>
+        </GameProvider>
+      </Router>
+    </ThemeProvider>
   );
 }
 
