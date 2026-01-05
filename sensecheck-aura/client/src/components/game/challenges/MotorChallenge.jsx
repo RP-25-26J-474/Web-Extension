@@ -370,7 +370,7 @@ const MotorChallenge = () => {
               </div>
               <div>
                 <span style={{ color: 'var(--text-tertiary)' }}>Best Streak:</span>
-                <span className="ml-2 font-bold text-amber-400">{displayTotalStats.bestStreak}🔥</span>
+                <span className="ml-2 font-bold" style={{ color: isDark ? '#fbbf24' : '#d97706' }}>{displayTotalStats.bestStreak}🔥</span>
               </div>
             </div>
           </div>
@@ -409,7 +409,7 @@ const MotorChallenge = () => {
             <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Popped</div>
           </div>
           <div className="text-center">
-            <div className="font-bold text-amber-400">{displayRoundStats.streak}🔥</div>
+            <div className="font-bold" style={{ color: isDark ? '#fbbf24' : '#d97706' }}>{displayRoundStats.streak}🔥</div>
             <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Streak</div>
           </div>
         </div>
