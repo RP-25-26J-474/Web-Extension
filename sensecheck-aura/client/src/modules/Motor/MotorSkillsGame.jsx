@@ -394,21 +394,21 @@ const MotorSkillsGame = () => {
 
     // Track round completion and send to ML schemas (fire-and-forget, don't block transition)
     if (motorTrackerRef.current) {
-      // Calculate hits and misses from tracker's logged interactions
-      const allInteractions = motorTrackerRef.current.getAllInteractions();
-      const roundInteractions = allInteractions.filter(i => i.round === currentRound);
-      const hits = roundInteractions.filter(i => i.eventType === 'bubble_hit').length;
-      const misses = roundInteractions.filter(i => i.eventType === 'bubble_miss').length;
-      
-      console.log(`📊 Round ${currentRound} stats: ${hits} hits, ${misses} misses`);
-      
+        // Calculate hits and misses from tracker's logged interactions
+        const allInteractions = motorTrackerRef.current.getAllInteractions();
+        const roundInteractions = allInteractions.filter(i => i.round === currentRound);
+        const hits = roundInteractions.filter(i => i.eventType === 'bubble_hit').length;
+        const misses = roundInteractions.filter(i => i.eventType === 'bubble_miss').length;
+        
+        console.log(`📊 Round ${currentRound} stats: ${hits} hits, ${misses} misses`);
+        
       // Fire-and-forget: don't await, let it run in background
       motorTrackerRef.current.trackRoundComplete({
-        hits: hits,
-        misses: misses,
-        escaped: misses, // Escaped bubbles are the same as misses
-        duration: BUBBLE_PATTERNS[currentRound - 1].duration,
-        averageReactionTime: 0, // Could calculate this if needed
+          hits: hits,
+          misses: misses,
+          escaped: misses, // Escaped bubbles are the same as misses
+          duration: BUBBLE_PATTERNS[currentRound - 1].duration,
+          averageReactionTime: 0, // Could calculate this if needed
       }).catch(error => {
         console.error('Error tracking round completion:', error);
         // Continue game even if tracking fails
