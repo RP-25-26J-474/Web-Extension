@@ -110,37 +110,65 @@ function showOnboardingPrompt(user) {
     onboardingPrompt.style.display = 'block';
     onboardingPrompt.innerHTML = `
       <div class="onboarding-prompt">
-        <h2>Welcome ${userName}! 🎉</h2>
+        <div class="welcome-badge">
+          <span class="welcome-emoji">🎮</span>
+        </div>
+        <h2>Welcome ${userName}!</h2>
         <p class="onboarding-description">
-          Before you start tracking, let's complete a quick onboarding assessment.
-          This helps us understand your device capabilities and preferences.
+          Ready for a quick brain challenge? Four fun mini-games await to help us 
+          personalize your experience!
         </p>
         
-        <div class="onboarding-tests">
-          <div class="test-card">
-            <span class="test-icon">🎯</span>
-            <h3>Motor Skills</h3>
-            <p>Test reaction time and accuracy</p>
+        <div class="game-cards-grid">
+          <div class="game-card">
+            <div class="game-card-icon">🎨</div>
+            <div class="game-card-content">
+              <h3>Pattern Hunt</h3>
+              <p>Find hidden numbers</p>
+            </div>
           </div>
-          <div class="test-card">
-            <span class="test-icon">📚</span>
-            <h3>Computer Literacy</h3>
-            <p>Quick quiz on UI concepts</p>
+          <div class="game-card">
+            <div class="game-card-icon">🦅</div>
+            <div class="game-card-content">
+              <h3>Eagle Eye</h3>
+              <p>Test your focus</p>
+            </div>
           </div>
-          <div class="test-card">
-            <span class="test-icon">👁️</span>
-            <h3>Vision Tests</h3>
-            <p>Color blindness & visual acuity</p>
+          <div class="game-card">
+            <div class="game-card-icon">🎯</div>
+            <div class="game-card-content">
+              <h3>Bubble Pop</h3>
+              <p>Speed & precision</p>
+            </div>
+          </div>
+          <div class="game-card">
+            <div class="game-card-icon">🧠</div>
+            <div class="game-card-content">
+              <h3>Quick Think</h3>
+              <p>Digital trivia</p>
+            </div>
           </div>
         </div>
         
-        <p class="onboarding-note">
-          ⏱️ Takes about 5-7 minutes • Your data is private and secure
-        </p>
+        <div class="onboarding-features">
+          <div class="feature-item">
+            <span class="feature-icon">⏱️</span>
+            <span>Only 5 minutes</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">🔒</span>
+            <span>100% Private</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">🏆</span>
+            <span>Earn badges</span>
+          </div>
+        </div>
         
         <div class="onboarding-actions">
-          <button id="startOnboardingBtn" class="btn btn-primary full-width">
-            Start Onboarding Game
+          <button id="startOnboardingBtn" class="btn btn-primary full-width btn-glow">
+            <span class="btn-text">Let's Play!</span>
+            <span class="btn-arrow">→</span>
           </button>
         </div>
       </div>

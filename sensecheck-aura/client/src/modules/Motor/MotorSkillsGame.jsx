@@ -186,6 +186,16 @@ const MotorSkillsGame = () => {
 
   // Handle bubble click
   const handleBubbleClick = (bubble, event) => {
+    // IMPORTANT: Stop event propagation to prevent double-click issues
+    // This prevents the event from bubbling to the Stage's onClick handler
+    if (event.cancelBubble !== undefined) {
+      event.cancelBubble = true;
+    }
+    if (event.evt) {
+      event.evt.stopPropagation?.();
+      event.evt.preventDefault?.();
+    }
+    
     // Record input event for input lag estimation
     perfMetrics.recordInputEvent(event.evt?.timeStamp);
     
