@@ -38,3 +38,9 @@ venv/
 .venv/
 server/.venv/
 ml/training/.venv/
+
+# Generated data/exports
+ml/datasets/final/motor_sessions.csv
+ml/model_registry/**/preprocess/impute_medians.json
+server/scripts/impairement_profiles.json
+server/scripts/ml-export-*.csv
