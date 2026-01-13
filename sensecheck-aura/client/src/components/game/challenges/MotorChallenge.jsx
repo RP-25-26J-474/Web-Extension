@@ -145,7 +145,19 @@ const MotorChallenge = () => {
     }
   }, [perfMetrics, recordIncorrectAnswer, syncDisplayStats]);
   
-  const handleBubbleClick = (bubble, event) => {
+  // Track which bubbles have been popped to prevent double-pops
+  const poppedBubblesRef = useRef(new Set());
+  
+  const handleBubblePop = useCallback((bubble, event) => {
+    // Prevent double-pops from multiple event types firing
+    if (poppedBubblesRef.current.has(bubble.id)) return;
+    poppedBubblesRef.current.add(bubble.id);
+    
+    // Clean up old entries periodically
+    if (poppedBubblesRef.current.size > 100) {
+      poppedBubblesRef.current.clear();
+    }
+    
     perfMetrics.recordInputEvent(event.evt?.timeStamp);
     
     if (motorTrackerRef.current) {
@@ -167,7 +179,7 @@ const MotorChallenge = () => {
     
     bubblesRef.current = bubblesRef.current.filter((b) => b.id !== bubble.id);
     setBubbles([...bubblesRef.current]);
-  };
+  }, [perfMetrics, recordCorrectAnswer, syncDisplayStats]);
   
   const startRound = () => {
     setShowRoundIntro(false);
@@ -425,7 +437,14 @@ const MotorChallenge = () => {
         <Stage
           width={STAGE_WIDTH}
           height={STAGE_HEIGHT}
-          style={{ cursor: 'crosshair' }}
+          style={{ 
+            cursor: 'crosshair',
+            // Prevent browser delays on touch/click
+            touchAction: 'manipulation',
+            WebkitTouchCallout: 'none',
+            WebkitUserSelect: 'none',
+            userSelect: 'none',
+          }}
           onMouseMove={(e) => {
             if (isPlayingRef.current && motorTrackerRef.current) {
               motorTrackerRef.current.trackPointerMove(e.evt);
@@ -451,20 +470,26 @@ const MotorChallenge = () => {
               />
             ))}
             
-            {bubbles.map((bubble) => (
-              <Circle
-                key={bubble.id}
-                x={bubble.x}
-                y={bubble.y}
-                radius={bubble.radius}
-                fill={primaryColor}
-                shadowColor={primaryColor}
-                shadowBlur={15}
-                shadowOpacity={0.5}
-                onClick={(e) => handleBubbleClick(bubble, e)}
-                onTap={(e) => handleBubbleClick(bubble, e)}
-              />
-            ))}
+                            {bubbles.map((bubble) => (
+                              <Circle
+                                key={bubble.id}
+                                x={bubble.x}
+                                y={bubble.y}
+                                radius={bubble.radius}
+                                fill={primaryColor}
+                                shadowColor={primaryColor}
+                                shadowBlur={15}
+                                shadowOpacity={0.5}
+                                // Use mousedown/touchstart for immediate response (no wait for release)
+                                onMouseDown={(e) => handleBubblePop(bubble, e)}
+                                onTouchStart={(e) => handleBubblePop(bubble, e)}
+                                // Keep onClick/onTap as fallbacks for accessibility
+                                onClick={(e) => handleBubblePop(bubble, e)}
+                                onTap={(e) => handleBubblePop(bubble, e)}
+                                // Increase hit area slightly for better trackpad responsiveness
+                                hitStrokeWidth={10}
+                              />
+                            ))}
           </Layer>
         </Stage>
       </div>
