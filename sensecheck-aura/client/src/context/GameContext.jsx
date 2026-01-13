@@ -2,7 +2,7 @@ import { createContext, useContext, useReducer, useCallback, useEffect } from 'r
 import useStore from '../state/store';
 import auraIntegration from '../utils/auraIntegration';
 
-// Challenge phases in order
+// Challenge phases in order (intro shows the story, then challenges begin)
 export const CHALLENGE_ORDER = [
   'intro',
   'color-blindness',
@@ -12,39 +12,55 @@ export const CHALLENGE_ORDER = [
   'profile-complete'
 ];
 
-// Skills unlocked by completing challenges (gamified names)
+// Lighthouse-themed skills unlocked by completing challenges
 export const PROFILE_TRAITS = {
   'color-blindness': {
-    id: 'perception',
-    name: 'Pattern Vision',
-    icon: '🎨',
-    description: 'Master of hidden patterns'
+    id: 'prism',
+    name: 'Prism Master',
+    icon: '🌈',
+    description: 'Light colors perfectly calibrated',
+    lighthouseMessage: 'Color channels aligned.',
+    systemName: 'Calibrating the Light Colors'
   },
   'visual-acuity': {
-    id: 'clarity',
-    name: 'Eagle Eye',
-    icon: '🦅',
-    description: 'Sharp focus and precision'
+    id: 'beam',
+    name: 'Beam Focuser',
+    icon: '🔦',
+    description: 'Beam sharpened to reach distant signals',
+    lighthouseMessage: 'Beam focus optimized.',
+    systemName: 'Focusing the Beam'
   },
   'motor-skills': {
-    id: 'reflexes',
-    name: 'Lightning Reflexes',
-    icon: '⚡',
-    description: 'Quick reactions under pressure'
+    id: 'fog',
+    name: 'Fog Clearer',
+    icon: '🌫️',
+    description: 'Corruption cleared from the pathway',
+    lighthouseMessage: 'Pathway cleared.',
+    systemName: 'Clearing the Rising Fog'
   },
   'knowledge-quiz': {
-    id: 'literacy',
-    name: 'Tech Guru',
-    icon: '🧠',
-    description: 'Digital wisdom unlocked'
+    id: 'control',
+    name: 'System Operator',
+    icon: '⚡',
+    description: 'Control panel fully operational',
+    lighthouseMessage: 'Control systems restored.',
+    systemName: 'Restoring the Control Panel'
   }
+};
+
+// Lighthouse progress messages
+export const LIGHTHOUSE_MESSAGES = {
+  1: 'The lighthouse stirs...',
+  2: 'Light begins to form...',
+  3: 'The beam grows stronger...',
+  4: 'Almost there... one final system...',
 };
 
 const initialState = {
   // User identifier (from AURA extension registration - no sessionId needed)
   userId: null,
   
-  // Current phase
+  // Current phase - starts with intro to show the story
   currentPhase: 'intro',
   
   // Overall progress
@@ -87,7 +103,11 @@ const initialState = {
   // UI states
   showingTransition: false,
   transitionMessage: '',
+  transitionSubMessage: '',
   isPaused: false,
+  
+  // Lighthouse state (for visual effects)
+  lighthouseProgress: 0, // 0-4 systems restored
 };
 
 // Action types
@@ -108,6 +128,7 @@ const ACTIONS = {
   RESUME_GAME: 'RESUME_GAME',
   LOAD_SAVED_STATE: 'LOAD_SAVED_STATE',
   UPDATE_CHALLENGE_PROGRESS: 'UPDATE_CHALLENGE_PROGRESS',
+  UPDATE_LIGHTHOUSE_PROGRESS: 'UPDATE_LIGHTHOUSE_PROGRESS',
 };
 
 function gameReducer(state, action) {
@@ -121,9 +142,10 @@ function gameReducer(state, action) {
     case ACTIONS.START_GAME:
       return {
         ...state,
-        startTime: Date.now(),
+        startTime: state.startTime || Date.now(),
         phaseStartTime: Date.now(),
         currentPhase: 'color-blindness',
+        lighthouseProgress: 0,
       };
       
     case ACTIONS.SET_PHASE:
@@ -138,6 +160,7 @@ function gameReducer(state, action) {
       return {
         ...state,
         completedChallenges,
+        lighthouseProgress: completedChallenges.length,
       };
     }
     
@@ -184,7 +207,8 @@ function gameReducer(state, action) {
       return {
         ...state,
         showingTransition: true,
-        transitionMessage: action.payload,
+        transitionMessage: action.payload.message,
+        transitionSubMessage: action.payload.subMessage || '',
       };
       
     case ACTIONS.HIDE_TRANSITION:
@@ -192,6 +216,7 @@ function gameReducer(state, action) {
         ...state,
         showingTransition: false,
         transitionMessage: '',
+        transitionSubMessage: '',
       };
       
     case ACTIONS.SAVE_CHALLENGE_RESULT:
@@ -240,6 +265,12 @@ function gameReducer(state, action) {
         },
       };
     }
+    
+    case ACTIONS.UPDATE_LIGHTHOUSE_PROGRESS:
+      return {
+        ...state,
+        lighthouseProgress: action.payload,
+      };
       
     default:
       return state;
@@ -295,6 +326,7 @@ export function GameProvider({ children }) {
           challengeResults: state.challengeResults,
           challengeProgress: state.challengeProgress,
           startTime: state.startTime,
+          lighthouseProgress: state.lighthouseProgress,
         }));
       } catch (e) {
         console.error('Failed to save game state:', e);
@@ -331,15 +363,22 @@ export function GameProvider({ children }) {
       dispatch({ type: ACTIONS.UNLOCK_TRAIT, payload: trait });
     }
     
-    // Show transition
-    const traitName = trait?.name || 'Challenge';
+    // Show lighthouse-themed transition
+    const completedCount = state.completedChallenges.length + 1;
+    const isLastChallenge = completedCount >= 4;
+    
     dispatch({ 
       type: ACTIONS.SHOW_TRANSITION, 
-      payload: `${traitName} Unlocked!` 
+      payload: {
+        message: trait?.lighthouseMessage || 'System Restored!',
+        subMessage: isLastChallenge 
+          ? 'The lighthouse awakens...' 
+          : `System ${completedCount} of 4 restored`
+      }
     });
     
     // Wait for transition animation
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 2500));
     
     dispatch({ type: ACTIONS.HIDE_TRANSITION });
     
@@ -349,7 +388,7 @@ export function GameProvider({ children }) {
       const nextPhase = CHALLENGE_ORDER[currentIndex + 1];
       dispatch({ type: ACTIONS.SET_PHASE, payload: nextPhase });
     }
-  }, []);
+  }, [state.completedChallenges.length]);
   
   const recordCorrectAnswer = useCallback((responseTime) => {
     dispatch({ type: ACTIONS.INCREMENT_STREAK });
@@ -427,4 +466,3 @@ export function useGame() {
 }
 
 export default GameContext;
-

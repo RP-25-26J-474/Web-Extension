@@ -5,24 +5,33 @@ import JourneyProgress from './JourneyProgress';
 import StatsPanel from './StatsPanel';
 import ProfileBuilder from './ProfileBuilder';
 import TransitionOverlay from './TransitionOverlay';
-import IntroScreen from './IntroScreen';
 import FinalProfile from './FinalProfile';
+import IntroScreen from './IntroScreen';
 import ColorChallenge from './challenges/ColorChallenge';
 import AcuityChallenge from './challenges/AcuityChallenge';
 import MotorChallenge from './challenges/MotorChallenge';
 import QuizChallenge from './challenges/QuizChallenge';
 import logo from '../../resources/logo.png';
+import { Save } from 'lucide-react';
+
+// Lighthouse system names for header display
+const SYSTEM_NAMES = {
+  'color-blindness': 'Calibrating Light Colors',
+  'visual-acuity': 'Focusing the Beam',
+  'motor-skills': 'Clearing the Fog',
+  'knowledge-quiz': 'Restoring Control Panel',
+};
 
 const GameFlow = () => {
   const { state, progress } = useGame();
   const { isDark } = useTheme();
   
-  // Show intro screen (fun "Let's Play!" screen)
+  // Show story intro screen first
   if (state.currentPhase === 'intro') {
     return <IntroScreen />;
   }
   
-  // Show final profile
+  // Show final profile (Lighthouse activated)
   if (state.currentPhase === 'profile-complete') {
     return <FinalProfile />;
   }
@@ -43,25 +52,21 @@ const GameFlow = () => {
     }
   };
   
+  const currentSystemName = SYSTEM_NAMES[state.currentPhase] || 'Lighthouse Systems';
+  
   return (
-    <div className="min-h-screen relative overflow-hidden transition-colors duration-300" style={{ background: 'var(--gradient-bg)' }}>
+    <div 
+      className="min-h-screen relative overflow-hidden transition-colors duration-300"
+      style={{ background: 'var(--gradient-bg)' }}
+    >
       {/* Background decorations */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <svg viewBox="0 0 1200 200" className="absolute -top-20 left-0 w-full" style={{ opacity: isDark ? 0.1 : 0.15 }}>
-          <path d="M0,100 Q300,180 600,100 T1200,100 L1200,0 L0,0 Z" fill="url(#swooshGradient)" />
-          <defs>
-            <linearGradient id="swooshGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="var(--primary-color)" stopOpacity="0.3" />
-              <stop offset="100%" stopColor="var(--primary-color)" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-        </svg>
         <div 
-          className="absolute top-1/3 right-1/4 w-64 h-64 rounded-full blur-3xl animate-pulse" 
+          className="absolute top-1/4 right-1/4 w-96 h-96 rounded-full blur-3xl animate-pulse" 
           style={{ backgroundColor: `rgba(var(--primary-color-rgb), ${isDark ? 0.06 : 0.08})` }} 
         />
         <div 
-          className="absolute bottom-1/4 left-1/3 w-48 h-48 rounded-full blur-3xl animate-pulse" 
+          className="absolute bottom-1/3 left-1/4 w-64 h-64 rounded-full blur-3xl animate-pulse" 
           style={{ backgroundColor: `rgba(var(--primary-color-rgb), ${isDark ? 0.04 : 0.06})`, animationDelay: '1s' }} 
         />
       </div>
@@ -73,18 +78,28 @@ const GameFlow = () => {
       <header 
         className="relative z-10 backdrop-blur-xl transition-colors duration-300"
         style={{ 
-          borderBottom: `1px solid var(--border-primary)`,
-          backgroundColor: isDark ? 'rgba(3, 7, 18, 0.5)' : 'rgba(255, 255, 255, 0.8)'
+          borderBottom: '1px solid var(--border-primary)',
+          background: isDark ? 'rgba(10, 20, 40, 0.7)' : 'rgba(255, 255, 255, 0.9)'
         }}
       >
         <div className="max-w-6xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            {/* Logo */}
-            <div className="flex items-center gap-2">
-              <img src={logo} alt="AURA" className="w-8 h-8" />
+            {/* Logo / Current System */}
+            <div className="flex items-center gap-3">
+              <img src={logo} alt="Lighthouse" className="w-9 h-9 object-contain" />
               <div>
-                <span className="font-bold" style={{ color: 'var(--text-primary)' }}>AURA</span>
-                <span className="text-xs ml-2 hidden sm:inline" style={{ color: 'var(--text-tertiary)' }}>Digital Profile</span>
+                <span 
+                  className="font-bold text-sm"
+                  style={{ color: 'var(--primary-color)' }}
+                >
+                  The Lighthouse of Clarity
+                </span>
+                <span 
+                  className="text-xs ml-2 hidden sm:inline"
+                  style={{ color: 'var(--text-tertiary)' }}
+                >
+                  {currentSystemName}
+                </span>
               </div>
             </div>
             
@@ -111,7 +126,7 @@ const GameFlow = () => {
               style={{ 
                 backgroundColor: 'var(--bg-card)',
                 border: '1px solid var(--border-primary)',
-                boxShadow: 'var(--shadow-xl)'
+                boxShadow: 'var(--shadow-lg)'
               }}
             >
               {getChallengeComponent()}
@@ -147,8 +162,11 @@ const GameFlow = () => {
         className="relative z-10 text-center py-4 transition-colors duration-300"
         style={{ borderTop: '1px solid var(--border-primary)' }}
       >
-        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          Game {progress.current + 1} of 4 • Auto-saved 💾
+        <p 
+          className="text-xs flex items-center justify-center gap-1"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          System {progress.current + 1} of 4 • Auto-saved <Save className="w-3 h-3" />
         </p>
       </footer>
     </div>

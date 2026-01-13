@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useGame } from '../../context/GameContext';
 import { useTheme } from '../../context/ThemeContext';
+import { Flame, Trophy, Clock } from 'lucide-react';
 
 const StatsPanel = ({ compact = false }) => {
   const { state } = useGame();
   const { isDark } = useTheme();
   const { stats } = state;
   
-  // Live ticking time
   const [displayTime, setDisplayTime] = useState(0);
   
-  // Update time every second
   useEffect(() => {
     if (!state.startTime) return;
     
@@ -24,7 +23,6 @@ const StatsPanel = ({ compact = false }) => {
     return () => clearInterval(interval);
   }, [state.startTime]);
   
-  // Format time as mm:ss
   const formatTime = (ms) => {
     const seconds = Math.floor(ms / 1000);
     const mins = Math.floor(seconds / 60);
@@ -32,16 +30,14 @@ const StatsPanel = ({ compact = false }) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
   
-  // Theme-aware amber color
-  const amberColor = isDark ? '#fbbf24' : '#d97706';
-  const amberBg = isDark ? 'rgba(251, 191, 36, 0.2)' : 'rgba(217, 119, 6, 0.15)';
+  const amberColor = '#f59e0b';
+  const amberBg = isDark ? 'rgba(251, 191, 36, 0.2)' : 'rgba(245, 158, 11, 0.15)';
   
   if (compact) {
     return (
       <div className="flex items-center gap-4 text-sm">
-        {/* Current Streak */}
         <div className="flex items-center gap-1.5">
-          <span className="text-lg">🔥</span>
+          <Flame className="w-4 h-4" style={{ color: stats.currentStreak >= 3 ? amberColor : 'var(--text-tertiary)' }} />
           <span 
             className="font-bold"
             style={{ color: stats.currentStreak >= 3 ? amberColor : 'var(--text-tertiary)' }}
@@ -50,19 +46,17 @@ const StatsPanel = ({ compact = false }) => {
           </span>
         </div>
         
-        {/* Best Streak */}
         {stats.maxStreak > 0 && (
           <div className="flex items-center gap-1.5">
-            <span className="text-lg">🏆</span>
+            <Trophy className="w-4 h-4" style={{ color: amberColor }} />
             <span className="font-bold" style={{ color: amberColor }}>
               {stats.maxStreak}
             </span>
           </div>
         )}
         
-        {/* Live Time */}
         <div className="flex items-center gap-1.5">
-          <span className="text-lg">⏱️</span>
+          <Clock className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
           <span className="font-mono tabular-nums" style={{ color: 'var(--text-tertiary)' }}>{formatTime(displayTime)}</span>
         </div>
       </div>
@@ -80,16 +74,15 @@ const StatsPanel = ({ compact = false }) => {
       <h3 className="text-xs uppercase tracking-wider mb-3" style={{ color: 'var(--text-tertiary)' }}>Your Score</h3>
       
       <div className="grid grid-cols-2 gap-3">
-        {/* Current Streak */}
         <div 
           className="flex items-center gap-3 p-3 rounded-xl transition-colors duration-300"
           style={{ backgroundColor: 'var(--bg-input)' }}
         >
           <div 
-            className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${stats.currentStreak >= 5 ? 'animate-pulse' : ''}`} 
+            className={`w-10 h-10 rounded-lg flex items-center justify-center ${stats.currentStreak >= 5 ? 'animate-pulse' : ''}`} 
             style={{ backgroundColor: stats.currentStreak >= 3 ? amberBg : 'rgba(var(--primary-color-rgb), 0.1)' }}
           >
-            🔥
+            <Flame className="w-5 h-5" style={{ color: stats.currentStreak >= 3 ? amberColor : 'var(--primary-color)' }} />
           </div>
           <div>
             <div 
@@ -102,16 +95,15 @@ const StatsPanel = ({ compact = false }) => {
           </div>
         </div>
         
-        {/* Best Streak */}
         <div 
           className="flex items-center gap-3 p-3 rounded-xl transition-colors duration-300"
           style={{ backgroundColor: 'var(--bg-input)' }}
         >
           <div 
-            className="w-10 h-10 rounded-lg flex items-center justify-center text-xl" 
+            className="w-10 h-10 rounded-lg flex items-center justify-center" 
             style={{ backgroundColor: amberBg }}
           >
-            🏆
+            <Trophy className="w-5 h-5" style={{ color: amberColor }} />
           </div>
           <div>
             <div className="text-xl font-black" style={{ color: amberColor }}>
@@ -121,16 +113,15 @@ const StatsPanel = ({ compact = false }) => {
           </div>
         </div>
         
-        {/* Live Time - Full width */}
         <div 
           className="col-span-2 flex items-center justify-center gap-3 p-4 rounded-xl transition-colors duration-300"
           style={{ backgroundColor: 'var(--bg-input)' }}
         >
           <div 
-            className="w-10 h-10 rounded-lg flex items-center justify-center text-xl" 
+            className="w-10 h-10 rounded-lg flex items-center justify-center" 
             style={{ backgroundColor: 'rgba(var(--primary-color-rgb), 0.1)' }}
           >
-            ⏱️
+            <Clock className="w-5 h-5" style={{ color: 'var(--primary-color)' }} />
           </div>
           <div className="text-center">
             <div className="text-3xl font-black font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatTime(displayTime)}</div>
@@ -143,4 +134,3 @@ const StatsPanel = ({ compact = false }) => {
 };
 
 export default StatsPanel;
-

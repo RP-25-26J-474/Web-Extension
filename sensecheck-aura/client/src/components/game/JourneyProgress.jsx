@@ -1,15 +1,17 @@
 import { useGame, CHALLENGE_ORDER, PROFILE_TRAITS } from '../../context/GameContext';
+import { Palette, Focus, CloudFog, Zap, Check } from 'lucide-react';
 
-const CHALLENGE_INFO = {
-  'color-blindness': { name: 'Color Test', shortName: 'Color', icon: '🎨' },
-  'visual-acuity': { name: 'Acuity Test', shortName: 'Acuity', icon: '👁️' },
-  'motor-skills': { name: 'Reflex Game', shortName: 'Reflex', icon: '🎯' },
-  'knowledge-quiz': { name: 'Tech Quiz', shortName: 'Quiz', icon: '💡' },
+// Lighthouse system info with Lucide icons
+const LIGHTHOUSE_SYSTEMS = {
+  'color-blindness': { name: 'Prism', shortName: 'Prism', Icon: Palette },
+  'visual-acuity': { name: 'Beam', shortName: 'Beam', Icon: Focus },
+  'motor-skills': { name: 'Pathway', shortName: 'Path', Icon: CloudFog },
+  'knowledge-quiz': { name: 'Control', shortName: 'Ctrl', Icon: Zap },
 };
 
 const JourneyProgress = ({ minimal = false }) => {
   const { state, progress } = useGame();
-  const challenges = CHALLENGE_ORDER.filter(c => c !== 'intro' && c !== 'profile-complete');
+  const challenges = CHALLENGE_ORDER.filter(c => c !== 'profile-complete');
   
   if (minimal) {
     return (
@@ -30,14 +32,14 @@ const JourneyProgress = ({ minimal = false }) => {
                       : 'scale-90 opacity-50'
                 }`}
                 style={{ 
-                  backgroundColor: isComplete || isCurrent ? 'var(--primary-color)' : '#374151',
+                  backgroundColor: isComplete || isCurrent ? 'var(--primary-color)' : 'var(--border-secondary)',
                   boxShadow: isComplete ? '0 0 8px var(--primary-color-glow)' : 'none'
                 }}
               />
             );
           })}
         </div>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
           {progress.current}/4
         </span>
       </div>
@@ -48,7 +50,7 @@ const JourneyProgress = ({ minimal = false }) => {
     <div className="w-full">
       {/* Progress bar */}
       <div className="relative mb-4">
-        <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+        <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-input)' }}>
           <div 
             className="h-full rounded-full transition-all duration-700 ease-out"
             style={{ 
@@ -63,7 +65,7 @@ const JourneyProgress = ({ minimal = false }) => {
           {challenges.map((challenge, index) => {
             const isComplete = state.completedChallenges.includes(challenge);
             const isCurrent = state.currentPhase === challenge;
-            const info = CHALLENGE_INFO[challenge];
+            const system = LIGHTHOUSE_SYSTEMS[challenge];
             
             return (
               <div 
@@ -77,23 +79,21 @@ const JourneyProgress = ({ minimal = false }) => {
                     isCurrent ? 'scale-125' : ''
                   }`}
                   style={{ 
-                    backgroundColor: isComplete || isCurrent ? 'var(--primary-color)' : '#1f2937',
-                    borderColor: isComplete || isCurrent ? 'var(--primary-color)' : '#374151',
+                    backgroundColor: isComplete || isCurrent ? 'var(--primary-color)' : 'var(--bg-primary)',
+                    borderColor: isComplete || isCurrent ? 'var(--primary-color)' : 'var(--border-secondary)',
                     boxShadow: isCurrent ? '0 0 12px var(--primary-color-glow)' : 'none'
                   }}
                 >
                   {isComplete && (
-                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
+                    <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />
                   )}
                 </div>
                 
                 {/* Label */}
-                <span className={`text-xs mt-2 font-medium transition-all duration-300 ${
-                  isComplete || isCurrent ? 'text-white' : 'text-gray-600'
-                }`}>
-                  {info?.shortName}
+                <span className={`text-xs mt-2 font-medium transition-all duration-300`}
+                  style={{ color: isComplete || isCurrent ? 'var(--text-primary)' : 'var(--text-muted)' }}
+                >
+                  {system?.shortName}
                 </span>
               </div>
             );
@@ -105,4 +105,3 @@ const JourneyProgress = ({ minimal = false }) => {
 };
 
 export default JourneyProgress;
-

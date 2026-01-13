@@ -5,7 +5,24 @@ import ThemeToggle from '../ThemeToggle';
 import useDeviceInfo from '../../hooks/useDeviceInfo';
 import auraIntegration from '../../utils/auraIntegration';
 import { buildAndSaveImpairmentProfile } from '../../utils/impairmentProfile';
+import { Flame, Clock, Palette, Focus, CloudFog, Zap, Sparkles, RotateCcw, Award, Check } from 'lucide-react';
 import logo from '../../resources/logo.png';
+
+// Map trait IDs to Lucide icons
+const getTraitIcon = (traitId) => {
+  switch (traitId) {
+    case 'prism':
+      return <Palette className="w-5 h-5" />;
+    case 'beam':
+      return <Focus className="w-5 h-5" />;
+    case 'fog':
+      return <CloudFog className="w-5 h-5" />;
+    case 'control':
+      return <Zap className="w-5 h-5" />;
+    default:
+      return <Sparkles className="w-5 h-5" />;
+  }
+};
 
 const FinalProfile = () => {
   const { state, elapsedTime, resetGame } = useGame();
@@ -16,28 +33,19 @@ const FinalProfile = () => {
   const [profileSaved, setProfileSaved] = useState(false);
   const saveAttemptedRef = useRef(false);
   
-  // Save impairment profile when component mounts
   useEffect(() => {
     const saveData = async () => {
-      // Prevent duplicate saves
       if (saveAttemptedRef.current) return;
       
-      // Get userId from state or AURA integration
       const userId = state.userId || auraIntegration.getUserId();
       
-      if (!userId) {
-        return;
-      }
+      if (!userId) return;
       
-      // Wait for deviceInfo to be properly populated
       const os = deviceInfo.device?.os;
       const browser = deviceInfo.device?.browser;
       
-      if (!os || os === 'unknown' || !browser || browser === 'unknown') {
-        return;
-      }
+      if (!os || os === 'unknown' || !browser || browser === 'unknown') return;
       
-      // Mark as attempted
       saveAttemptedRef.current = true;
       
       try {
@@ -54,7 +62,6 @@ const FinalProfile = () => {
           },
         });
         
-        // Complete onboarding in AURA if enabled
         if (auraIntegration.isEnabled()) {
           await auraIntegration.completeOnboarding();
         }
@@ -74,7 +81,6 @@ const FinalProfile = () => {
     setTimeout(() => setCelebratePhase(2), 1500);
   }, []);
   
-  // Format time
   const formatTime = (ms) => {
     const seconds = Math.floor(ms / 1000);
     const mins = Math.floor(seconds / 60);
@@ -82,25 +88,18 @@ const FinalProfile = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
   
-  // Calculate overall stats
   const { stats } = state;
   
-  // Get fun title based on streak performance
   const getPlayerTitle = () => {
-    if (stats.maxStreak >= 15) return { title: 'Ultimate Champion', emoji: '👑', color: '#fbbf24' };
-    if (stats.maxStreak >= 10) return { title: 'Streak Legend', emoji: '🔥', color: '#f97316' };
-    if (stats.maxStreak >= 7) return { title: 'Brain Master', emoji: '🧠', color: 'var(--primary-color)' };
-    if (stats.maxStreak >= 5) return { title: 'Rising Star', emoji: '⭐', color: 'var(--primary-color)' };
-    if (stats.maxStreak >= 3) return { title: 'Quick Learner', emoji: '🎯', color: 'var(--primary-color)' };
-    return { title: 'Game Explorer', emoji: '🎮', color: 'var(--primary-color)' };
+    if (stats.maxStreak >= 15) return { title: 'Ultimate Champion', color: '#fbbf24' };
+    if (stats.maxStreak >= 10) return { title: 'Streak Legend', color: '#f97316' };
+    if (stats.maxStreak >= 7) return { title: 'Lighthouse Master', color: 'var(--primary-color)' };
+    if (stats.maxStreak >= 5) return { title: 'Rising Star', color: 'var(--primary-color)' };
+    if (stats.maxStreak >= 3) return { title: 'Quick Learner', color: 'var(--primary-color)' };
+    return { title: 'Beacon Guardian', color: 'var(--primary-color)' };
   };
   
   const playerTitle = getPlayerTitle();
-  
-  // Handle finish
-  const handleFinish = () => {
-    sessionStorage.removeItem('aura_game_state');
-  };
   
   const handlePlayAgain = () => {
     resetGame();
@@ -111,7 +110,7 @@ const FinalProfile = () => {
       className={`min-h-screen relative overflow-hidden flex items-center justify-center p-4 transition-all duration-500 ${showContent ? 'opacity-100' : 'opacity-0'}`}
       style={{ background: 'var(--gradient-bg)' }}
     >
-      {/* Theme Toggle - Top Right */}
+      {/* Theme Toggle */}
       <div className="absolute top-4 right-4 z-20">
         <ThemeToggle />
       </div>
@@ -126,7 +125,7 @@ const FinalProfile = () => {
               style={{
                 left: `${Math.random() * 100}%`,
                 top: `-5%`,
-                backgroundColor: ['#8BC53F', '#fbbf24', '#3b82f6', '#ec4899'][Math.floor(Math.random() * 4)],
+                backgroundColor: ['var(--primary-color)', '#fbbf24', '#3b82f6', '#ec4899'][Math.floor(Math.random() * 4)],
                 animation: `fall ${2 + Math.random() * 3}s linear ${Math.random() * 1}s forwards`,
                 opacity: 0.8,
               }}
@@ -152,13 +151,13 @@ const FinalProfile = () => {
         <div className={`text-center mb-8 transition-all duration-700 ${celebratePhase >= 1 ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <div className="relative inline-block mb-6">
             <div 
-              className="w-28 h-28 rounded-full flex items-center justify-center text-6xl shadow-2xl mx-auto"
+              className="w-28 h-28 rounded-full flex items-center justify-center shadow-2xl mx-auto"
               style={{ 
                 background: `linear-gradient(135deg, ${playerTitle.color} 0%, ${playerTitle.color}99 100%)`,
                 boxShadow: `0 10px 40px ${playerTitle.color}40`
               }}
             >
-              {playerTitle.emoji}
+              <Award className="w-14 h-14 text-white" />
             </div>
             {celebratePhase >= 2 && (
               <div className="absolute inset-0 flex items-center justify-center">
@@ -167,7 +166,9 @@ const FinalProfile = () => {
             )}
           </div>
           
-          <h1 className="text-3xl font-black mb-2" style={{ color: 'var(--text-primary)' }}>You Did It!</h1>
+          <h1 className="text-3xl font-black mb-2" style={{ color: 'var(--text-primary)' }}>
+            The Lighthouse Stands Restored!
+          </h1>
           <p className="text-xl font-semibold mb-3" style={{ color: playerTitle.color }}>{playerTitle.title}</p>
         </div>
         
@@ -186,20 +187,28 @@ const FinalProfile = () => {
               className="text-center p-5 rounded-xl transition-colors duration-300"
               style={{ backgroundColor: 'var(--bg-input)' }}
             >
-              <div className="text-4xl font-black" style={{ color: isDark ? '#fbbf24' : '#d97706' }}>{stats.maxStreak}🔥</div>
+              <div className="flex items-center justify-center gap-2 text-4xl font-black" style={{ color: '#f59e0b' }}>
+                {stats.maxStreak}
+                <Flame className="w-8 h-8" />
+              </div>
               <div className="text-sm mt-2" style={{ color: 'var(--text-tertiary)' }}>Best Streak</div>
             </div>
             <div 
               className="text-center p-5 rounded-xl transition-colors duration-300"
               style={{ backgroundColor: 'var(--bg-input)' }}
             >
-              <div className="text-4xl font-black font-mono" style={{ color: 'var(--text-primary)' }}>{formatTime(elapsedTime)}</div>
+              <div className="flex items-center justify-center gap-2 text-4xl font-black font-mono" style={{ color: 'var(--text-primary)' }}>
+                <Clock className="w-8 h-8" style={{ color: 'var(--primary-color)' }} />
+                {formatTime(elapsedTime)}
+              </div>
               <div className="text-sm mt-2" style={{ color: 'var(--text-tertiary)' }}>Total Time</div>
             </div>
           </div>
           
           {/* Skills Unlocked */}
-          <h3 className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--text-tertiary)' }}>Skills Unlocked</h3>
+          <h3 className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--text-tertiary)' }}>
+            Systems Restored
+          </h3>
           <div className="grid grid-cols-2 gap-3 mb-8">
             {Object.values(PROFILE_TRAITS).map((trait, index) => (
               <div
@@ -212,13 +221,19 @@ const FinalProfile = () => {
                 }}
               >
                 <div 
-                  className="w-10 h-10 rounded-lg flex items-center justify-center text-xl"
-                  style={{ backgroundColor: 'rgba(var(--primary-color-rgb), 0.15)' }}
+                  className="w-10 h-10 rounded-lg flex items-center justify-center"
+                  style={{ 
+                    backgroundColor: 'rgba(var(--primary-color-rgb), 0.15)',
+                    color: 'var(--primary-color)'
+                  }}
                 >
-                  {trait.icon}
+                  {getTraitIcon(trait.id)}
                 </div>
                 <div>
-                  <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{trait.name}</div>
+                  <div className="font-semibold text-sm flex items-center gap-1" style={{ color: 'var(--text-primary)' }}>
+                    {trait.name}
+                    <Check className="w-3 h-3" style={{ color: 'var(--primary-color)' }} />
+                  </div>
                   <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{trait.description}</div>
                 </div>
               </div>
@@ -232,21 +247,26 @@ const FinalProfile = () => {
           >
             <p className="text-sm" style={{ color: 'var(--primary-color)' }}>
               {stats.maxStreak >= 10 
-                ? '🔥 Incredible streak! You\'re on fire!' 
+                ? 'Incredible streak! You\'re on fire!' 
                 : stats.maxStreak >= 5
-                  ? '⚡ Nice streak! You\'ve got quick reflexes!'
-                  : '🎮 Great effort! Practice makes perfect.'}
+                  ? 'Nice streak! You\'ve got quick reflexes!'
+                  : 'Great effort! Practice makes perfect.'}
             </p>
           </div>
         </div>
         
+        
         {/* Footer */}
-        <div className="text-center">
+        <div className="text-center mt-6">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <img src={logo} alt="AURA" className="w-5 h-5" />
-            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Powered by <span style={{ color: 'var(--primary-color)' }}>AURA</span></span>
+            <img src={logo} alt="Logo" className="w-5 h-5" />
+            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+              Powered by <span style={{ color: 'var(--primary-color)' }}>AURA</span>
+            </span>
           </div>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Thanks for playing! 🎮</p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Thanks for playing!
+          </p>
         </div>
       </div>
       

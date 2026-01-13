@@ -61,9 +61,14 @@ function App() {
         <GameProvider>
           <div className="min-h-screen">
             <Routes>
-              
-              {/* Unified game flow */}
+              {/* Main game flow - starts with story intro */}
               <Route path="/" element={<GameFlow />} />
+              
+              {/* Legacy home page - kept for backwards compatibility */}
+              <Route path="/home" element={<Home />} />
+              
+              {/* Alternate play route - redirects to main */}
+              <Route path="/play" element={<GameFlow />} />
               
               {/* Legacy routes - kept for backwards compatibility */}
               <Route path="/perception/color-blindness" element={<ColorBlindnessTest />} />

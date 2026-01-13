@@ -5,16 +5,13 @@ import useStore from '../../../state/store';
 import { calculateVisualAcuityFromThreshold, getVisionCategory } from '../../../utils/visualAcuityCalculations';
 import { saveVisionResults } from '../../../utils/api';
 import auraIntegration from '../../../utils/auraIntegration';
+import { Focus, Ruler, Glasses, MoveHorizontal, Target, Send, AlertTriangle } from 'lucide-react';
 
-/**
- * Calculate screen-adaptive sizes for visual acuity test
- * Level 7 = 20/20 vision threshold for this specific screen
- */
 const calculateAdaptiveSizes = () => {
   const dpr = window.devicePixelRatio || 1;
   const ppi = dpr * 96;
   
-  const VIEWING_DISTANCE_MM = 500; // 50cm in mm
+  const VIEWING_DISTANCE_MM = 500;
   const ARC_MINUTES_20_20 = 5;
   
   const angleRadians = (ARC_MINUTES_20_20 / 60) * (Math.PI / 180);
@@ -200,7 +197,7 @@ const AcuityChallenge = () => {
             border: '1px solid rgba(var(--primary-color-rgb), 0.2)'
           }}
         >
-          <span className="text-xl">📏</span>
+          <Ruler className="w-5 h-5" style={{ color: 'var(--primary-color)' }} />
           <span className="text-sm font-medium" style={{ color: 'var(--primary-color)' }}>
             Distance Setup
           </span>
@@ -219,10 +216,10 @@ const AcuityChallenge = () => {
           }}
         >
           <div className="flex flex-col items-center gap-6">
-            <div className="relative">
+            <div className="relative text-center">
               <div className="text-6xl mb-2">👤</div>
-              <div className="flex items-center gap-2">
-                <div className="h-1 rounded" style={{ width: '150px', background: `linear-gradient(to right, var(--border-secondary), var(--primary-color))` }}></div>
+              <div className="flex items-center gap-2 justify-center">
+                <MoveHorizontal className="w-32 h-6" style={{ color: 'var(--primary-color)' }} />
                 <div className="text-4xl">🖥️</div>
               </div>
               <div className="mt-2 text-2xl font-bold" style={{ color: 'var(--primary-color)' }}>
@@ -236,7 +233,7 @@ const AcuityChallenge = () => {
                 className="flex items-start gap-3 p-3 rounded-xl transition-colors duration-300"
                 style={{ backgroundColor: 'var(--bg-input)' }}
               >
-                <span className="text-xl">💪</span>
+                <MoveHorizontal className="w-5 h-5 mt-0.5" style={{ color: 'var(--primary-color)' }} />
                 <div>
                   <div className="font-medium" style={{ color: 'var(--text-primary)' }}>Arm's Length</div>
                   <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Stretch your arm - your fingertips should almost touch the screen</div>
@@ -247,7 +244,7 @@ const AcuityChallenge = () => {
                 className="flex items-start gap-3 p-3 rounded-xl transition-colors duration-300"
                 style={{ backgroundColor: 'var(--bg-input)' }}
               >
-                <span className="text-xl">👓</span>
+                <Glasses className="w-5 h-5 mt-0.5" style={{ color: 'var(--primary-color)' }} />
                 <div>
                   <div className="font-medium" style={{ color: 'var(--text-primary)' }}>Wear Glasses?</div>
                   <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Keep them on if you normally use them for screens</div>
@@ -281,7 +278,7 @@ const AcuityChallenge = () => {
           border: '1px solid var(--border-secondary)'
         }}
       >
-        <span>📏</span>
+        <Ruler className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
         <span style={{ color: 'var(--text-secondary)' }}>
           Remember: Stay <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{REQUIRED_DISTANCE_CM}cm</span> from screen
         </span>
@@ -295,18 +292,18 @@ const AcuityChallenge = () => {
             border: '1px solid rgba(var(--primary-color-rgb), 0.2)'
           }}
         >
-          <span className="text-xl">🦅</span>
+          <Focus className="w-5 h-5" style={{ color: 'var(--primary-color)' }} />
           <span className="text-sm font-medium" style={{ color: 'var(--primary-color)' }}>
             Level {currentLevel} of 7
           </span>
         </div>
-        <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Eagle Eye Challenge</h3>
-        <p style={{ color: attemptNumber === 2 ? '#fbbf24' : 'var(--text-secondary)' }}>
+        <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Focusing the Beam</h3>
+        <p style={{ color: attemptNumber === 2 ? '#f59e0b' : 'var(--text-secondary)' }}>
           {attemptNumber === 1 
             ? currentLevel === 7 
-              ? '🎯 Final level - 20/20 vision test!'
+              ? 'Final level - 20/20 vision test!'
               : 'Spot the shrinking number!' 
-            : '⚠️ One more try!'}
+            : 'One more try!'}
         </p>
       </div>
       
@@ -353,11 +350,11 @@ const AcuityChallenge = () => {
           value={userAnswer}
           onChange={(e) => setUserAnswer(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
-          className="w-full px-4 py-4 rounded-xl text-center text-2xl placeholder-gray-500 transition-all duration-300 focus:outline-none"
+          className="w-full px-4 py-4 rounded-xl text-center text-2xl transition-all duration-300 focus:outline-none"
           style={{ 
             backgroundColor: 'var(--bg-input)',
             color: 'var(--text-primary)',
-            border: `2px solid ${attemptNumber === 2 ? 'rgba(251, 191, 36, 0.5)' : 'var(--border-secondary)'}`
+            border: `2px solid ${attemptNumber === 2 ? 'rgba(245, 158, 11, 0.5)' : 'var(--border-secondary)'}`
           }}
           placeholder="Enter number"
           autoFocus
@@ -366,29 +363,31 @@ const AcuityChallenge = () => {
         <button
           onClick={handleSubmit}
           disabled={!userAnswer.trim()}
-          className="w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           style={{ 
             background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%)',
             boxShadow: '0 4px 20px var(--primary-color-glow)'
           }}
         >
+          <Send className="w-4 h-4" />
           Submit Answer
         </button>
       </div>
       
       {attemptNumber === 2 && (
         <div 
-          className="mt-4 p-3 rounded-xl text-center transition-colors duration-300"
+          className="mt-4 p-3 rounded-xl text-center flex items-center justify-center gap-2 transition-colors duration-300"
           style={{ 
             backgroundColor: isDark ? 'rgba(120, 53, 15, 0.2)' : 'rgba(254, 243, 199, 0.8)',
             border: isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(217, 119, 6, 0.4)'
           }}
         >
+          <AlertTriangle className="w-4 h-4" style={{ color: isDark ? '#fbbf24' : '#b45309' }} />
           <span 
             className="text-sm font-medium"
             style={{ color: isDark ? '#fbbf24' : '#b45309' }}
           >
-            🎯 Focus - last attempt at Level {currentLevel}!
+            Focus - last attempt at Level {currentLevel}!
           </span>
         </div>
       )}
@@ -397,4 +396,3 @@ const AcuityChallenge = () => {
 };
 
 export default AcuityChallenge;
-

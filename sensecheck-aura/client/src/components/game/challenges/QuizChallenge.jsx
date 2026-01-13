@@ -5,6 +5,7 @@ import useStore from '../../../state/store';
 import { LITERACY_QUESTIONS, calculateLiteracyScore, calculateCategoryScores } from '../../../utils/literacyQuestions';
 import { saveLiteracyResults } from '../../../utils/api';
 import auraIntegration from '../../../utils/auraIntegration';
+import { Zap, Settings, BookOpen, MousePointer, ChevronRight, CheckCircle, Circle } from 'lucide-react';
 
 const QuizChallenge = () => {
   const { completeChallenge, recordCorrectAnswer, recordIncorrectAnswer, state, updateChallengeProgress } = useGame();
@@ -27,7 +28,6 @@ const QuizChallenge = () => {
   const isLastQuestion = currentQuestionIndex === LITERACY_QUESTIONS.length - 1;
   const totalQuestions = LITERACY_QUESTIONS.length;
   
-  // Save progress when question changes
   useEffect(() => {
     if (currentQuestionIndex > 0 || responses.length > 0) {
       updateChallengeProgress('knowledgeQuiz', {
@@ -68,7 +68,6 @@ const QuizChallenge = () => {
     const responseTime = Date.now() - questionStartTime;
     const isCorrect = selectedAnswer === currentQuestion.correctAnswer;
     
-    // Update game stats
     if (isCorrect) {
       recordCorrectAnswer(responseTime);
     } else {
@@ -137,15 +136,35 @@ const QuizChallenge = () => {
       console.error('Failed to save results:', error);
     }
     
-    // Clear progress since test is complete
     updateChallengeProgress('knowledgeQuiz', { currentQuestion: 0, responses: [] });
-    
     await completeChallenge('knowledge-quiz', resultsData);
+  };
+  
+  const getCategoryIcon = (category) => {
+    switch (category) {
+      case 'icons':
+        return <Settings className="w-4 h-4" />;
+      case 'terminology':
+        return <BookOpen className="w-4 h-4" />;
+      default:
+        return <MousePointer className="w-4 h-4" />;
+    }
+  };
+  
+  const getCategoryName = (category) => {
+    switch (category) {
+      case 'icons':
+        return 'Signal Icons';
+      case 'terminology':
+        return 'System Terms';
+      default:
+        return 'Operations';
+    }
   };
   
   return (
     <div className={`transition-all duration-200 ${isAnimating ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
-      {/* Challenge header */}
+      {/* Header */}
       <div className="text-center mb-6">
         <div 
           className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-4"
@@ -154,19 +173,20 @@ const QuizChallenge = () => {
             border: '1px solid rgba(var(--primary-color-rgb), 0.2)'
           }}
         >
-          <span className="text-xl">🧠</span>
+          <Zap className="w-5 h-5" style={{ color: 'var(--primary-color)' }} />
           <span className="text-sm font-medium" style={{ color: 'var(--primary-color)' }}>
             Q{currentQuestionIndex + 1} of {totalQuestions}
           </span>
         </div>
-        <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Quick Think!</h3>
+        <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
+          Restoring the Control Panel
+        </h3>
         <div 
-          className="inline-block px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors duration-300" 
+          className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors duration-300" 
           style={{ backgroundColor: 'var(--bg-input)', color: 'var(--primary-color)' }}
         >
-          {currentQuestion.category === 'icons' ? '🎨 Icons' : 
-           currentQuestion.category === 'terminology' ? '📚 Tech Terms' :
-           '🖱️ Interaction'}
+          {getCategoryIcon(currentQuestion.category)}
+          <span>{getCategoryName(currentQuestion.category)}</span>
         </div>
       </div>
       
@@ -208,7 +228,7 @@ const QuizChallenge = () => {
             className="w-full p-4 rounded-xl text-left transition-all duration-300 flex items-center gap-4"
             style={selectedAnswer === option
               ? { 
-                  backgroundColor: 'var(--primary-color)', 
+                  background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%)',
                   color: 'white',
                   boxShadow: '0 4px 20px var(--primary-color-glow)',
                   border: '2px solid var(--primary-color)'
@@ -227,9 +247,9 @@ const QuizChallenge = () => {
                 : { border: `2px solid ${isDark ? '#6b7280' : '#9ca3af'}` }
               }
             >
-              {selectedAnswer === option && (
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--primary-color)' }} />
-              )}
+              {selectedAnswer === option ? (
+                <Circle className="w-2 h-2 fill-current" style={{ color: 'var(--primary-color)' }} />
+              ) : null}
             </div>
             <span className="font-medium">{option}</span>
           </button>
@@ -246,12 +266,15 @@ const QuizChallenge = () => {
           boxShadow: '0 4px 20px var(--primary-color-glow)'
         }}
       >
-        {isLastQuestion ? 'Final Answer!' : (
+        {isLastQuestion ? (
           <>
-            Lock It In!
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-            </svg>
+            <CheckCircle className="w-5 h-5" />
+            Complete Restoration
+          </>
+        ) : (
+          <>
+            Lock It In
+            <ChevronRight className="w-5 h-5" />
           </>
         )}
       </button>
@@ -260,4 +283,3 @@ const QuizChallenge = () => {
 };
 
 export default QuizChallenge;
-
