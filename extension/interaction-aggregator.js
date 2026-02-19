@@ -31,6 +31,9 @@
  * }
  */
 
+// Import API configuration (module version)
+import { API_CONFIG } from './config.module.js';
+
 class InteractionAggregator {
   constructor() {
     this.userId = null;

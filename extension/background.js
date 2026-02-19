@@ -2,7 +2,7 @@
 // Handles data from content scripts and manages storage
 
 // Import config and aggregator as ES modules
-import { API_CONFIG } from './config.js';
+import { API_CONFIG } from './config.module.js';
 import { interactionAggregator } from './interaction-aggregator.js';
 
 const MAX_INTERACTIONS_STORED = 1000; // Limit stored interactions
