@@ -476,9 +476,6 @@ class InteractionAggregator {
       
       console.log(`📤 Syncing ${batches.length} aggregated batches to server...`);
       
-      // Import API config
-      const API_CONFIG = self.API_CONFIG || { BASE_URL: 'http://localhost:3000/api' };
-      
       const response = await fetch(`${API_CONFIG.BASE_URL}/interactions/aggregated-batches`, {
         method: 'POST',
         headers: {
@@ -536,10 +533,13 @@ class InteractionAggregator {
 }
 
 // Export singleton instance
-const interactionAggregator = new InteractionAggregator();
+export const interactionAggregator = new InteractionAggregator();
 
 // Auto-initialize on load
 if (typeof chrome !== 'undefined' && chrome.storage) {
   interactionAggregator.initialize();
 }
+
+// Also export the class for testing
+export { InteractionAggregator };
 

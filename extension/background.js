@@ -1,9 +1,9 @@
 // Background Service Worker - Processes and stores interaction data
 // Handles data from content scripts and manages storage
 
-// Import config for API settings
-importScripts('config.js');
-importScripts('interaction-aggregator.js');
+// Import config and aggregator as ES modules
+import { API_CONFIG } from './config.js';
+import { interactionAggregator } from './interaction-aggregator.js';
 
 const MAX_INTERACTIONS_STORED = 1000; // Limit stored interactions
 const EXPORT_BATCH_SIZE = 100;
