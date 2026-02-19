@@ -63,6 +63,7 @@ function App() {
             <Routes>
               {/* Main game flow - starts with story intro */}
               <Route path="/" element={<GameFlow />} />
+              <Route path="/play" element={<GameFlow />} />
               
               {/* Legacy home page - kept for backwards compatibility */}
               <Route path="/home" element={<Home />} />

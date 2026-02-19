@@ -95,12 +95,6 @@ async function main() {
 
   try {
     const db = client.db();
-    const collections = await db.listCollections().toArray();
-    const collectionNames = collections.map((c) => c.name).sort();
-    console.log(`Collections in DB (${collectionNames.length}):`);
-    for (const name of collectionNames) {
-      console.log(`- ${name}`);
-    }
     const collection = db.collection(COLLECTION_NAME);
     const cursor = collection.find({});
     if (limit && Number.isFinite(limit)) {

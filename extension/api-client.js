@@ -181,6 +181,23 @@ class APIClient {
   async getOnboardingStatus() {
     return await this.request(API_CONFIG.ENDPOINTS.ONBOARDING_STATUS);
   }
+
+  async computeMotorSessionSummary() {
+    return await this.request(API_CONFIG.ENDPOINTS.ONBOARDING_MOTOR_SESSION_SUMMARY, {
+      method: 'POST'
+    });
+  }
+
+  async getMotorFeatureVector() {
+    return await this.request(API_CONFIG.ENDPOINTS.ONBOARDING_MOTOR_FEATURE_VECTOR);
+  }
+
+  async getMotorScore(sessionFeatures) {
+    return await this.request(API_CONFIG.ENDPOINTS.ML_MOTOR_SCORE, {
+      method: 'POST',
+      body: JSON.stringify(sessionFeatures || {})
+    });
+  }
 }
 
 // Export for use in extension
