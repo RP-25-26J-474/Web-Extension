@@ -3,6 +3,7 @@
 
 // Import config for API settings
 importScripts('config.js');
+importScripts('interaction-aggregator.js');
 
 const MAX_INTERACTIONS_STORED = 1000; // Limit stored interactions
 const EXPORT_BATCH_SIZE = 100;
@@ -155,6 +156,12 @@ async function handleInteraction(data, tab) {
     if (!result.trackingEnabled) {
       return; // Don't store if tracking is disabled
     }
+    
+    // ===== NEW: Feed to aggregator for 10-second windowing =====
+    if (typeof interactionAggregator !== 'undefined') {
+      interactionAggregator.trackEvent(data);
+    }
+    // ===========================================================
     
     let interactions = result.interactions || [];
     let stats = result.stats || {

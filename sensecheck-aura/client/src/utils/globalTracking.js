@@ -1,7 +1,9 @@
 /**
- * Comprehensive Global Interaction Tracking System
+ * Comprehensive Global Interaction Tracking System with Aggregation
  * Tracks all user interactions across the entire application
  * Uses ML-ready GlobalInteractionBucket for efficient storage
+ * 
+ * NEW: 10-second aggregation windows with 30-second batch flushing
  */
 
 import auraIntegration from './auraIntegration';
@@ -22,6 +24,23 @@ class GlobalTracker {
     this.batchTimer = null;
     this.isFlushing = false; // Prevent concurrent flushes
     this.MAX_BUFFER_SIZE = 500; // Prevent memory bloat
+    
+    // ===== NEW: Aggregation System =====
+    this.aggregationEnabled = true;
+    this.windowStartTime = null;
+    this.windowDuration = 10000; // 10 seconds
+    this.aggregationFlushInterval = 30000; // 30 seconds
+    this.aggregationBatchQueue = [];
+    this.batchIdCounter = 1;
+    
+    // Raw interaction tracking for current window
+    this.clicks = [];
+    this.mouseMoves = [];
+    this.scrollEvents = [];
+    this.zoomEvents = [];
+    this.keystrokes = [];
+    this.mouseDownEvents = [];
+    this.samplingEventCount = 0;
   }
 
   initialize(sessionId) {
@@ -31,10 +50,364 @@ class GlobalTracker {
     this.setupEventListeners();
     this.trackPageView();
     this.setupBatchFlushing();
+    
+    // Start aggregation system
+    if (this.aggregationEnabled) {
+      this.startAggregationSystem();
+    }
+    
     this.isInitialized = true;
     
-    console.log('✅ Global tracking initialized with bucket pattern');
+    console.log('✅ Global tracking initialized with aggregation');
   }
+  
+  // ===== AGGREGATION SYSTEM =====
+  
+  /**
+   * Start 10-second aggregation windows and 30-second batch flushing
+   */
+  startAggregationSystem() {
+    this.startNewAggregationWindow();
+    
+    // Rotate window every 10 seconds
+    setInterval(() => {
+      this.startNewAggregationWindow();
+    }, this.windowDuration);
+    
+    // Flush aggregated batches every 30 seconds
+    setInterval(() => {
+      this.flushAggregatedBatches();
+    }, this.aggregationFlushInterval);
+    
+    console.log('📊 Aggregation system started: 10s windows, 30s flush');
+  }
+  
+  /**
+   * Start a new 10-second aggregation window
+   */
+  startNewAggregationWindow() {
+    // Close previous window if exists
+    if (this.windowStartTime) {
+      this.closeAggregationWindow();
+    }
+    
+    // Reset tracking arrays
+    this.clicks = [];
+    this.mouseMoves = [];
+    this.scrollEvents = [];
+    this.zoomEvents = [];
+    this.keystrokes = [];
+    this.mouseDownEvents = [];
+    this.samplingEventCount = 0;
+    
+    // Start new window
+    this.windowStartTime = Date.now();
+  }
+  
+  /**
+   * Close current aggregation window and add to batch queue
+   */
+  closeAggregationWindow() {
+    if (!this.windowStartTime) return;
+    
+    const aggregatedData = this.calculateAggregates();
+    
+    if (aggregatedData) {
+      this.aggregationBatchQueue.push(aggregatedData);
+      console.log(`📦 Aggregation window closed. Queue size: ${this.aggregationBatchQueue.length}`);
+    }
+    
+    this.windowStartTime = null;
+  }
+  
+  /**
+   * Calculate aggregated metrics for current window
+   */
+  calculateAggregates() {
+    if (this.clicks.length === 0 && this.mouseMoves.length === 0 && this.scrollEvents.length === 0) {
+      // No meaningful data in this window
+      return null;
+    }
+    
+    const captured_at = new Date(this.windowStartTime).toISOString();
+    const windowDuration = (Date.now() - this.windowStartTime) / 1000; // in seconds
+    
+    // Click metrics
+    const click_count = this.clicks.length;
+    const click_intervals = this.calculateClickIntervals();
+    const avg_click_interval_ms = click_intervals.length > 0
+      ? click_intervals.reduce((a, b) => a + b, 0) / click_intervals.length
+      : 0;
+    
+    // Misclick detection
+    const misclick_count = this.detectMisclicks();
+    const misclick_rate = click_count > 0 ? misclick_count / click_count : 0;
+    
+    // Rage click detection
+    const rage_clicks = this.detectRageClicks();
+    
+    // Dwell time
+    const avg_dwell_ms = this.calculateAverageDwell();
+    
+    // Zoom events
+    const zoom_events = this.zoomEvents.length;
+    
+    // Scroll speed
+    const scroll_speed_px_s = this.calculateScrollSpeed();
+    
+    // Page context
+    const page_context = {
+      domain: window.location.hostname || 'localhost',
+      route: window.location.pathname,
+      app_type: 'web',
+    };
+    
+    // Sampling profiler
+    const sampling_hz = windowDuration > 0 ? this.samplingEventCount / windowDuration : 0;
+    const input_lag_ms_est = this.estimateInputLag();
+    
+    // Generate batch ID
+    const batch_id = `b_${this.batchIdCounter++}_${Date.now()}`;
+    
+    return {
+      user_id: this.sessionId || 'unknown',
+      batch_id,
+      captured_at,
+      page_context,
+      events_agg: {
+        click_count,
+        misclick_rate: parseFloat(misclick_rate.toFixed(2)),
+        avg_click_interval_ms: Math.round(avg_click_interval_ms),
+        avg_dwell_ms: Math.round(avg_dwell_ms),
+        rage_clicks,
+        zoom_events,
+        scroll_speed_px_s: Math.round(scroll_speed_px_s),
+      },
+      raw_samples_optional: [],
+      _profiler: {
+        sampling_hz: Math.round(sampling_hz),
+        input_lag_ms_est: Math.round(input_lag_ms_est),
+      },
+    };
+  }
+  
+  // Aggregation helper methods
+  calculateClickIntervals() {
+    if (this.clicks.length < 2) return [];
+    const intervals = [];
+    for (let i = 1; i < this.clicks.length; i++) {
+      intervals.push(this.clicks[i].timestamp - this.clicks[i - 1].timestamp);
+    }
+    return intervals;
+  }
+  
+  detectMisclicks() {
+    let misclickCount = 0;
+    const POSITION_THRESHOLD = 20;
+    const TIME_THRESHOLD = 500;
+    
+    for (const click of this.clicks) {
+      const hasMatchingMouseDown = this.mouseDownEvents.some(md => {
+        const dx = Math.abs(md.x - click.x);
+        const dy = Math.abs(md.y - click.y);
+        const dt = Math.abs(md.timestamp - click.timestamp);
+        return dx < POSITION_THRESHOLD && dy < POSITION_THRESHOLD && dt < TIME_THRESHOLD;
+      });
+      
+      if (!hasMatchingMouseDown) {
+        misclickCount++;
+      }
+    }
+    
+    return misclickCount;
+  }
+  
+  detectRageClicks() {
+    let rageClickCount = 0;
+    const POSITION_THRESHOLD = 30;
+    const TIME_WINDOW = 1000;
+    
+    for (let i = 0; i < this.clicks.length - 2; i++) {
+      const click1 = this.clicks[i];
+      const click2 = this.clicks[i + 1];
+      const click3 = this.clicks[i + 2];
+      
+      const dt12 = click2.timestamp - click1.timestamp;
+      const dt23 = click3.timestamp - click2.timestamp;
+      
+      if (dt12 + dt23 <= TIME_WINDOW) {
+        const dx12 = Math.abs(click2.x - click1.x);
+        const dy12 = Math.abs(click2.y - click1.y);
+        const dx23 = Math.abs(click3.x - click2.x);
+        const dy23 = Math.abs(click3.y - click2.y);
+        
+        if (dx12 < POSITION_THRESHOLD && dy12 < POSITION_THRESHOLD &&
+            dx23 < POSITION_THRESHOLD && dy23 < POSITION_THRESHOLD) {
+          rageClickCount++;
+          i += 2;
+        }
+      }
+    }
+    
+    return rageClickCount;
+  }
+  
+  calculateAverageDwell() {
+    if (this.clicks.length === 0 || this.mouseDownEvents.length === 0) return 0;
+    
+    const dwellTimes = [];
+    const POSITION_THRESHOLD = 20;
+    
+    for (const click of this.clicks) {
+      const matchingMouseDown = this.mouseDownEvents
+        .filter(md => md.timestamp <= click.timestamp)
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .find(md => {
+          const dx = Math.abs(md.x - click.x);
+          const dy = Math.abs(md.y - click.y);
+          return dx < POSITION_THRESHOLD && dy < POSITION_THRESHOLD;
+        });
+      
+      if (matchingMouseDown) {
+        dwellTimes.push(click.timestamp - matchingMouseDown.timestamp);
+      }
+    }
+    
+    return dwellTimes.length > 0
+      ? dwellTimes.reduce((a, b) => a + b, 0) / dwellTimes.length
+      : 0;
+  }
+  
+  calculateScrollSpeed() {
+    if (this.scrollEvents.length < 2) return 0;
+    
+    const firstScroll = this.scrollEvents[0];
+    const lastScroll = this.scrollEvents[this.scrollEvents.length - 1];
+    
+    const distance = Math.abs(lastScroll.scrollY - firstScroll.scrollY);
+    const duration = (lastScroll.timestamp - firstScroll.timestamp) / 1000;
+    
+    return duration > 0 ? distance / duration : 0;
+  }
+  
+  estimateInputLag() {
+    if (this.clicks.length === 0 || this.mouseDownEvents.length === 0) return 0;
+    
+    const delays = [];
+    const POSITION_THRESHOLD = 10;
+    
+    for (const click of this.clicks) {
+      const matchingMouseDown = this.mouseDownEvents
+        .filter(md => md.timestamp <= click.timestamp)
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .find(md => {
+          const dx = Math.abs(md.x - click.x);
+          const dy = Math.abs(md.y - click.y);
+          return dx < POSITION_THRESHOLD && dy < POSITION_THRESHOLD;
+        });
+      
+      if (matchingMouseDown) {
+        delays.push(click.timestamp - matchingMouseDown.timestamp);
+      }
+    }
+    
+    if (delays.length > 0) {
+      delays.sort((a, b) => a - b);
+      const median = delays[Math.floor(delays.length / 2)];
+      return Math.max(0, median - 100);
+    }
+    
+    return 0;
+  }
+  
+  /**
+   * Flush aggregated batches to server
+   */
+  async flushAggregatedBatches() {
+    if (this.aggregationBatchQueue.length === 0) {
+      return;
+    }
+    
+    // ONLY send data in AURA mode (when properly authenticated)
+    if (!auraIntegration.isEnabled()) {
+      this.aggregationBatchQueue = [];
+      return;
+    }
+    
+    const batches = [...this.aggregationBatchQueue];
+    this.aggregationBatchQueue = [];
+    
+    try {
+      const token = auraIntegration.getToken();
+      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/interactions/aggregated-batches`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({ batches }),
+      });
+      
+      if (response.ok) {
+        console.log(`✅ Flushed ${batches.length} aggregated batches to server`);
+      } else {
+        console.error('❌ Failed to flush aggregated batches:', await response.text());
+      }
+    } catch (error) {
+      console.error('❌ Error flushing aggregated batches:', error);
+    }
+  }
+  
+  /**
+   * Track event for aggregation (called internally)
+   */
+  trackEventForAggregation(eventType, data) {
+    if (!this.aggregationEnabled || !this.windowStartTime) return;
+    
+    this.samplingEventCount++;
+    const timestamp = Date.now();
+    
+    switch (eventType) {
+      case 'click':
+        this.clicks.push({
+          timestamp,
+          x: data.coordinates?.x || 0,
+          y: data.coordinates?.y || 0,
+        });
+        break;
+        
+      case 'mouse_down':
+        this.mouseDownEvents.push({
+          timestamp,
+          x: data.coordinates?.x || 0,
+          y: data.coordinates?.y || 0,
+        });
+        break;
+        
+      case 'mouse_move':
+        this.mouseMoves.push({
+          timestamp,
+          x: data.coordinates?.x || 0,
+          y: data.coordinates?.y || 0,
+        });
+        break;
+        
+      case 'scroll':
+        this.scrollEvents.push({
+          timestamp,
+          scrollY: data.scrollPosition?.y || 0,
+        });
+        break;
+        
+      default:
+        // Other events aren't tracked for aggregation
+        break;
+    }
+  }
+  
+  // ===== END AGGREGATION SYSTEM =====
   
   // Setup automatic batch flushing
   setupBatchFlushing() {
@@ -54,6 +427,11 @@ class GlobalTracker {
     if (!this.sessionId) {
       console.warn('⚠️ GlobalTracker: sessionId not set, interaction will be skipped');
       return null;
+    }
+    
+    // Track for aggregation
+    if (this.aggregationEnabled) {
+      this.trackEventForAggregation(eventType, data);
     }
     
     return {
@@ -507,13 +885,40 @@ class GlobalTracker {
     window.addEventListener('beforeunload', () => {
       const timeOnPage = Date.now() - pageStartTime;
       
+      // Close aggregation window before unload
+      if (this.aggregationEnabled && this.windowStartTime) {
+        this.closeAggregationWindow();
+        
+        // Try to flush aggregated batches synchronously
+        if (this.aggregationBatchQueue.length > 0) {
+          const batches = [...this.aggregationBatchQueue];
+          const token = auraIntegration.getToken();
+          const url = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/interactions/aggregated-batches`;
+          
+          const blob = new Blob([JSON.stringify({ batches })], { type: 'application/json' });
+          navigator.sendBeacon(url, blob);
+        }
+      }
+      
       // Use sendBeacon for reliable delivery during unload
       const data = this.createInteractionData('page_unload', {
         timeOnPage,
         url: window.location.href,
       });
       
-      navigator.sendBeacon('/api/logs/interaction', JSON.stringify(data));
+      if (data) {
+        const token = auraIntegration.getToken();
+        const url = token 
+          ? `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding/global/interactions?token=${token}`
+          : `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding/global/interactions`;
+        
+        const blob = new Blob([JSON.stringify({
+          sessionId: this.sessionId,
+          interactions: [data],
+        })], { type: 'application/json' });
+        
+        navigator.sendBeacon(url, blob);
+      }
     });
   }
 
@@ -533,4 +938,3 @@ class GlobalTracker {
 // Export singleton instance
 const globalTracker = new GlobalTracker();
 export default globalTracker;
-
