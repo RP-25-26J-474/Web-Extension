@@ -192,28 +192,40 @@ router.post('/aggregated-batches', authMiddleware, async (req, res) => {
   try {
     const { batches } = req.body;
     
+    console.log(`📊 Received aggregated batches request:`, {
+      userId: req.userId,
+      batchCount: batches?.length || 0,
+    });
+    
     if (!Array.isArray(batches) || batches.length === 0) {
+      console.warn('⚠️ Invalid batches data:', { batches });
       return res.status(400).json({ error: 'Invalid batches data' });
     }
     
     // Validate batch structure
     for (const batch of batches) {
       if (!batch.batch_id || !batch.captured_at || !batch.page_context || !batch.events_agg || !batch._profiler) {
+        console.error('❌ Invalid batch structure:', batch);
         return res.status(400).json({ error: 'Invalid batch structure' });
       }
     }
     
+    console.log(`💾 Inserting ${batches.length} aggregated batches for user ${req.userId}`);
+    
     // Insert batches
     const result = await AggregatedInteractionBatch.bulkInsertBatches(req.userId, batches);
     
+    const count = result.length || result.insertedCount || batches.length;
+    console.log(`✅ Successfully saved ${count} aggregated batches`);
+    
     res.json({
       message: 'Aggregated batches saved successfully',
-      count: result.length || result.insertedCount || batches.length,
+      count,
     });
     
   } catch (error) {
-    console.error('Save aggregated batches error:', error);
-    res.status(500).json({ error: 'Failed to save aggregated batches' });
+    console.error('❌ Save aggregated batches error:', error);
+    res.status(500).json({ error: 'Failed to save aggregated batches', details: error.message });
   }
 });
 

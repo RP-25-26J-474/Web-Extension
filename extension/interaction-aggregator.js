@@ -469,7 +469,12 @@ class InteractionAggregator {
       const result = await chrome.storage.local.get(['aggregatedBatches', 'authToken']);
       const batches = result.aggregatedBatches || [];
       
-      if (batches.length === 0) return;
+      if (batches.length === 0) {
+        console.log('⏭️ No aggregated batches to sync');
+        return;
+      }
+      
+      console.log(`📤 Syncing ${batches.length} aggregated batches to server...`);
       
       // Import API config
       const API_CONFIG = self.API_CONFIG || { BASE_URL: 'http://localhost:3000/api' };
@@ -484,11 +489,18 @@ class InteractionAggregator {
       });
       
       if (response.ok) {
+        const responseData = await response.json();
+        console.log(`✅ Synced ${responseData.count || batches.length} aggregated batches to server`);
+        
         // Clear synced batches from storage
         await chrome.storage.local.set({ aggregatedBatches: [] });
-        console.log(`✅ Synced ${batches.length} aggregated batches to server`);
       } else {
-        console.error('❌ Server sync failed:', await response.text());
+        const errorText = await response.text();
+        console.error('❌ Server sync failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+        });
       }
       
     } catch (error) {

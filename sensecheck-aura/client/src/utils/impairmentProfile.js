@@ -103,10 +103,34 @@ export const buildAndSaveImpairmentProfile = async (params) => {
   // Save to AURA backend if enabled
   if (auraIntegration.isEnabled()) {
     try {
+      // Save the profile data first
+      const token = auraIntegration.getToken();
+      const auraAPI = 'http://localhost:3000/api/onboarding';
+      
+      const response = await fetch(`${auraAPI}/impairment-profile`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profile),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to save profile' }));
+        throw new Error(error.error || 'Failed to save profile');
+      }
+      
+      const result = await response.json();
+      console.log('✅ Impairment profile saved to server:', result);
+      
+      // Then complete onboarding
       await auraIntegration.completeOnboarding();
-      console.log('✅ Profile saved to AURA backend');
+      console.log('✅ Onboarding completed');
+      
     } catch (error) {
-      console.error('Failed to save to AURA backend:', error);
+      console.error('Failed to save impairment profile to AURA backend:', error);
+      throw error;
     }
   }
   
