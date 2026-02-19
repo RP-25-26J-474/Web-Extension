@@ -88,11 +88,7 @@ def score_motor(payload: dict):
                 "impairment_score": round(pred_B2, 4),
                 "confidence": round(confidence, 4),
                 "latent_score": round(pc1, 4)
-            },
-            "notes": [
-                "Not a medical diagnosis.",
-                "Functional interaction score (0=better, 1=more assistance needed)."
-            ]
+            }
         }
 
     except Exception as e:

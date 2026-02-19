@@ -64,6 +64,7 @@ function App() {
               
               {/* Unified game flow */}
               <Route path="/" element={<GameFlow />} />
+              <Route path="/play" element={<GameFlow />} />
               
               {/* Legacy routes - kept for backwards compatibility */}
               <Route path="/perception/color-blindness" element={<ColorBlindnessTest />} />

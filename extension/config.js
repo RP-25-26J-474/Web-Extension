@@ -21,6 +21,9 @@ const API_CONFIG = {
     CLEAR_INTERACTIONS: '/onboarding/global/interactions/clear',
     GET_STATS: '/stats',
     ONBOARDING_STATUS: '/onboarding/status',
+    ONBOARDING_MOTOR_SESSION_SUMMARY: '/onboarding/motor/summary/session',
+    ONBOARDING_MOTOR_FEATURE_VECTOR: '/onboarding/motor/feature-vector',
+    ML_MOTOR_SCORE: '/ml/motor-score',
   },
   
   // Batch size for sending interactions

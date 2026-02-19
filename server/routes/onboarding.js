@@ -9,6 +9,22 @@ const MotorPointerTraceBucket = require('../models/MotorPointerTraceBucket');
 const MotorAttemptBucket = require('../models/MotorAttemptBucket');
 const GlobalInteractionBucket = require('../models/GlobalInteractionBucket');
 const { MotorRoundSummary, MotorSessionSummary, computeRoundFeatures, computeSessionFeatures } = require('../models/MotorSummary');
+const User = require('../models/User');
+const { buildMotorFeatureRow } = require('../utils/mlFeatureBuilder');
+const ImpairmentProfile = require('../models/ImpairmentProfile');
+
+function buildDeviceContext(session) {
+  const device = session?.device || {};
+  const screen = session?.screen || {};
+
+  return {
+    os: device.os || null,
+    browser: device.browser || null,
+    screen_w: screen.width ?? null,
+    screen_h: screen.height ?? null,
+    dpr: screen.dpr ?? null,
+  };
+}
 
 // Check if user has completed onboarding
 router.get('/status', authMiddleware, async (req, res) => {
@@ -226,6 +242,38 @@ router.post('/motor/summary/session', authMiddleware, async (req, res) => {
     
   } catch (error) {
     console.error('Error computing session summary:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Build full ML feature vector for motor model scoring
+router.get('/motor/feature-vector', authMiddleware, async (req, res) => {
+  try {
+    const session = await OnboardingSession.findOne({ userId: req.userId });
+    
+    if (!session) {
+      return res.status(404).json({ error: 'Onboarding session not found' });
+    }
+    
+    const [user, attempts] = await Promise.all([
+      User.findById(req.userId),
+      MotorAttemptBucket.getUserAttempts(req.userId),
+    ]);
+    
+    const row = buildMotorFeatureRow({ session, user, attempts });
+    
+    res.json({
+      success: true,
+      data: row,
+    });
+
+    console.log('Feature vector:', row);
+    
+  } catch (error) {
+    console.error('Error building motor feature vector:', error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -552,6 +600,64 @@ router.get('/results', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Get onboarding results error:', error);
     res.status(500).json({ error: 'Failed to get onboarding results' });
+  }
+});
+
+// Get impairment profile (normalized scores + stored motor impairment)
+router.get('/impairment-profile', authMiddleware, async (req, res) => {
+  try {
+    const [profile, session, motorResult, literacyResult, visionResult] = await Promise.all([
+      ImpairmentProfile.findOne({ user_id: String(req.userId) }),
+      OnboardingSession.findOne({ userId: req.userId }),
+      OnboardingMotorResult.findOne({ userId: req.userId }),
+      OnboardingLiteracyResult.findOne({ userId: req.userId }),
+      OnboardingVisionResult.findOne({ userId: req.userId }),
+    ]);
+
+    const visionLossScore = visionResult?.overallScore;
+    const colorBlindnessScore = visionResult?.colorBlindness?.colorVisionScore;
+    const literacyScore = literacyResult?.score?.computerLiteracyScore;
+
+    const motorExisting = profile?.impairment_probs?.motor || {};
+    const impairment_probs = {
+      vision: {
+        vision_loss: Number.isFinite(visionLossScore) ? visionLossScore / 100 : null,
+        color_blindness: Number.isFinite(colorBlindnessScore) ? colorBlindnessScore / 100 : null,
+      },
+      motor: {
+        delayed_reaction: motorExisting.delayed_reaction ?? null,
+        inaccurate_click: motorExisting.inaccurate_click ?? null,
+        motor_impairment: motorExisting.motor_impairment ?? null,
+      },
+      literacy: Number.isFinite(literacyScore) ? literacyScore / 100 : null,
+    };
+
+    const onboarding_metrics = {
+      avg_reaction_ms: profile?.onboarding_metrics?.avg_reaction_ms
+        ?? motorResult?.overallMetrics?.avgReactionTime
+        ?? null,
+      hit_rate: motorResult?.overallMetrics?.overallHitRate ?? null,
+    };
+
+    const updatedProfile = await ImpairmentProfile.findOneAndUpdate(
+      { user_id: String(req.userId) },
+      {
+        $set: {
+          user_id: String(req.userId),
+          session_id: session?._id ? String(session._id) : '',
+          captured_at: new Date(),
+          impairment_probs,
+          onboarding_metrics,
+          device_context: buildDeviceContext(session),
+        },
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({ success: true, data: updatedProfile });
+  } catch (error) {
+    console.error('Get impairment profile error:', error);
+    res.status(500).json({ error: 'Failed to get impairment profile' });
   }
 });
 
