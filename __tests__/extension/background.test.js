@@ -102,15 +102,10 @@ describe('Background Service Worker', () => {
     };
     
     // Implementation of updateBadge
+    // Mock updateBadge function (disabled in actual code)
     updateBadge = (pendingCount) => {
-      if (pendingCount > 0) {
-        const text = pendingCount > 999 ? '999+' : pendingCount.toString();
-        chrome.action.setBadgeText({ text });
-        chrome.action.setBadgeBackgroundColor({ color: '#FF9800' });
-      } else {
-        chrome.action.setBadgeText({ text: '✓' });
-        chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
-      }
+      // Badge updates disabled - no longer used
+      return;
     };
     
     // Implementation of syncInteractionsToServer
@@ -256,25 +251,28 @@ describe('Background Service Worker', () => {
     });
   });
   
-  describe('Badge Updates', () => {
-    test('should update badge with pending count', () => {
+  describe('Badge Updates (Disabled)', () => {
+    test('should not show badge updates (feature disabled)', () => {
       updateBadge(42);
       
-      expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '42' });
-      expect(chrome.action.setBadgeBackgroundColor).toHaveBeenCalledWith({ color: '#FF9800' });
+      // Badge updates are disabled, so no calls should be made
+      expect(chrome.action.setBadgeText).not.toHaveBeenCalled();
+      expect(chrome.action.setBadgeBackgroundColor).not.toHaveBeenCalled();
     });
     
-    test('should show 999+ for large counts', () => {
+    test('should not show 999+ for large counts (feature disabled)', () => {
       updateBadge(1500);
       
-      expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '999+' });
+      // Badge updates are disabled
+      expect(chrome.action.setBadgeText).not.toHaveBeenCalled();
     });
     
-    test('should show checkmark when synced', () => {
+    test('should not show checkmark when synced (feature disabled)', () => {
       updateBadge(0);
       
-      expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '✓' });
-      expect(chrome.action.setBadgeBackgroundColor).toHaveBeenCalledWith({ color: '#4CAF50' });
+      // Badge updates are disabled
+      expect(chrome.action.setBadgeText).not.toHaveBeenCalled();
+      expect(chrome.action.setBadgeBackgroundColor).not.toHaveBeenCalled();
     });
   });
   

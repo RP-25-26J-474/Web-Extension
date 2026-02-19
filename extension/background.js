@@ -110,11 +110,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       };
     }
     chrome.storage.local.set(storageUpdate).then(() => {
-      if (message.consent) {
-        updateBadge(0);
-      } else {
-        chrome.action.setBadgeText({ text: '' });
-      }
       sendResponse({ success: true });
     });
     return true;
@@ -247,9 +242,6 @@ async function handleInteraction(data, tab) {
     // Store updated data
     await chrome.storage.local.set({ interactions, stats });
     
-    // Update badge with pending (un-synced) count
-    updateBadge(interactions.length);
-    
     // Trigger immediate sync if buffer reaches threshold (50 interactions)
     const SYNC_THRESHOLD = 50;
     if (interactions.length >= SYNC_THRESHOLD) {
@@ -262,16 +254,10 @@ async function handleInteraction(data, tab) {
   }
 }
 
-// Update extension badge (shows pending/unsycned count)
+// Update extension badge (disabled - not needed)
 function updateBadge(pendingCount) {
-  if (pendingCount > 0) {
-    const text = pendingCount > 999 ? '999+' : pendingCount.toString();
-    chrome.action.setBadgeText({ text });
-    chrome.action.setBadgeBackgroundColor({ color: '#FF9800' }); // Orange = pending sync
-  } else {
-    chrome.action.setBadgeText({ text: '✓' });
-    chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' }); // Green = all synced
-  }
+  // Badge display removed - no visual indicator needed
+  return;
 }
 
 // Auto-sync interactions to server (every 30 seconds)
@@ -319,9 +305,7 @@ async function toggleTracking(enabled) {
     });
   });
   
-  if (!enabled) {
-    chrome.action.setBadgeText({ text: '' });
-  }
+  // Badge updates removed - not needed
 }
 
 // Clear all stored data
@@ -343,7 +327,7 @@ async function clearAllData() {
     }
   });
   
-  updateBadge(0);
+  // Badge updates removed - not needed
 }
 
 // Sync interactions to server (uses GlobalInteractionBucket)
@@ -440,9 +424,6 @@ async function syncInteractionsToServer() {
         lastSyncTime: Date.now()
       });
       
-      // Update badge to show remaining (un-synced) count
-      updateBadge(remainingInteractions.length);
-      
       console.log(`✅ Synced & flushed ${totalSynced} interactions. ${remainingInteractions.length} remaining.`);
     }
     
@@ -457,7 +438,6 @@ async function syncInteractionsToServer() {
 // Initialize badge on startup and trigger initial sync
 chrome.storage.local.get(['interactions', 'authToken']).then(async (result) => {
   const pendingCount = (result.interactions || []).length;
-  updateBadge(pendingCount);
   
   // Trigger initial sync if user is logged in and has pending data
   if (result.authToken && pendingCount > 0) {
