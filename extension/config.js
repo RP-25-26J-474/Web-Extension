@@ -1,5 +1,5 @@
 // API Configuration
-export const API_CONFIG = {
+const API_CONFIG = {
   BASE_URL: 'http://localhost:3000/api',
   // Change this to your production URL when deploying
   // BASE_URL: 'https://your-server.com/api',
@@ -33,7 +33,15 @@ export const API_CONFIG = {
   SYNC_INTERVAL: 30000 // 30 seconds
 };
 
-// Legacy CommonJS export (for backward compatibility if needed)
+// ES6 module export (for service worker)
+export { API_CONFIG };
+
+// Make available globally for non-module scripts (popup.html, api-client.js)
+if (typeof window !== 'undefined') {
+  window.API_CONFIG = API_CONFIG;
+}
+
+// Legacy CommonJS export (for backward compatibility)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = API_CONFIG;
 }
