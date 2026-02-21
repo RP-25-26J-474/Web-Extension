@@ -31,6 +31,25 @@ document.addEventListener('DOMContentLoaded', async function() {
   try {
     const userData = await apiClient.getCurrentUser();
     
+    // CRITICAL: Sync consent and tracking settings from server to local storage
+    // This ensures settings are always in sync, even after logout/login
+    console.log('📥 Syncing user settings from server...');
+    await chrome.storage.local.set({
+      consentGiven: userData.user.consentGiven || false,
+      trackingEnabled: userData.user.trackingEnabled || false
+    });
+    console.log('✅ Settings synced:', {
+      consentGiven: userData.user.consentGiven,
+      trackingEnabled: userData.user.trackingEnabled
+    });
+    
+    // Initialize aggregator if tracking is enabled
+    if (userData.user.trackingEnabled) {
+      chrome.runtime.sendMessage({ type: 'INIT_TRACKING' }).catch(err => {
+        console.warn('⚠️ Could not initialize tracking:', err.message);
+      });
+    }
+    
     // FIXED: Check consent BEFORE onboarding to prevent stuck users
     // If no consent given yet, show consent section first
     if (!userData.user.consentGiven) {
@@ -375,6 +394,24 @@ async function handleLogin() {
     errorDiv.style.display = 'none';
     
     const data = await apiClient.login(email, password);
+    
+    // CRITICAL: Sync consent and tracking settings from server to local storage
+    console.log('📥 Syncing user settings from server...');
+    await chrome.storage.local.set({
+      consentGiven: data.user.consentGiven || false,
+      trackingEnabled: data.user.trackingEnabled || false
+    });
+    console.log('✅ Settings synced:', {
+      consentGiven: data.user.consentGiven,
+      trackingEnabled: data.user.trackingEnabled
+    });
+    
+    // Initialize aggregator if tracking is enabled
+    if (data.user.trackingEnabled) {
+      chrome.runtime.sendMessage({ type: 'INIT_TRACKING' }).catch(err => {
+        console.warn('⚠️ Could not initialize tracking:', err.message);
+      });
+    }
     
     if (data.user.consentGiven) {
       showMainContent();
