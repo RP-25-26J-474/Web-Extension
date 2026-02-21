@@ -498,13 +498,25 @@
     }
   }
   
+  // Helper function to check if we're on the onboarding game page
+  function isOnboardingGamePage() {
+    const url = window.location.href;
+    // Check if URL matches localhost:5173 or contains the onboarding game domain
+    return url.includes('localhost:5173') || 
+           url.includes('your-sensecheck-app.vercel.app') ||
+           url.match(/\/play\?.*mode=aura/); // Match the game URL pattern
+  }
+  
   // Track mouse wheel zoom (Ctrl + Wheel)
   function trackWheelZoom(event) {
     if (!trackingConfig.zoomEvents) return;
     
     // Detect zoom: Ctrl key + wheel, or pinch gesture on trackpad
     if (event.ctrlKey || event.metaKey) {
-      event.preventDefault(); // Prevent default zoom to track it
+      // Only prevent default zoom on the onboarding game page
+      if (isOnboardingGamePage()) {
+        event.preventDefault(); // Prevent default zoom to track it
+      }
       
       const now = Date.now();
       if (now - lastZoomTime < 300) return; // Throttle
