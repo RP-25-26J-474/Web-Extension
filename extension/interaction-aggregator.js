@@ -43,6 +43,7 @@ class InteractionAggregator {
     this.windowDuration = 10000; // 10 seconds
     this.flushInterval = 30000; // 30 seconds
     this.batchIdCounter = 1;
+    this.currentPageContext = { domain: 'unknown', route: '/', app_type: 'web' };
     
     // Raw interaction tracking for current window
     this.clicks = [];
@@ -113,7 +114,14 @@ class InteractionAggregator {
     
     if (aggregatedData) {
       this.batchQueue.push(aggregatedData);
-      console.log(`📦 Window closed. Batch queue size: ${this.batchQueue.length}`);
+      console.log(`📦 Window closed and added to batch queue:`, {
+        batchId: aggregatedData.batch_id,
+        queueSize: this.batchQueue.length,
+        clickCount: aggregatedData.events_agg.click_count,
+        domain: aggregatedData.page_context.domain,
+      });
+    } else {
+      console.log('⏭️ Window closed but no data to aggregate');
     }
     
     this.windowStartTime = null;
@@ -131,6 +139,25 @@ class InteractionAggregator {
     
     const eventType = interactionData.type;
     const timestamp = interactionData.timestamp || Date.now();
+    
+    // Store page context from the interaction data
+    if (interactionData.url) {
+      try {
+        const url = new URL(interactionData.url);
+        this.currentPageContext = {
+          domain: url.hostname,
+          route: url.pathname,
+          app_type: 'web',
+        };
+      } catch (e) {
+        // Fallback
+        this.currentPageContext = {
+          domain: 'unknown',
+          route: '/',
+          app_type: 'web',
+        };
+      }
+    }
     
     switch (eventType) {
       case 'click':
@@ -193,8 +220,17 @@ class InteractionAggregator {
   calculateAggregates() {
     if (this.clicks.length === 0 && this.mouseMoves.length === 0 && this.scrollEvents.length === 0) {
       // No meaningful data in this window
+      console.log('⏭️ No interactions in this window, skipping aggregation');
       return null;
     }
+    
+    console.log(`🔢 Calculating aggregates for window:`, {
+      clicks: this.clicks.length,
+      mouseMoves: this.mouseMoves.length,
+      scrolls: this.scrollEvents.length,
+      zooms: this.zoomEvents.length,
+      keystrokes: this.keystrokes.length,
+    });
     
     const captured_at = new Date(this.windowStartTime).toISOString();
     const windowDuration = (Date.now() - this.windowStartTime) / 1000; // in seconds
@@ -222,10 +258,10 @@ class InteractionAggregator {
     // Scroll speed
     const scroll_speed_px_s = this.calculateScrollSpeed();
     
-    // Page context
-    const page_context = {
-      domain: window.location.hostname,
-      route: window.location.pathname,
+    // Page context - use stored context from interactions
+    const page_context = this.currentPageContext || {
+      domain: 'unknown',
+      route: '/',
       app_type: 'web',
     };
     

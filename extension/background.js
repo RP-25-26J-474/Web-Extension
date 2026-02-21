@@ -51,6 +51,40 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       }
     });
   }
+  
+  // Initialize aggregator
+  await initializeAggregator();
+});
+
+// Initialize aggregator on startup
+chrome.runtime.onStartup.addListener(async () => {
+  console.log('Extension startup - initializing aggregator');
+  await initializeAggregator();
+});
+
+// Initialize aggregator with userId
+async function initializeAggregator() {
+  try {
+    const result = await chrome.storage.local.get(['userId', 'authToken']);
+    if (result.authToken) {
+      console.log('🔐 User authenticated, initializing aggregator with userId:', result.userId);
+      await interactionAggregator.initialize();
+    } else {
+      console.log('ℹ️ No authentication token found - aggregator will initialize after login');
+    }
+  } catch (error) {
+    console.error('Failed to initialize aggregator:', error);
+  }
+}
+
+// Listen for authentication changes to initialize aggregator
+chrome.storage.onChanged.addListener(async (changes, namespace) => {
+  if (namespace === 'local' && changes.authToken) {
+    if (changes.authToken.newValue && !changes.authToken.oldValue) {
+      console.log('✅ User logged in - initializing aggregator');
+      await initializeAggregator();
+    }
+  }
 });
 
 // SINGLE message listener for all messages
@@ -146,7 +180,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Handle and store interaction data
 async function handleInteraction(data, tab) {
   try {
-    const result = await chrome.storage.local.get(['interactions', 'stats', 'trackingEnabled']);
+    const result = await chrome.storage.local.get(['interactions', 'stats', 'trackingEnabled', 'userId']);
     
     if (!result.trackingEnabled) {
       return; // Don't store if tracking is disabled
@@ -154,7 +188,21 @@ async function handleInteraction(data, tab) {
     
     // ===== NEW: Feed to aggregator for 10-second windowing =====
     if (typeof interactionAggregator !== 'undefined') {
+      // Ensure aggregator has userId
+      if (!interactionAggregator.userId && result.userId) {
+        interactionAggregator.userId = result.userId;
+        console.log('📋 Set aggregator userId:', result.userId);
+      }
+      
+      // Track event in aggregator
       interactionAggregator.trackEvent(data);
+      
+      // Log occasionally to avoid spam
+      if (Math.random() < 0.01) { // 1% of events
+        console.log('📊 Event tracked to aggregator:', data.type);
+      }
+    } else {
+      console.warn('⚠️ InteractionAggregator not available');
     }
     // ===========================================================
     
