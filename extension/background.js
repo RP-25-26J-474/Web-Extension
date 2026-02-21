@@ -203,6 +203,13 @@ async function handleInteraction(data, tab) {
     }
     
     // ===== NEW: Feed to aggregator for 10-second windowing =====
+    console.log('🔍 DEBUG: Checking aggregator...', {
+      aggregatorExists: typeof interactionAggregator !== 'undefined',
+      hasUserId: !!interactionAggregator?.userId,
+      eventType: data.type,
+      tabUrl: tab?.url,
+    });
+    
     if (typeof interactionAggregator !== 'undefined') {
       // Ensure aggregator has userId
       if (!interactionAggregator.userId && result.userId) {
@@ -211,14 +218,18 @@ async function handleInteraction(data, tab) {
       }
       
       // Track event in aggregator WITH URL from tab
-      interactionAggregator.trackEvent({
+      const eventWithUrl = {
         ...data,
         url: tab?.url
-      });
+      };
       
-      // Log occasionally to avoid spam
-      if (Math.random() < 0.01) { // 1% of events
-        console.log('📊 Event tracked to aggregator:', data.type, 'on', tab?.url);
+      console.log('📊 Sending to aggregator:', eventWithUrl.type, 'on', eventWithUrl.url);
+      
+      try {
+        interactionAggregator.trackEvent(eventWithUrl);
+        console.log('✅ Aggregator received event');
+      } catch (err) {
+        console.error('❌ Aggregator trackEvent failed:', err);
       }
     } else {
       console.warn('⚠️ InteractionAggregator not available');

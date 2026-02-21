@@ -131,12 +131,19 @@ class InteractionAggregator {
    * Track raw interaction event
    */
   trackEvent(interactionData) {
+    console.log('🎯 Aggregator.trackEvent called:', {
+      type: interactionData.type,
+      url: interactionData.url,
+      hasWindow: !!this.windowStartTime,
+      userId: this.userId,
+    });
+    
     if (!this.windowStartTime) {
       this.startNewWindow();
     }
-    
+
     this.samplingEventCount++;
-    
+
     const eventType = interactionData.type;
     const timestamp = interactionData.timestamp || Date.now();
     
@@ -149,7 +156,9 @@ class InteractionAggregator {
           route: url.pathname,
           app_type: 'web',
         };
+        console.log('📍 Page context updated:', this.currentPageContext);
       } catch (e) {
+        console.warn('⚠️ Invalid URL:', interactionData.url, e);
         // Fallback
         this.currentPageContext = {
           domain: 'unknown',
@@ -167,6 +176,7 @@ class InteractionAggregator {
           y: interactionData.y,
           target: interactionData.elementTag,
         });
+        console.log('✅ Click tracked, total:', this.clicks.length);
         break;
         
       case 'mouse_down':
