@@ -195,6 +195,12 @@ router.post('/aggregated-batches', authMiddleware, async (req, res) => {
     console.log(`📊 Received aggregated batches request:`, {
       userId: req.userId,
       batchCount: batches?.length || 0,
+      firstBatch: batches?.[0] ? {
+        batch_id: batches[0].batch_id,
+        captured_at: batches[0].captured_at,
+        page_context: batches[0].page_context,
+        events_agg: batches[0].events_agg,
+      } : null,
     });
     
     if (!Array.isArray(batches) || batches.length === 0) {
@@ -206,7 +212,21 @@ router.post('/aggregated-batches', authMiddleware, async (req, res) => {
     for (const batch of batches) {
       if (!batch.batch_id || !batch.captured_at || !batch.page_context || !batch.events_agg || !batch._profiler) {
         console.error('❌ Invalid batch structure:', batch);
-        return res.status(400).json({ error: 'Invalid batch structure' });
+        console.error('Missing fields:', {
+          has_batch_id: !!batch.batch_id,
+          has_captured_at: !!batch.captured_at,
+          has_page_context: !!batch.page_context,
+          has_events_agg: !!batch.events_agg,
+          has_profiler: !!batch._profiler,
+          batch: JSON.stringify(batch),
+        });
+        return res.status(400).json({ error: 'Invalid batch structure', missing: {
+          batch_id: !batch.batch_id,
+          captured_at: !batch.captured_at,
+          page_context: !batch.page_context,
+          events_agg: !batch.events_agg,
+          _profiler: !batch._profiler,
+        }});
       }
     }
     
@@ -216,7 +236,7 @@ router.post('/aggregated-batches', authMiddleware, async (req, res) => {
     const result = await AggregatedInteractionBatch.bulkInsertBatches(req.userId, batches);
     
     const count = result.length || result.insertedCount || batches.length;
-    console.log(`✅ Successfully saved ${count} aggregated batches`);
+    console.log(`✅ Successfully saved ${count} aggregated batches to MongoDB`);
     
     res.json({
       message: 'Aggregated batches saved successfully',

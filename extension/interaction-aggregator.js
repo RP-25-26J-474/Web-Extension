@@ -514,6 +514,7 @@ class InteractionAggregator {
       }
       
       console.log(`📤 Syncing ${batches.length} aggregated batches to server...`);
+      console.log('📦 First batch sample:', JSON.stringify(batches[0], null, 2));
       
       const response = await fetch(`${API_CONFIG.BASE_URL}/interactions/aggregated-batches`, {
         method: 'POST',
@@ -537,10 +538,22 @@ class InteractionAggregator {
           statusText: response.statusText,
           error: errorText,
         });
+        
+        // Try to parse error as JSON for more details
+        try {
+          const errorJson = JSON.parse(errorText);
+          console.error('❌ Server error details:', errorJson);
+        } catch (e) {
+          // Error text is not JSON
+        }
       }
       
     } catch (error) {
       console.error('❌ Failed to sync batches to server:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+      });
     }
   }
 
