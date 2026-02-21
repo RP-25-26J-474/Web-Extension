@@ -149,6 +149,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
+  // Initialize tracking (called when user gives consent)
+  if (message.type === 'INIT_TRACKING') {
+    chrome.storage.local.get(['userId']).then(result => {
+      if (result.userId && interactionAggregator) {
+        interactionAggregator.userId = result.userId;
+        interactionAggregator.initialize();
+        console.log('✅ Tracking initialized for user:', result.userId);
+        sendResponse({ success: true, userId: result.userId });
+      } else {
+        console.warn('⚠️ Cannot initialize tracking: missing userId');
+        sendResponse({ success: false, error: 'Missing userId' });
+      }
+    });
+    return true;
+  }
+  
   // Update config
   if (message.type === 'UPDATE_CONFIG') {
     chrome.storage.local.set({ trackingConfig: message.config }).then(() => {
