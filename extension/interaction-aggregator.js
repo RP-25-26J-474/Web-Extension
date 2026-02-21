@@ -83,7 +83,7 @@ class InteractionAggregator {
    */
   startNewWindow() {
     // Close previous window if exists
-    if (this.currentWindow) {
+    if (this.windowStartTime) {
       this.closeCurrentWindow();
     }
     
@@ -131,13 +131,6 @@ class InteractionAggregator {
    * Track raw interaction event
    */
   trackEvent(interactionData) {
-    console.log('🎯 Aggregator.trackEvent called:', {
-      type: interactionData.type,
-      url: interactionData.url,
-      hasWindow: !!this.windowStartTime,
-      userId: this.userId,
-    });
-    
     if (!this.windowStartTime) {
       this.startNewWindow();
     }
@@ -156,7 +149,6 @@ class InteractionAggregator {
           route: url.pathname,
           app_type: 'web',
         };
-        console.log('📍 Page context updated:', this.currentPageContext);
       } catch (e) {
         console.warn('⚠️ Invalid URL:', interactionData.url, e);
         // Fallback
@@ -176,7 +168,6 @@ class InteractionAggregator {
           y: interactionData.y,
           target: interactionData.elementTag,
         });
-        console.log('✅ Click tracked, total:', this.clicks.length);
         break;
         
       case 'mouse_down':
