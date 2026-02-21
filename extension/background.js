@@ -210,12 +210,15 @@ async function handleInteraction(data, tab) {
         console.log('📋 Set aggregator userId:', result.userId);
       }
       
-      // Track event in aggregator
-      interactionAggregator.trackEvent(data);
+      // Track event in aggregator WITH URL from tab
+      interactionAggregator.trackEvent({
+        ...data,
+        url: tab?.url
+      });
       
       // Log occasionally to avoid spam
       if (Math.random() < 0.01) { // 1% of events
-        console.log('📊 Event tracked to aggregator:', data.type);
+        console.log('📊 Event tracked to aggregator:', data.type, 'on', tab?.url);
       }
     } else {
       console.warn('⚠️ InteractionAggregator not available');
