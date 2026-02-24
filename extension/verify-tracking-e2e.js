@@ -45,15 +45,19 @@
     pass(`User ID: ${storage.userId}`);
   }
 
-  if (typeof interactionAggregator === 'undefined') {
-    fail('interactionAggregator not available', 'Reload the extension');
+  const agg = typeof interactionAggregator !== 'undefined'
+    ? interactionAggregator
+    : (typeof globalThis !== 'undefined' && globalThis.interactionAggregator);
+
+  if (!agg) {
+    fail('interactionAggregator not available', 'Reload the extension (background.js exposes it via globalThis)');
   } else {
     pass('InteractionAggregator loaded');
   }
 
-  if (interactionAggregator && !interactionAggregator.userId) {
+  if (agg && !agg.userId) {
     fail('Aggregator userId not set', 'Log out and log in again');
-  } else if (interactionAggregator) {
+  } else if (agg) {
     pass('Aggregator initialized with userId');
   }
 
@@ -83,7 +87,7 @@
 
   for (const evt of events) {
     try {
-      interactionAggregator.trackEvent({
+      agg.trackEvent({
         ...evt,
         url: 'https://example.com/test',
       });
@@ -95,8 +99,8 @@
   }
 
   // 4. Force close current window (simulate 10s elapsed) and get batch
-  interactionAggregator.closeCurrentWindow();
-  const queueSize = interactionAggregator.batchQueue?.length || 0;
+  agg.closeCurrentWindow();
+  const queueSize = agg.batchQueue?.length || 0;
 
   if (queueSize === 0) {
     fail('No batch in queue after events', 'Aggregator may require mouse_move or scroll for non-null batch');
@@ -104,7 +108,7 @@
     pass(`Batch queue has ${queueSize} batch(es)`);
   }
 
-  const latestBatch = interactionAggregator.batchQueue?.[interactionAggregator.batchQueue.length - 1];
+  const latestBatch = agg.batchQueue?.[agg.batchQueue.length - 1];
 
   if (latestBatch) {
     // 5. Validate batch structure (critical for ML/server)

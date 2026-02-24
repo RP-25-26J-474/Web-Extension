@@ -5,6 +5,11 @@
 import { API_CONFIG } from './config.module.js';
 import { interactionAggregator } from './interaction-aggregator.js';
 
+// Expose for Service Worker console (verify-tracking-e2e.js, debugging)
+if (typeof globalThis !== 'undefined') {
+  globalThis.interactionAggregator = interactionAggregator;
+}
+
 const MAX_INTERACTIONS_STORED = 1000; // Limit stored interactions
 const EXPORT_BATCH_SIZE = 100;
 
