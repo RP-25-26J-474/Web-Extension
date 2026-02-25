@@ -1,11 +1,15 @@
 // AURA Integration for Sensecheck Game
 // This file enables sensecheck to work with AURA's backend and user system
 
+// Message types for extension ↔ web page bridge
+const AURA_PING_TIMEOUT_MS = 1000;
+
 class AuraIntegration {
   constructor() {
     this.userId = null;
     this.token = null;
     this.isAuraMode = false;
+    this.extensionPresent = false;
     this.auraAPI = 'http://localhost:3000/api/onboarding';
     
     // Request queue to prevent ERR_INSUFFICIENT_RESOURCES
@@ -15,6 +19,71 @@ class AuraIntegration {
     this.activeRequests = 0;
     
     this.initialize();
+    this.setupExtensionListener();
+  }
+  
+  /** Listen for extension PONG and user updates (login/logout from extension) */
+  setupExtensionListener() {
+    if (typeof window === 'undefined') return;
+    window.addEventListener('message', (event) => {
+      if (event.source !== window) return;
+      const data = event.data;
+      if (!data || data.source !== 'aura-extension') return;
+      if (data.type === 'AURA_EXTENSION_PONG') {
+        this.extensionPresent = data.extensionPresent === true;
+        if (data.loggedIn && data.user) {
+          this.userId = data.user.userId;
+          // Token is not shared for security; URL params or session still needed for API calls
+          if (!this.token && !this.isAuraMode) {
+            console.log('🔗 AURA extension detected with logged-in user');
+          }
+        }
+      } else if (data.type === 'AURA_USER_UPDATE') {
+        if (data.loggedIn && data.user) {
+          this.userId = data.user.userId;
+          this.extensionPresent = true;
+          console.log('🔗 AURA user logged in (from extension)');
+        } else {
+          this.userId = null;
+          this.token = null;
+          this.isAuraMode = false;
+          console.log('🔗 AURA user logged out (from extension)');
+        }
+      }
+    });
+  }
+  
+  /**
+   * Ping the AURA extension to detect if it's installed.
+   * Returns { present: boolean, loggedIn: boolean, user?: { userId, email, name } }.
+   * Resolves with present: false if no PONG within timeout.
+   */
+  checkExtension() {
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        window.removeEventListener('message', handler);
+        resolve({ present: false, loggedIn: false, user: null });
+      }, AURA_PING_TIMEOUT_MS);
+      const handler = (event) => {
+        if (event.source !== window) return;
+        if (event.data?.type === 'AURA_EXTENSION_PONG' && event.data?.source === 'aura-extension') {
+          clearTimeout(timeout);
+          window.removeEventListener('message', handler);
+          resolve({
+            present: event.data.extensionPresent === true,
+            loggedIn: event.data.loggedIn === true,
+            user: event.data.user ?? null,
+          });
+        }
+      };
+      window.addEventListener('message', handler);
+      window.postMessage({ type: 'AURA_EXTENSION_PING', source: 'aura-web' }, '*');
+    });
+  }
+  
+  /** Check if AURA extension is installed (convenience method) */
+  isExtensionPresent() {
+    return this.extensionPresent;
   }
   
   initialize() {

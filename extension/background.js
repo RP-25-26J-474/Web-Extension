@@ -67,6 +67,19 @@ chrome.runtime.onStartup.addListener(async () => {
   await initializeAggregator();
 });
 
+// Broadcast message to all tabs (content scripts) - for user login/logout notification
+function broadcastToAllTabs(message) {
+  chrome.tabs.query({}, (tabs) => {
+    tabs.forEach((tab) => {
+      if (tab.id) {
+        chrome.tabs.sendMessage(tab.id, message).catch(() => {
+          // Ignore: tab may not have content script (e.g. chrome://, extension pages)
+        });
+      }
+    });
+  });
+}
+
 // Initialize aggregator with userId
 async function initializeAggregator() {
   try {
@@ -82,13 +95,16 @@ async function initializeAggregator() {
   }
 }
 
-// Listen for authentication changes to initialize aggregator
+// Listen for authentication changes to initialize aggregator and broadcast to tabs
 chrome.storage.onChanged.addListener(async (changes, namespace) => {
-  if (namespace === 'local' && changes.authToken) {
-    if (changes.authToken.newValue && !changes.authToken.oldValue) {
-      console.log('✅ User logged in - initializing aggregator');
-      await initializeAggregator();
-    }
+  if (namespace !== 'local' || !changes.authToken) return;
+  const { oldValue, newValue } = changes.authToken;
+  if (newValue && !oldValue) {
+    console.log('✅ User logged in - initializing aggregator');
+    await initializeAggregator();
+  } else if (!newValue && oldValue) {
+    console.log('👋 User logged out - broadcasting to tabs');
+    broadcastToAllTabs({ type: 'USER_LOGGED_OUT' });
   }
 });
 
@@ -193,6 +209,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'PAGE_UNLOAD_SYNC') {
     syncInteractionsToServer().then(result => sendResponse(result));
     return true;
+  }
+  
+  // Broadcast user login/logout to all tabs (for React app, dashboard, etc.)
+  if (message.type === 'BROADCAST_USER_LOGIN') {
+    broadcastToAllTabs({ type: 'USER_LOGGED_IN', user: message.user });
+    sendResponse({ success: true });
+    return false;
+  }
+  if (message.type === 'BROADCAST_USER_LOGOUT') {
+    broadcastToAllTabs({ type: 'USER_LOGGED_OUT' });
+    sendResponse({ success: true });
+    return false;
   }
   
   return false;

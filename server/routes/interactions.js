@@ -238,6 +238,38 @@ router.post('/aggregated-batches', authMiddleware, async (req, res) => {
     const count = result.length || result.insertedCount || batches.length;
     console.log(`✅ Successfully saved ${count} aggregated batches to MongoDB`);
     
+    // ML Engine integration: forward batches to external ML service (different codebase)
+    const mlIngestUrl = process.env.ML_ENGINE_INGEST_URL;
+    if (mlIngestUrl && batches.length > 0 && typeof fetch === 'function') {
+      const payload = {
+        user_id: String(req.userId),
+        batches: batches.map(b => ({
+          batch_id: b.batch_id,
+          captured_at: b.captured_at,
+          page_context: b.page_context,
+          events_agg: b.events_agg,
+          _profiler: b._profiler,
+        })),
+      };
+      fetch(mlIngestUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(process.env.ML_ENGINE_API_KEY && {
+            'Authorization': `Bearer ${process.env.ML_ENGINE_API_KEY}`,
+          }),
+        },
+        body: JSON.stringify(payload),
+      }).then(r => {
+        if (r.ok) {
+          console.log(`📤 Forwarded ${batches.length} batches to ML engine`);
+        } else {
+          r.text().then(t => console.warn(`⚠️ ML engine ingest failed (${r.status}):`, t));
+        }
+      }).catch(err => console.warn('⚠️ ML engine ingest error:', err.message));
+      // Fire-and-forget: do not block response
+    }
+    
     res.json({
       message: 'Aggregated batches saved successfully',
       count,

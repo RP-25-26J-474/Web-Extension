@@ -10,12 +10,19 @@ const IntroScreen = () => {
   const { isDark } = useTheme();
   const [isStarting, setIsStarting] = useState(false);
   
-  // Load userId from AURA integration if not already set
+  // Load userId from AURA integration (URL params or extension ping-pong)
   useEffect(() => {
     if (!state.userId) {
       const userId = auraIntegration.getUserId();
       if (userId) {
         setUserId(userId);
+      } else {
+        // Ping extension to detect presence and get user if logged in
+        auraIntegration.checkExtension().then(({ present, loggedIn, user }) => {
+          if (loggedIn && user?.userId) {
+            setUserId(user.userId);
+          }
+        });
       }
     }
   }, [state.userId, setUserId]);

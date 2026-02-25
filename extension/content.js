@@ -705,9 +705,65 @@
     } else if (message.type === 'UPDATE_CONFIG') {
       trackingConfig = { ...trackingConfig, ...message.config };
       sendResponse({ success: true });
+    } else if (message.type === 'USER_LOGGED_IN') {
+      // Broadcast to web page so other components (e.g. React app) can update
+      window.postMessage({
+        type: 'AURA_USER_UPDATE',
+        source: 'aura-extension',
+        user: message.user,
+        loggedIn: true,
+      }, '*');
+      sendResponse({ success: true });
+    } else if (message.type === 'USER_LOGGED_OUT') {
+      window.postMessage({
+        type: 'AURA_USER_UPDATE',
+        source: 'aura-extension',
+        user: null,
+        loggedIn: false,
+      }, '*');
+      sendResponse({ success: true });
     }
     
     return true; // Keep message channel open for async response
+  });
+
+  // ========== AURA PING-PONG: Extension presence detection ==========
+  // Web pages (React app, dashboard, etc.) send AURA_EXTENSION_PING to detect if extension is installed.
+  // Content script responds with AURA_EXTENSION_PONG including user details if logged in.
+  window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
+    if (event.data?.type !== 'AURA_EXTENSION_PING') return;
+    // Optional: validate event.data.source to restrict which pages can ping
+
+    (async () => {
+      try {
+        const result = await chrome.storage.local.get([
+          'userId', 'authToken', 'userProfile', 'trackingEnabled', 'consentGiven'
+        ]);
+        const hasUser = !!(result.authToken && result.userId);
+
+        window.postMessage({
+          type: 'AURA_EXTENSION_PONG',
+          source: 'aura-extension',
+          extensionPresent: true,
+          loggedIn: hasUser,
+          user: hasUser ? {
+            userId: result.userId,
+            email: result.userProfile?.email ?? null,
+            name: result.userProfile?.name ?? null,
+          } : null,
+        }, '*');
+      } catch (err) {
+        window.postMessage({
+          type: 'AURA_EXTENSION_PONG',
+          source: 'aura-extension',
+          extensionPresent: true,
+          loggedIn: false,
+          user: null,
+          error: err.message,
+        }, '*');
+      }
+    })();
   });
   
   // Initialize when script loads

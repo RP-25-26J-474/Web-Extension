@@ -399,7 +399,12 @@ async function handleLogin() {
     console.log('📥 Syncing user settings from server...');
     await chrome.storage.local.set({
       consentGiven: data.user.consentGiven || false,
-      trackingEnabled: data.user.trackingEnabled || false
+      trackingEnabled: data.user.trackingEnabled || false,
+      userProfile: {
+        userId: data.user._id,
+        email: data.user.email ?? null,
+        name: data.user.name ?? null,
+      },
     });
     console.log('✅ Settings synced:', {
       consentGiven: data.user.consentGiven,
@@ -420,6 +425,16 @@ async function handleLogin() {
     } else {
       showConsentSection();
     }
+    
+    // Notify other components (tabs with sensecheck, dashboard, etc.) of logged-in user
+    chrome.runtime.sendMessage({
+      type: 'BROADCAST_USER_LOGIN',
+      user: {
+        userId: data.user._id,
+        email: data.user.email ?? null,
+        name: data.user.name ?? null,
+      },
+    }).catch(() => {});
     
     showNotification('Login successful!', 'success');
     
@@ -488,6 +503,9 @@ async function handleLogout() {
   
   try {
     await apiClient.logout();
+    
+    // Notify other components that user logged out
+    chrome.runtime.sendMessage({ type: 'BROADCAST_USER_LOGOUT' }).catch(() => {});
     
     // Clear local storage
     await chrome.storage.local.clear();
