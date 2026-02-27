@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGame } from '../../context/GameContext';
 import { useTheme } from '../../context/ThemeContext';
+import auraIntegration from '../../utils/auraIntegration';
 import ThemeToggle from '../ThemeToggle';
 import logo from '../../resources/logo.png';
 import { 
@@ -15,7 +16,7 @@ import {
 } from 'lucide-react';
 
 const IntroScreen = () => {
-  const { startGame } = useGame();
+  const { state, setUserId, startGame } = useGame();
   const { isDark } = useTheme();
   const [isStarting, setIsStarting] = useState(false);
   
