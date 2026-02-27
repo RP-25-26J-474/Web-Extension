@@ -71,3 +71,4 @@ npm-debug.log*
 # Environment files (if used for testing)
 .env.test
 .env.test.local
+package-lock.json
