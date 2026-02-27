@@ -32,12 +32,11 @@ class MotorSkillsTracker {
     // Buffers for sending data to AURA backend
     this.auraPointerSamples = []; // Raw pointer samples
     this.auraAttempts = []; // Bubble attempts
-    this.auraGlobalInteractions = []; // Other interactions
+    // Note: Global interactions are handled by the extension, not tracked during the game
     
     // Batching config for AURA - larger batches to reduce requests
     this.AURA_POINTER_BATCH_SIZE = 200; // Increased from 100
     this.AURA_ATTEMPT_BATCH_SIZE = 20;  // Increased from 10
-    this.AURA_INTERACTION_BATCH_SIZE = 100; // Increased from 50
     this.MAX_AURA_BUFFER_SIZE = 1000; // Memory protection
     
     this.roundStartTime = Date.now(); // For calculating tms (time since round start)
@@ -310,9 +309,6 @@ class MotorSkillsTracker {
         // Flush any remaining attempts
         await this.flushAuraAttempts();
         
-        // Flush any remaining global interactions
-        await this.flushAuraGlobalInteractions();
-        
         // Compute round summary on AURA backend
         console.log(`📊 Computing AURA round ${this.round} summary...`);
         await auraIntegration.computeRoundSummary(this.round);
@@ -557,22 +553,6 @@ class MotorSkillsTracker {
     }
   }
   
-  // Flush global interactions to AURA
-  async flushAuraGlobalInteractions() {
-    if (!auraIntegration.isEnabled() || this.auraGlobalInteractions.length === 0) return;
-    
-    const interactions = [...this.auraGlobalInteractions];
-    this.auraGlobalInteractions = []; // Clear BEFORE sending
-    
-    try {
-      console.log(`🌍 Flushing ${interactions.length} global interactions to AURA`);
-      await auraIntegration.saveGlobalInteractions(interactions);
-    } catch (error) {
-      // Don't retry - just drop data to prevent request floods
-      console.error('Error flushing AURA global interactions (data dropped):', error.message);
-    }
-  }
-  
   // ========== ORIGINAL COMPLETE METHOD ==========
   
   // Complete motor skills session (flush remaining interactions + compute session summary)
@@ -586,9 +566,6 @@ class MotorSkillsTracker {
       
       // Flush any remaining attempts
       await this.flushAuraAttempts();
-      
-      // Flush any remaining global interactions
-      await this.flushAuraGlobalInteractions();
       
       // Compute session summary on AURA backend
       try {

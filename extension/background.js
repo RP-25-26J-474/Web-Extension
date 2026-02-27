@@ -1,8 +1,14 @@
 // Background Service Worker - Processes and stores interaction data
 // Handles data from content scripts and manages storage
 
-// Import config for API settings
-importScripts('config.js');
+// Import config and aggregator as ES modules
+import { API_CONFIG } from './config.module.js';
+import { interactionAggregator } from './interaction-aggregator.js';
+
+// Expose for Service Worker console (verify-tracking-e2e.js, debugging)
+if (typeof globalThis !== 'undefined') {
+  globalThis.interactionAggregator = interactionAggregator;
+}
 
 const MAX_INTERACTIONS_STORED = 1000; // Limit stored interactions
 const EXPORT_BATCH_SIZE = 100;
@@ -49,6 +55,56 @@ chrome.runtime.onInstalled.addListener(async (details) => {
         zoomEvents: true
       }
     });
+  }
+  
+  // Initialize aggregator
+  await initializeAggregator();
+});
+
+// Initialize aggregator on startup
+chrome.runtime.onStartup.addListener(async () => {
+  console.log('Extension startup - initializing aggregator');
+  await initializeAggregator();
+});
+
+// Broadcast message to all tabs (content scripts) - for user login/logout notification
+function broadcastToAllTabs(message) {
+  chrome.tabs.query({}, (tabs) => {
+    tabs.forEach((tab) => {
+      if (tab.id) {
+        chrome.tabs.sendMessage(tab.id, message).catch(() => {
+          // Ignore: tab may not have content script (e.g. chrome://, extension pages)
+        });
+      }
+    });
+  });
+}
+
+// Initialize aggregator with userId
+async function initializeAggregator() {
+  try {
+    const result = await chrome.storage.local.get(['userId', 'authToken']);
+    if (result.authToken) {
+      console.log('🔐 User authenticated, initializing aggregator with userId:', result.userId);
+      await interactionAggregator.initialize();
+    } else {
+      console.log('ℹ️ No authentication token found - aggregator will initialize after login');
+    }
+  } catch (error) {
+    console.error('Failed to initialize aggregator:', error);
+  }
+}
+
+// Listen for authentication changes to initialize aggregator and broadcast to tabs
+chrome.storage.onChanged.addListener(async (changes, namespace) => {
+  if (namespace !== 'local' || !changes.authToken) return;
+  const { oldValue, newValue } = changes.authToken;
+  if (newValue && !oldValue) {
+    console.log('✅ User logged in - initializing aggregator');
+    await initializeAggregator();
+  } else if (!newValue && oldValue) {
+    console.log('👋 User logged out - broadcasting to tabs');
+    broadcastToAllTabs({ type: 'USER_LOGGED_OUT' });
   }
 });
 
@@ -109,12 +165,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       };
     }
     chrome.storage.local.set(storageUpdate).then(() => {
-      if (message.consent) {
-        updateBadge(0);
-      } else {
-        chrome.action.setBadgeText({ text: '' });
-      }
       sendResponse({ success: true });
+    });
+    return true;
+  }
+  
+  // Initialize tracking (called when user gives consent)
+  if (message.type === 'INIT_TRACKING') {
+    chrome.storage.local.get(['userId']).then(result => {
+      if (result.userId && interactionAggregator) {
+        interactionAggregator.userId = result.userId;
+        interactionAggregator.initialize();
+        console.log('✅ Tracking initialized for user:', result.userId);
+        sendResponse({ success: true, userId: result.userId });
+      } else {
+        console.warn('⚠️ Cannot initialize tracking: missing userId');
+        sendResponse({ success: false, error: 'Missing userId' });
+      }
     });
     return true;
   }
@@ -144,17 +211,53 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
+  // Broadcast user login/logout to all tabs (for React app, dashboard, etc.)
+  if (message.type === 'BROADCAST_USER_LOGIN') {
+    broadcastToAllTabs({ type: 'USER_LOGGED_IN', user: message.user });
+    sendResponse({ success: true });
+    return false;
+  }
+  if (message.type === 'BROADCAST_USER_LOGOUT') {
+    broadcastToAllTabs({ type: 'USER_LOGGED_OUT' });
+    sendResponse({ success: true });
+    return false;
+  }
+  
   return false;
 });
 
 // Handle and store interaction data
 async function handleInteraction(data, tab) {
   try {
-    const result = await chrome.storage.local.get(['interactions', 'stats', 'trackingEnabled']);
+    const result = await chrome.storage.local.get(['interactions', 'stats', 'trackingEnabled', 'userId']);
     
     if (!result.trackingEnabled) {
       return; // Don't store if tracking is disabled
     }
+    
+    // ===== NEW: Feed to aggregator for 10-second windowing =====
+    if (typeof interactionAggregator !== 'undefined') {
+      // Ensure aggregator has userId
+      if (!interactionAggregator.userId && result.userId) {
+        interactionAggregator.userId = result.userId;
+        console.log('📋 Set aggregator userId:', result.userId);
+      }
+      
+      // Track event in aggregator WITH URL from tab
+      const eventWithUrl = {
+        ...data,
+        url: tab?.url
+      };
+      
+      try {
+        interactionAggregator.trackEvent(eventWithUrl);
+      } catch (err) {
+        console.error('❌ Aggregator trackEvent failed:', err);
+      }
+    } else {
+      console.warn('⚠️ InteractionAggregator not available');
+    }
+    // ===========================================================
     
     let interactions = result.interactions || [];
     let stats = result.stats || {
@@ -240,9 +343,6 @@ async function handleInteraction(data, tab) {
     // Store updated data
     await chrome.storage.local.set({ interactions, stats });
     
-    // Update badge with pending (un-synced) count
-    updateBadge(interactions.length);
-    
     // Trigger immediate sync if buffer reaches threshold (50 interactions)
     const SYNC_THRESHOLD = 50;
     if (interactions.length >= SYNC_THRESHOLD) {
@@ -255,16 +355,10 @@ async function handleInteraction(data, tab) {
   }
 }
 
-// Update extension badge (shows pending/unsycned count)
+// Update extension badge (disabled - not needed)
 function updateBadge(pendingCount) {
-  if (pendingCount > 0) {
-    const text = pendingCount > 999 ? '999+' : pendingCount.toString();
-    chrome.action.setBadgeText({ text });
-    chrome.action.setBadgeBackgroundColor({ color: '#FF9800' }); // Orange = pending sync
-  } else {
-    chrome.action.setBadgeText({ text: '✓' });
-    chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' }); // Green = all synced
-  }
+  // Badge display removed - no visual indicator needed
+  return;
 }
 
 // Auto-sync interactions to server (every 30 seconds)
@@ -312,9 +406,7 @@ async function toggleTracking(enabled) {
     });
   });
   
-  if (!enabled) {
-    chrome.action.setBadgeText({ text: '' });
-  }
+  // Badge updates removed - not needed
 }
 
 // Clear all stored data
@@ -336,7 +428,7 @@ async function clearAllData() {
     }
   });
   
-  updateBadge(0);
+  // Badge updates removed - not needed
 }
 
 // Sync interactions to server (uses GlobalInteractionBucket)
@@ -433,9 +525,6 @@ async function syncInteractionsToServer() {
         lastSyncTime: Date.now()
       });
       
-      // Update badge to show remaining (un-synced) count
-      updateBadge(remainingInteractions.length);
-      
       console.log(`✅ Synced & flushed ${totalSynced} interactions. ${remainingInteractions.length} remaining.`);
     }
     
@@ -450,7 +539,6 @@ async function syncInteractionsToServer() {
 // Initialize badge on startup and trigger initial sync
 chrome.storage.local.get(['interactions', 'authToken']).then(async (result) => {
   const pendingCount = (result.interactions || []).length;
-  updateBadge(pendingCount);
   
   // Trigger initial sync if user is logged in and has pending data
   if (result.authToken && pendingCount > 0) {

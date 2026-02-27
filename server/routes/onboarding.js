@@ -603,6 +603,56 @@ router.get('/results', authMiddleware, async (req, res) => {
   }
 });
 
+// Save impairment profile (POST from client after game completion)
+router.post('/impairment-profile', authMiddleware, async (req, res) => {
+  try {
+    const {
+      impairment_probs,
+      onboarding_metrics,
+      device_context,
+    } = req.body;
+    
+    // Validation
+    if (!impairment_probs || !onboarding_metrics || !device_context) {
+      return res.status(400).json({ error: 'Missing required profile data' });
+    }
+    
+    // Get session for session_id
+    const session = await OnboardingSession.findOne({ userId: req.userId });
+    
+    // Save or update the profile
+    const updatedProfile = await ImpairmentProfile.findOneAndUpdate(
+      { user_id: String(req.userId) },
+      {
+        $set: {
+          user_id: String(req.userId),
+          session_id: session?._id ? String(session._id) : '',
+          captured_at: new Date(),
+          impairment_probs,
+          onboarding_metrics,
+          device_context,
+        },
+      },
+      { upsert: true, new: true }
+    );
+    
+    console.log('✅ Impairment profile saved:', {
+      userId: req.userId,
+      profileId: updatedProfile._id,
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Impairment profile saved successfully',
+      data: updatedProfile 
+    });
+    
+  } catch (error) {
+    console.error('Save impairment profile error:', error);
+    res.status(500).json({ error: 'Failed to save impairment profile' });
+  }
+});
+
 // Get impairment profile (normalized scores + stored motor impairment)
 router.get('/impairment-profile', authMiddleware, async (req, res) => {
   try {

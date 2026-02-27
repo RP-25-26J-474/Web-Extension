@@ -31,7 +31,34 @@ document.addEventListener('DOMContentLoaded', async function() {
   try {
     const userData = await apiClient.getCurrentUser();
     
-    // Check onboarding status
+    // CRITICAL: Sync consent and tracking settings from server to local storage
+    // This ensures settings are always in sync, even after logout/login
+    console.log('📥 Syncing user settings from server...');
+    await chrome.storage.local.set({
+      consentGiven: userData.user.consentGiven || false,
+      trackingEnabled: userData.user.trackingEnabled || false
+    });
+    console.log('✅ Settings synced:', {
+      consentGiven: userData.user.consentGiven,
+      trackingEnabled: userData.user.trackingEnabled
+    });
+    
+    // Initialize aggregator if tracking is enabled
+    if (userData.user.trackingEnabled) {
+      chrome.runtime.sendMessage({ type: 'INIT_TRACKING' }).catch(err => {
+        console.warn('⚠️ Could not initialize tracking:', err.message);
+      });
+    }
+    
+    // FIXED: Check consent BEFORE onboarding to prevent stuck users
+    // If no consent given yet, show consent section first
+    if (!userData.user.consentGiven) {
+      console.log('⚠️ Consent not given, showing consent section');
+      showConsentSection();
+      return;
+    }
+    
+    // Check onboarding status (only after consent is given)
     let onboardingStatus = { completed: false };
     try {
       onboardingStatus = await apiClient.getOnboardingStatus() || { completed: false };
@@ -46,14 +73,11 @@ document.addEventListener('DOMContentLoaded', async function() {
       return;
     }
     
-    if (!userData.user.consentGiven) {
-      showConsentSection();
-    } else {
-      showMainContent();
-      displayUserInfo(userData.user);
-      await loadData();
-      await logMotorPrediction();
-    }
+    // Both consent and onboarding complete - show main content
+    showMainContent();
+    displayUserInfo(userData.user);
+    await loadData();
+    await logMotorPrediction();
   } catch (error) {
     console.error('Authentication error:', error);
     await apiClient.clearToken();
@@ -371,6 +395,29 @@ async function handleLogin() {
     
     const data = await apiClient.login(email, password);
     
+    // CRITICAL: Sync consent and tracking settings from server to local storage
+    console.log('📥 Syncing user settings from server...');
+    await chrome.storage.local.set({
+      consentGiven: data.user.consentGiven || false,
+      trackingEnabled: data.user.trackingEnabled || false,
+      userProfile: {
+        userId: data.user._id,
+        email: data.user.email ?? null,
+        name: data.user.name ?? null,
+      },
+    });
+    console.log('✅ Settings synced:', {
+      consentGiven: data.user.consentGiven,
+      trackingEnabled: data.user.trackingEnabled
+    });
+    
+    // Initialize aggregator if tracking is enabled
+    if (data.user.trackingEnabled) {
+      chrome.runtime.sendMessage({ type: 'INIT_TRACKING' }).catch(err => {
+        console.warn('⚠️ Could not initialize tracking:', err.message);
+      });
+    }
+    
     if (data.user.consentGiven) {
       showMainContent();
       displayUserInfo(data.user);
@@ -378,6 +425,16 @@ async function handleLogin() {
     } else {
       showConsentSection();
     }
+    
+    // Notify other components (tabs with sensecheck, dashboard, etc.) of logged-in user
+    chrome.runtime.sendMessage({
+      type: 'BROADCAST_USER_LOGIN',
+      user: {
+        userId: data.user._id,
+        email: data.user.email ?? null,
+        name: data.user.name ?? null,
+      },
+    }).catch(() => {});
     
     showNotification('Login successful!', 'success');
     
@@ -447,6 +504,9 @@ async function handleLogout() {
   try {
     await apiClient.logout();
     
+    // Notify other components that user logged out
+    chrome.runtime.sendMessage({ type: 'BROADCAST_USER_LOGOUT' }).catch(() => {});
+    
     // Clear local storage
     await chrome.storage.local.clear();
     
@@ -470,24 +530,33 @@ async function handleAcceptConsent() {
   }
   
   try {
-    // Enable tracking in background (fire and forget - don't await)
-    console.log('📤 Enabling tracking...');
-    chrome.runtime.sendMessage({ 
-      type: 'SET_CONSENT', 
-      consent: true 
-    }).catch(() => {}); // Ignore errors
+    // STEP 1: Update server first (BLOCKING - must succeed)
+    console.log('📤 Updating server consent settings...');
+    try {
+      await apiClient.updateSettings(true, true);
+      console.log('✅ Server settings updated successfully');
+    } catch (err) {
+      console.error('❌ Failed to update server settings:', err);
+      showNotification('Failed to save consent. Please try again.', 'error');
+      if (acceptBtn) {
+        acceptBtn.disabled = false;
+        acceptBtn.textContent = 'I Understand, Continue';
+      }
+      return; // Stop if server update fails
+    }
     
-    // Also set in storage directly as backup
-    chrome.storage.local.set({ 
+    // STEP 2: Set in local storage
+    await chrome.storage.local.set({ 
       trackingEnabled: true, 
       consentGiven: true 
     });
+    console.log('✅ Tracking enabled in local storage');
     
-    console.log('✅ Tracking enabled locally');
-    
-    // Try to update server settings (non-blocking)
-    apiClient.updateSettings(true, true).catch(err => {
-      console.warn('⚠️ Could not update server settings:', err.message);
+    // STEP 3: Notify background script to initialize aggregator
+    chrome.runtime.sendMessage({ 
+      type: 'INIT_TRACKING'
+    }).catch(err => {
+      console.warn('⚠️ Could not notify background script:', err.message);
     });
     
     // Check onboarding status

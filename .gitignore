@@ -46,3 +46,28 @@ ml/model_registry/**/reports/
 server/scripts/impairement_profiles.json
 server/scripts/ml-export-*.csv
 ml/serving/__pycache__/
+
+coverage/
+*.lcov
+.nyc_output/
+
+# Jest cache
+.jest-cache/
+jest-results.json
+
+# Test output
+test-results/
+junit.xml
+
+# Temporary test files
+*.test.tmp
+*.spec.tmp
+__tests__/tmp/
+
+# Log files from tests
+test-*.log
+npm-debug.log*
+
+# Environment files (if used for testing)
+.env.test
+.env.test.local

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Interaction = require('../models/Interaction');
 const Stats = require('../models/Stats');
+const AggregatedInteractionBatch = require('../models/AggregatedInteractionBatch');
 const authMiddleware = require('../middleware/auth');
 
 // Save interactions (batch)
@@ -164,6 +165,196 @@ router.delete('/clear', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Clear interactions error:', error);
     res.status(500).json({ error: 'Failed to clear interactions' });
+  }
+});
+
+// ===== AGGREGATED BATCHES ENDPOINTS =====
+
+/**
+ * Save aggregated interaction batches (10-second windows)
+ * POST /api/interactions/aggregated-batches
+ * 
+ * Body: {
+ *   batches: [
+ *     {
+ *       batch_id: "b_1_1234567890",
+ *       captured_at: "2025-10-06T11:25:00Z",
+ *       page_context: { domain: "example.com", route: "/checkout", app_type: "web" },
+ *       events_agg: { click_count: 24, misclick_rate: 0.08, ... },
+ *       raw_samples_optional: [],
+ *       _profiler: { sampling_hz: 30, input_lag_ms_est: 34 }
+ *     },
+ *     ...
+ *   ]
+ * }
+ */
+router.post('/aggregated-batches', authMiddleware, async (req, res) => {
+  try {
+    const { batches } = req.body;
+    
+    console.log(`📊 Received aggregated batches request:`, {
+      userId: req.userId,
+      batchCount: batches?.length || 0,
+      firstBatch: batches?.[0] ? {
+        batch_id: batches[0].batch_id,
+        captured_at: batches[0].captured_at,
+        page_context: batches[0].page_context,
+        events_agg: batches[0].events_agg,
+      } : null,
+    });
+    
+    if (!Array.isArray(batches) || batches.length === 0) {
+      console.warn('⚠️ Invalid batches data:', { batches });
+      return res.status(400).json({ error: 'Invalid batches data' });
+    }
+    
+    // Validate batch structure
+    for (const batch of batches) {
+      if (!batch.batch_id || !batch.captured_at || !batch.page_context || !batch.events_agg || !batch._profiler) {
+        console.error('❌ Invalid batch structure:', batch);
+        console.error('Missing fields:', {
+          has_batch_id: !!batch.batch_id,
+          has_captured_at: !!batch.captured_at,
+          has_page_context: !!batch.page_context,
+          has_events_agg: !!batch.events_agg,
+          has_profiler: !!batch._profiler,
+          batch: JSON.stringify(batch),
+        });
+        return res.status(400).json({ error: 'Invalid batch structure', missing: {
+          batch_id: !batch.batch_id,
+          captured_at: !batch.captured_at,
+          page_context: !batch.page_context,
+          events_agg: !batch.events_agg,
+          _profiler: !batch._profiler,
+        }});
+      }
+    }
+    
+    console.log(`💾 Inserting ${batches.length} aggregated batches for user ${req.userId}`);
+    
+    // Insert batches
+    const result = await AggregatedInteractionBatch.bulkInsertBatches(req.userId, batches);
+    
+    const count = result.length || result.insertedCount || batches.length;
+    console.log(`✅ Successfully saved ${count} aggregated batches to MongoDB`);
+    
+    // ML Engine integration: forward batches to external ML service (different codebase)
+    const mlIngestUrl = process.env.ML_ENGINE_INGEST_URL;
+    if (mlIngestUrl && batches.length > 0 && typeof fetch === 'function') {
+      const payload = {
+        user_id: String(req.userId),
+        batches: batches.map(b => ({
+          batch_id: b.batch_id,
+          captured_at: b.captured_at,
+          page_context: b.page_context,
+          events_agg: b.events_agg,
+          _profiler: b._profiler,
+        })),
+      };
+      fetch(mlIngestUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(process.env.ML_ENGINE_API_KEY && {
+            'Authorization': `Bearer ${process.env.ML_ENGINE_API_KEY}`,
+          }),
+        },
+        body: JSON.stringify(payload),
+      }).then(r => {
+        if (r.ok) {
+          console.log(`📤 Forwarded ${batches.length} batches to ML engine`);
+        } else {
+          r.text().then(t => console.warn(`⚠️ ML engine ingest failed (${r.status}):`, t));
+        }
+      }).catch(err => console.warn('⚠️ ML engine ingest error:', err.message));
+      // Fire-and-forget: do not block response
+    }
+    
+    res.json({
+      message: 'Aggregated batches saved successfully',
+      count,
+    });
+    
+  } catch (error) {
+    console.error('❌ Save aggregated batches error:', error);
+    res.status(500).json({ error: 'Failed to save aggregated batches', details: error.message });
+  }
+});
+
+/**
+ * Get aggregated batches for a user in a time range
+ * GET /api/interactions/aggregated-batches?start=2025-01-01&end=2025-12-31
+ */
+router.get('/aggregated-batches', authMiddleware, async (req, res) => {
+  try {
+    const { start, end } = req.query;
+    
+    if (!start || !end) {
+      return res.status(400).json({ error: 'start and end query parameters required' });
+    }
+    
+    const batches = await AggregatedInteractionBatch.getUserBatches(req.userId, start, end);
+    
+    res.json({
+      batches,
+      count: batches.length,
+    });
+    
+  } catch (error) {
+    console.error('Get aggregated batches error:', error);
+    res.status(500).json({ error: 'Failed to get aggregated batches' });
+  }
+});
+
+/**
+ * Get aggregated statistics for a user
+ * GET /api/interactions/aggregated-stats?start=2025-01-01&end=2025-12-31
+ */
+router.get('/aggregated-stats', authMiddleware, async (req, res) => {
+  try {
+    const { start, end } = req.query;
+    
+    if (!start || !end) {
+      return res.status(400).json({ error: 'start and end query parameters required' });
+    }
+    
+    const stats = await AggregatedInteractionBatch.getUserAggregatedStats(req.userId, start, end);
+    
+    if (!stats) {
+      return res.json({ message: 'No data found for the specified period' });
+    }
+    
+    res.json({ stats });
+    
+  } catch (error) {
+    console.error('Get aggregated stats error:', error);
+    res.status(500).json({ error: 'Failed to get aggregated stats' });
+  }
+});
+
+/**
+ * Export aggregated batches as JSON
+ * GET /api/interactions/aggregated-batches/export?start=2025-01-01&end=2025-12-31
+ */
+router.get('/aggregated-batches/export', authMiddleware, async (req, res) => {
+  try {
+    const { start, end } = req.query;
+    
+    if (!start || !end) {
+      return res.status(400).json({ error: 'start and end query parameters required' });
+    }
+    
+    const batches = await AggregatedInteractionBatch.getUserBatches(req.userId, start, end);
+    
+    // Set response headers for file download
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="aggregated-batches-${start}-${end}.json"`);
+    
+    res.json(batches);
+    
+  } catch (error) {
+    console.error('Export aggregated batches error:', error);
+    res.status(500).json({ error: 'Failed to export aggregated batches' });
   }
 });
 

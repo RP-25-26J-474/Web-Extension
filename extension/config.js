@@ -1,4 +1,4 @@
-// API Configuration
+// API Configuration (for regular scripts - popup, api-client)
 const API_CONFIG = {
   BASE_URL: 'http://localhost:3000/api',
   // Change this to your production URL when deploying
@@ -33,8 +33,7 @@ const API_CONFIG = {
   SYNC_INTERVAL: 30000 // 30 seconds
 };
 
-// Export for use in extension
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = API_CONFIG;
+// Make available globally
+if (typeof window !== 'undefined') {
+  window.API_CONFIG = API_CONFIG;
 }
-

@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aggregation System Demo</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 8px;
+      padding: 30px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin: 30px 0;
+    }
+    
+    .stat-card {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 6px;
+      border-left: 4px solid #007bff;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 5px;
+    }
+    
+    .stat-value {
+      font-size: 32px;
+      font-weight: bold;
+      color: #333;
+    }
+    
+    .stat-unit {
+      font-size: 14px;
+      color: #999;
+      margin-left: 5px;
+    }
+    
+    .interaction-area {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      height: 300px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      user-select: none;
+      margin: 30px 0;
+      transition: transform 0.1s;
+    }
+    
+    .interaction-area:active {
+      transform: scale(0.98);
+    }
+    
+    .batch-log {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 20px;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+      margin: 30px 0;
+    }
+    
+    .batch-log-entry {
+      margin-bottom: 10px;
+      padding: 10px;
+      background: #252526;
+      border-radius: 4px;
+    }
+    
+    .timestamp {
+      color: #858585;
+    }
+    
+    .key {
+      color: #9cdcfe;
+    }
+    
+    .value {
+      color: #ce9178;
+    }
+    
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: #007bff;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #0056b3;
+    }
+    
+    .btn-success {
+      background: #28a745;
+      color: white;
+    }
+    
+    .btn-success:hover {
+      background: #1e7e34;
+    }
+    
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+    
+    .btn-danger:hover {
+      background: #bd2130;
+    }
+    
+    .window-indicator {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 6px;
+      padding: 15px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .window-time {
+      font-weight: bold;
+      color: #856404;
+    }
+    
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: #e9ecef;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: #007bff;
+      transition: width 1s linear;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎯 Interaction Aggregation System Demo</h1>
+    <p class="subtitle">
+      This demo shows how the system aggregates interactions into 10-second windows 
+      and batches them for server submission every 30 seconds.
+    </p>
+    
+    <div class="window-indicator">
+      <div>
+        <div>Current Window: <span class="window-time" id="window-time">0s</span></div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="interaction-area" id="interaction-area">
+      👆 Click, scroll, and interact here!
+    </div>
+    
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-label">Clicks</div>
+        <div class="stat-value" id="stat-clicks">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Misclick Rate</div>
+        <div class="stat-value" id="stat-misclick">0<span class="stat-unit">%</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg Interval</div>
+        <div class="stat-value" id="stat-interval">0<span class="stat-unit">ms</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Rage Clicks</div>
+        <div class="stat-value" id="stat-rage">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Scroll Speed</div>
+        <div class="stat-value" id="stat-scroll">0<span class="stat-unit">px/s</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Batches Queued</div>
+        <div class="stat-value" id="stat-batches">0</div>
+      </div>
+    </div>
+    
+    <div class="controls">
+      <button class="btn-primary" onclick="generateRandomInteractions()">
+        🎲 Generate Random Interactions
+      </button>
+      <button class="btn-success" onclick="exportBatches()">
+        💾 Export Batches (JSON)
+      </button>
+      <button class="btn-danger" onclick="clearData()">
+        🗑️ Clear Data
+      </button>
+    </div>
+    
+    <h3>📦 Recent Aggregated Batches</h3>
+    <div class="batch-log" id="batch-log">
+      <div style="color: #858585; text-align: center; padding: 40px;">
+        No batches yet. Start interacting to generate data!
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Simple aggregation simulator (mimics the real system)
+    class AggregationDemo {
+      constructor() {
+        this.windowStartTime = null;
+        this.windowDuration = 10000; // 10 seconds
+        this.batchQueue = [];
+        this.batchIdCounter = 1;
+        
+        // Raw tracking
+        this.clicks = [];
+        this.mouseDownEvents = [];
+        this.scrollEvents = [];
+        
+        this.startNewWindow();
+        this.startWindowRotation();
+        this.updateUI();
+      }
+      
+      startNewWindow() {
+        if (this.windowStartTime) {
+          this.closeWindow();
+        }
+        
+        this.clicks = [];
+        this.mouseDownEvents = [];
+        this.scrollEvents = [];
+        this.windowStartTime = Date.now();
+        
+        console.log('🆕 New window started');
+      }
+      
+      closeWindow() {
+        const aggregated = this.calculateAggregates();
+        if (aggregated) {
+          this.batchQueue.push(aggregated);
+          this.displayBatch(aggregated);
+          console.log('📦 Window closed, batch created:', aggregated);
+        }
+      }
+      
+      calculateAggregates() {
+        if (this.clicks.length === 0 && this.scrollEvents.length === 0) {
+          return null;
+        }
+        
+        const click_count = this.clicks.length;
+        const intervals = this.calculateClickIntervals();
+        const avg_click_interval_ms = intervals.length > 0
+          ? Math.round(intervals.reduce((a, b) => a + b, 0) / intervals.length)
+          : 0;
+        
+        const misclick_count = this.detectMisclicks();
+        const misclick_rate = click_count > 0 ? misclick_count / click_count : 0;
+        
+        const rage_clicks = this.detectRageClicks();
+        const scroll_speed_px_s = this.calculateScrollSpeed();
+        
+        return {
+          user_id: 'demo_user',
+          batch_id: `b_${this.batchIdCounter++}_${Date.now()}`,
+          captured_at: new Date(this.windowStartTime).toISOString(),
+          page_context: {
+            domain: window.location.hostname,
+            route: window.location.pathname,
+            app_type: 'web'
+          },
+          events_agg: {
+            click_count,
+            misclick_rate: parseFloat(misclick_rate.toFixed(2)),
+            avg_click_interval_ms,
+            avg_dwell_ms: 0,
+            rage_clicks,
+            zoom_events: 0,
+            scroll_speed_px_s: Math.round(scroll_speed_px_s)
+          },
+          raw_samples_optional: [],
+          _profiler: {
+            sampling_hz: 30,
+            input_lag_ms_est: 0
+          }
+        };
+      }
+      
+      calculateClickIntervals() {
+        if (this.clicks.length < 2) return [];
+        const intervals = [];
+        for (let i = 1; i < this.clicks.length; i++) {
+          intervals.push(this.clicks[i].timestamp - this.clicks[i - 1].timestamp);
+        }
+        return intervals;
+      }
+      
+      detectMisclicks() {
+        let count = 0;
+        for (const click of this.clicks) {
+          const hasMatch = this.mouseDownEvents.some(md => {
+            const dx = Math.abs(md.x - click.x);
+            const dy = Math.abs(md.y - click.y);
+            const dt = Math.abs(md.timestamp - click.timestamp);
+            return dx < 20 && dy < 20 && dt < 500;
+          });
+          if (!hasMatch) count++;
+        }
+        return count;
+      }
+      
+      detectRageClicks() {
+        let count = 0;
+        for (let i = 0; i < this.clicks.length - 2; i++) {
+          const c1 = this.clicks[i];
+          const c2 = this.clicks[i + 1];
+          const c3 = this.clicks[i + 2];
+          
+          const dt = (c3.timestamp - c1.timestamp);
+          if (dt <= 1000) {
+            const dx12 = Math.abs(c2.x - c1.x);
+            const dy12 = Math.abs(c2.y - c1.y);
+            const dx23 = Math.abs(c3.x - c2.x);
+            const dy23 = Math.abs(c3.y - c2.y);
+            
+            if (dx12 < 30 && dy12 < 30 && dx23 < 30 && dy23 < 30) {
+              count++;
+              i += 2;
+            }
+          }
+        }
+        return count;
+      }
+      
+      calculateScrollSpeed() {
+        if (this.scrollEvents.length < 2) return 0;
+        const first = this.scrollEvents[0];
+        const last = this.scrollEvents[this.scrollEvents.length - 1];
+        const distance = Math.abs(last.y - first.y);
+        const duration = (last.timestamp - first.timestamp) / 1000;
+        return duration > 0 ? distance / duration : 0;
+      }
+      
+      trackClick(x, y) {
+        this.clicks.push({ timestamp: Date.now(), x, y });
+        this.updateStats();
+      }
+      
+      trackMouseDown(x, y) {
+        this.mouseDownEvents.push({ timestamp: Date.now(), x, y });
+      }
+      
+      trackScroll(y) {
+        this.scrollEvents.push({ timestamp: Date.now(), y });
+        this.updateStats();
+      }
+      
+      startWindowRotation() {
+        setInterval(() => {
+          this.startNewWindow();
+        }, this.windowDuration);
+        
+        // Update progress bar
+        setInterval(() => {
+          const elapsed = Date.now() - this.windowStartTime;
+          const progress = Math.min((elapsed / this.windowDuration) * 100, 100);
+          document.getElementById('progress-fill').style.width = progress + '%';
+          document.getElementById('window-time').textContent = 
+            Math.floor(elapsed / 1000) + 's / 10s';
+        }, 100);
+      }
+      
+      updateStats() {
+        const latest = this.batchQueue[this.batchQueue.length - 1];
+        if (latest) {
+          document.getElementById('stat-clicks').textContent = latest.events_agg.click_count;
+          document.getElementById('stat-misclick').textContent = 
+            (latest.events_agg.misclick_rate * 100).toFixed(0);
+          document.getElementById('stat-interval').textContent = 
+            latest.events_agg.avg_click_interval_ms;
+          document.getElementById('stat-rage').textContent = latest.events_agg.rage_clicks;
+          document.getElementById('stat-scroll').textContent = latest.events_agg.scroll_speed_px_s;
+        }
+        document.getElementById('stat-batches').textContent = this.batchQueue.length;
+      }
+      
+      displayBatch(batch) {
+        const log = document.getElementById('batch-log');
+        if (log.children[0]?.textContent.includes('No batches')) {
+          log.innerHTML = '';
+        }
+        
+        const entry = document.createElement('div');
+        entry.className = 'batch-log-entry';
+        entry.innerHTML = `
+          <div class="timestamp">${new Date(batch.captured_at).toLocaleTimeString()}</div>
+          <div><span class="key">batch_id:</span> <span class="value">"${batch.batch_id}"</span></div>
+          <div><span class="key">events_agg:</span> {</div>
+          <div style="margin-left: 20px;">
+            <span class="key">click_count:</span> <span class="value">${batch.events_agg.click_count}</span>,
+            <span class="key">misclick_rate:</span> <span class="value">${batch.events_agg.misclick_rate}</span>,
+            <span class="key">rage_clicks:</span> <span class="value">${batch.events_agg.rage_clicks}</span>
+          </div>
+          <div>}</div>
+        `;
+        
+        log.insertBefore(entry, log.firstChild);
+        
+        // Keep only last 10 entries
+        while (log.children.length > 10) {
+          log.removeChild(log.lastChild);
+        }
+        
+        this.updateStats();
+      }
+      
+      updateUI() {
+        setInterval(() => {
+          this.updateStats();
+        }, 1000);
+      }
+    }
+    
+    // Initialize
+    const demo = new AggregationDemo();
+    
+    // Track interactions on demo area
+    const area = document.getElementById('interaction-area');
+    
+    area.addEventListener('mousedown', (e) => {
+      demo.trackMouseDown(e.clientX, e.clientY);
+    });
+    
+    area.addEventListener('click', (e) => {
+      demo.trackClick(e.clientX, e.clientY);
+      area.style.background = `linear-gradient(135deg, 
+        hsl(${Math.random() * 360}, 70%, 60%) 0%, 
+        hsl(${Math.random() * 360}, 70%, 60%) 100%)`;
+    });
+    
+    window.addEventListener('scroll', () => {
+      demo.trackScroll(window.scrollY);
+    });
+    
+    // Controls
+    function generateRandomInteractions() {
+      const count = 10 + Math.floor(Math.random() * 20);
+      for (let i = 0; i < count; i++) {
+        setTimeout(() => {
+          const x = Math.random() * window.innerWidth;
+          const y = Math.random() * window.innerHeight;
+          demo.trackMouseDown(x, y);
+          setTimeout(() => demo.trackClick(x, y), 50);
+        }, i * 100);
+      }
+    }
+    
+    function exportBatches() {
+      const json = JSON.stringify(demo.batchQueue, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `aggregated-batches-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    
+    function clearData() {
+      demo.batchQueue = [];
+      demo.startNewWindow();
+      document.getElementById('batch-log').innerHTML = `
+        <div style="color: #858585; text-align: center; padding: 40px;">
+          Data cleared. Start interacting to generate new data!
+        </div>
+      `;
+      demo.updateStats();
+    }
+  </script>
+</body>
+</html>
+
