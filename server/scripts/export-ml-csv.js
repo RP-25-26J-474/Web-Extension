@@ -4,10 +4,12 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Load .env from server directory (or project root)
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+dotenv.config(); // Fallback to cwd .env
 
 /**
  * ML CSV Export Script
@@ -651,10 +653,10 @@ async function exportMLCSV() {
       ...csvRows.map(row => formatRow(row, CSV_HEADERS))
     ].join('\n');
     
-    // Write to file
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const outputPath = path.join(__dirname, `ml-export-${timestamp}.csv`);
-    
+    // Write to ml/datasets/final/motor_sessions.csv (for train_motor_model_v2.py)
+    const outputDir = path.resolve(__dirname, '..', '..', 'ml', 'datasets', 'final');
+    const outputPath = path.join(outputDir, 'motor_sessions.csv');
+    fs.mkdirSync(outputDir, { recursive: true });
     fs.writeFileSync(outputPath, csvContent, 'utf8');
     
     console.log(`✅ CSV exported successfully!`);
@@ -725,8 +727,8 @@ Options:
   --help, -h     Show this help message
 
 Output:
-  Creates a timestamped CSV file in the server directory:
-  ml-export-YYYY-MM-DDTHH-MM-SS.csv
+  Creates motor_sessions.csv in ml/datasets/final/
+  (ready for train_motor_model_v2.py --csv ...)
 
 CSV Structure:
   - One row per session
