@@ -71,18 +71,20 @@ export const analyzeColorBlindness = (plates) => {
     totalResponseTime += plate.responseTime || 0;
   });
 
-  // Calculate score (0-100)
   const totalPlates = plates.length;
+
+  // Color vision score (0-100) - proportion of correct normal-vision answers
   const colorVisionScore = Math.round((normalVisionCount / totalPlates) * 100);
-  console.log('totalPlates', totalPlates);
-  console.log('colorVisionScore', colorVisionScore);
-  console.log('normalVisionCount', normalVisionCount);
-  console.log('colorBlindCount', colorBlindCount);
-  console.log('totalResponseTime', totalResponseTime);
+
+  // Color blindness score (0-1) - proportion of plates where user gave the color-blind pattern answer
+  // This is the impairment level: 0 = no color blindness, 1 = all answers matched color-blind pattern
+  // NOT 1 - colorVisionScore, because random wrong answers do not indicate color blindness
+  const colorBlindnessScore = totalPlates > 0
+    ? parseFloat((colorBlindCount / totalPlates).toFixed(2))
+    : 0;
 
   // Determine diagnosis
   let diagnosis = 'Inconclusive';
-  
   if (colorVisionScore >= 75) {
     diagnosis = 'Normal';
   } else if (colorBlindCount >= 2) {
@@ -91,6 +93,7 @@ export const analyzeColorBlindness = (plates) => {
 
   return {
     colorVisionScore,
+    colorBlindnessScore,
     diagnosis,
     normalVisionCount,
     colorBlindCount,

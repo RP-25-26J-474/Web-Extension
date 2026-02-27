@@ -146,41 +146,37 @@ export const calculateLiteracyScore = (responses) => {
       percentage: 0,
       timeFactor: 0,
       computerLiteracyScore: 0,
+      score: 0, // Decimal 0-1 for impairment profile
     };
   }
 
   const totalQuestions = responses.length;
   const correctAnswers = responses.filter(r => r.isCorrect).length;
   const percentage = Math.round((correctAnswers / totalQuestions) * 100);
-  
-  // Calculate time factor
+
+  // Score as decimal (0.0 - 1.0) for impairment profile - higher = better literacy
+  const score = Number((correctAnswers / totalQuestions).toFixed(2));
+
+  // Calculate time factor (for display/gamification only)
   const totalTime = responses.reduce((sum, r) => sum + (r.responseTime || 0), 0);
   const averageTime = totalTime / totalQuestions;
-  
-  // Time bonus/penalty: faster responses get slight bonus, slower get penalty
-  // Optimal time per question: 8-15 seconds
   let timeFactor = 0;
-  // if (averageTime < 8000) {
-  //   // Too fast - might be guessing, small penalty
-  //   timeFactor = -5;
-  // } 
   if (averageTime > 20000) {
-    // Very slow - small penalty
     timeFactor = -10;
   } else {
-    // Good pace - small bonus
     timeFactor = 5;
   }
-  
-  // Computer Literacy Score = correct answers + time factor
+
+  // Computer Literacy Score = correct answers + time factor (legacy)
   const computerLiteracyScore = Math.max(0, correctAnswers + timeFactor);
-  
+
   return {
     correctAnswers,
     totalQuestions,
     percentage,
     timeFactor,
     computerLiteracyScore,
+    score,
     averageTime: Math.round(averageTime),
   };
 };

@@ -30,31 +30,29 @@ export const buildImpairmentProfile = ({
   const visualAcuity = challengeResults?.['visual-acuity'] || challengeResults?.visualAcuity;
   const motorSkills = challengeResults?.['motor-skills'] || challengeResults?.motorSkills;
   const knowledgeQuiz = challengeResults?.['knowledge-quiz'] || challengeResults?.knowledgeQuiz;
-  
-  console.log('📊 Building impairment profile with:');
-  console.log('  - Color Blindness:', colorBlindness);
-  console.log('  - Visual Acuity:', visualAcuity);
-  console.log('  - Motor Skills:', motorSkills);
-  console.log('  - Knowledge Quiz:', knowledgeQuiz);
-  
+
   // Vision loss from visual acuity (0.0 = no loss, 1.0 = total loss)
+  // Stored directly as impairment level - higher = more impaired
   const visionLoss = visualAcuity?.visionLoss ?? 0;
-  
-  // Color blindness from color vision score (inverted: 1.0 score = 0.0 blindness)
-  const colorBlindnessProb = colorBlindness?.colorVisionScore != null
-    ? parseFloat((1 - colorBlindness.colorVisionScore).toFixed(2))
+
+  // Color blindness impairment level (0-1)
+  // Uses colorBlindnessScore = colorBlindCount / totalPlates (not 1 - colorVisionScore)
+  // Higher = more color blind. Only actual color-blind pattern answers count.
+  const colorBlindnessProb = colorBlindness?.colorBlindnessScore != null
+    ? parseFloat(Number(colorBlindness.colorBlindnessScore).toFixed(2))
     : 0;
-  
-  // Inaccurate click from miss rate
-  const totalAttempts = motorSkills 
+
+  // Inaccurate click from miss rate (0-1, higher = more impaired)
+  const totalAttempts = motorSkills
     ? (motorSkills.totalHits || 0) + (motorSkills.totalMisses || 0)
     : 0;
-  const hitRate = totalAttempts > 0 
+  const hitRate = totalAttempts > 0
     ? (motorSkills.totalHits || 0) / totalAttempts
     : 1;
   const inaccurateClick = parseFloat((1 - hitRate).toFixed(2));
-  
-  // Literacy score as decimal (0.0 - 1.0)
+
+  // Literacy score as decimal (0.0 - 1.0) - higher = better literacy (not impairment)
+  // Matches D:\New\sensecheck: use score if available, else correctAnswers/totalQuestions
   const literacyScore = typeof knowledgeQuiz?.score === 'number'
     ? knowledgeQuiz.score
     : knowledgeQuiz?.correctAnswers != null && knowledgeQuiz?.totalQuestions
