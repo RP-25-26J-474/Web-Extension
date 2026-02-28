@@ -87,7 +87,6 @@ router.post('/motor-score', authMiddleware, async (req, res) => {
           ...profileUpdate,
           'impairment_probs.motor': motorImpairment,
         },
-        $setOnInsert: { impairment_probs: {} },
       },
       { upsert: true, new: true }
     );
