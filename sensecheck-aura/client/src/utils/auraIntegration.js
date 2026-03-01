@@ -249,6 +249,10 @@ class AuraIntegration {
       screen: deviceInfo.screen,
       game: deviceInfo.game,
       perf: deviceInfo.perf,
+      viewportWidth: deviceInfo.viewportWidth,
+      viewportHeight: deviceInfo.viewportHeight,
+      highContrastMode: deviceInfo.highContrastMode,
+      reducedMotionPreference: deviceInfo.reducedMotionPreference,
     });
   }
   
@@ -281,13 +285,19 @@ class AuraIntegration {
     return await this.callAuraAPI('motor/summary/round', { round });
   }
   
-  // Compute and save session summary (all rounds)
-  async computeSessionSummary() {
+  // Compute and save session summary (all rounds). Optional perf/viewport for ML feature vector.
+  async computeSessionSummary(opts = {}) {
     if (!this.isEnabled()) return null;
     
     console.log('📈 Computing session summary');
     
-    return await this.callAuraAPI('motor/summary/session', {});
+    const body = {};
+    if (opts.perf && typeof opts.perf === 'object') body.perf = opts.perf;
+    if (opts.viewportWidth != null) body.viewportWidth = opts.viewportWidth;
+    if (opts.viewportHeight != null) body.viewportHeight = opts.viewportHeight;
+    if (typeof opts.highContrastMode === 'boolean') body.highContrastMode = opts.highContrastMode;
+    if (typeof opts.reducedMotionPreference === 'boolean') body.reducedMotionPreference = opts.reducedMotionPreference;
+    return await this.callAuraAPI('motor/summary/session', body);
   }
   
   // ========== LEGACY METHODS (kept for backward compatibility) ==========

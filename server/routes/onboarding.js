@@ -151,8 +151,21 @@ router.post('/start', authMiddleware, async (req, res) => {
     let session = await OnboardingSession.findOne({ userId: req.userId });
     
     if (session) {
-      // Session already exists - return it
-      console.log(`Onboarding session already exists for user ${req.userId}`);
+      // Session exists - update with any new context (viewport, perf, etc.)
+      const viewportWidth = req.body?.viewportWidth ?? req.body?.viewport?.width;
+      const viewportHeight = req.body?.viewportHeight ?? req.body?.viewport?.height;
+      const highContrastMode = req.body?.highContrastMode;
+      const reducedMotionPreference = req.body?.reducedMotionPreference;
+      const perf = req.body?.perf;
+      const updates = {};
+      if (toFiniteNumber(viewportWidth) != null) updates.viewportWidth = viewportWidth;
+      if (toFiniteNumber(viewportHeight) != null) updates.viewportHeight = viewportHeight;
+      if (typeof highContrastMode === 'boolean') updates.highContrastMode = highContrastMode;
+      if (typeof reducedMotionPreference === 'boolean') updates.reducedMotionPreference = reducedMotionPreference;
+      if (perf && typeof perf === 'object') updates.perf = { ...session.perf, ...perf };
+      if (Object.keys(updates).length > 0) {
+        await OnboardingSession.findOneAndUpdate({ userId: req.userId }, { $set: updates });
+      }
       return res.json({
         message: 'Onboarding session already exists',
         session,
@@ -165,6 +178,10 @@ router.post('/start', authMiddleware, async (req, res) => {
     const incomingDevice = req.body?.device || {};
     const incomingScreen = req.body?.screen || {};
     const userAgent = incomingDevice.userAgent || req.get('user-agent') || null;
+    const viewportWidth = req.body?.viewportWidth ?? req.body?.viewport?.width;
+    const viewportHeight = req.body?.viewportHeight ?? req.body?.viewport?.height;
+    const highContrastMode = req.body?.highContrastMode ?? false;
+    const reducedMotionPreference = req.body?.reducedMotionPreference ?? false;
 
     const device = {
       ...incomingDevice,
@@ -189,6 +206,10 @@ router.post('/start', authMiddleware, async (req, res) => {
       screen,
       game,
       perf,
+      viewportWidth: toFiniteNumber(viewportWidth) || null,
+      viewportHeight: toFiniteNumber(viewportHeight) || null,
+      highContrastMode: !!highContrastMode,
+      reducedMotionPreference: !!reducedMotionPreference,
       status: 'in_progress',
     });
     
@@ -337,6 +358,24 @@ router.post('/motor/summary/round', authMiddleware, async (req, res) => {
 // Compute and save session summary
 router.post('/motor/summary/session', authMiddleware, async (req, res) => {
   try {
+    // Update session with perf/viewport/accessibility if provided
+    const { perf, viewportWidth, viewportHeight, highContrastMode, reducedMotionPreference } = req.body || {};
+    const updates = {};
+    if (perf && typeof perf === 'object') {
+      updates['perf.samplingHzEstimated'] = perf.samplingHzEstimated;
+      updates['perf.avgFrameMs'] = perf.avgFrameMs;
+      updates['perf.p95FrameMs'] = perf.p95FrameMs;
+      updates['perf.droppedFrames'] = perf.droppedFrames;
+      updates['perf.inputLagMsEstimate'] = perf.inputLagMsEstimate;
+    }
+    if (viewportWidth != null) updates.viewportWidth = toFiniteNumber(viewportWidth) || null;
+    if (viewportHeight != null) updates.viewportHeight = toFiniteNumber(viewportHeight) || null;
+    if (typeof highContrastMode === 'boolean') updates.highContrastMode = highContrastMode;
+    if (typeof reducedMotionPreference === 'boolean') updates.reducedMotionPreference = reducedMotionPreference;
+    if (Object.keys(updates).length > 0) {
+      await OnboardingSession.findOneAndUpdate({ userId: req.userId }, { $set: updates });
+    }
+
     // Compute features from all rounds
     const features = await computeSessionFeatures(req.userId);
     
@@ -449,6 +488,33 @@ router.post('/literacy', authMiddleware, async (req, res) => {
   try {
     const { responses, score, metrics, categoryScores } = req.body;
     
+    // Normalize score: client may send a number (0-1 decimal), numeric string, or full object
+    let scoreObj = score;
+    const numericScore = typeof score === 'number' ? score : (typeof score === 'string' ? parseFloat(score) : null);
+    if (Number.isFinite(numericScore) && (typeof score !== 'object' || score === null)) {
+      const correctAnswers = metrics?.correctAnswers ?? 0;
+      const totalQuestions = metrics?.totalQuestions ?? 1;
+      const percentage = totalQuestions ? Math.round((correctAnswers / totalQuestions) * 100) : Math.round(numericScore * 100);
+      scoreObj = {
+        correctAnswers,
+        totalQuestions,
+        percentage,
+        timeFactor: metrics?.timeFactor ?? 0,
+        computerLiteracyScore: Math.round(numericScore * 100),
+      };
+    } else if (typeof score !== 'object' || score === null || !score.correctAnswers) {
+      // Fallback: build minimal valid object
+      const correctAnswers = metrics?.correctAnswers ?? 0;
+      const totalQuestions = metrics?.totalQuestions ?? 1;
+      scoreObj = {
+        correctAnswers,
+        totalQuestions,
+        percentage: totalQuestions ? Math.round((correctAnswers / totalQuestions) * 100) : 0,
+        timeFactor: metrics?.timeFactor ?? 0,
+        computerLiteracyScore: correctAnswers + (metrics?.timeFactor ?? 0),
+      };
+    }
+    
     // Create or update literacy result
     let literacyResult = await OnboardingLiteracyResult.findOne({ userId: req.userId });
     
@@ -456,13 +522,13 @@ router.post('/literacy', authMiddleware, async (req, res) => {
       literacyResult = new OnboardingLiteracyResult({
         userId: req.userId,
         responses,
-        score,
+        score: scoreObj,
         metrics,
         categoryScores,
       });
     } else {
       literacyResult.responses = responses;
-      literacyResult.score = score;
+      literacyResult.score = scoreObj;
       literacyResult.metrics = metrics;
       literacyResult.categoryScores = categoryScores;
     }
@@ -484,7 +550,7 @@ router.post('/literacy', authMiddleware, async (req, res) => {
     
     res.json({
       message: 'Literacy result saved',
-      score: literacyResult.score.computerLiteracyScore,
+      score: literacyResult.score?.computerLiteracyScore ?? literacyResult.score?.percentage ?? 0,
     });
     
   } catch (error) {

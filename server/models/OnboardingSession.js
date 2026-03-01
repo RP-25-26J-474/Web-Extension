@@ -52,6 +52,14 @@ const onboardingSessionSchema = new mongoose.Schema({
     dpr: Number,
   },
   
+  // Viewport (for ML feature vector)
+  viewportWidth: Number,
+  viewportHeight: Number,
+  
+  // Accessibility preferences (for ML feature vector)
+  highContrastMode: Boolean,
+  reducedMotionPreference: Boolean,
+  
   // Game configuration
   game: {
     gameVersion: { type: String, default: '1.0.0' },

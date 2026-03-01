@@ -534,7 +534,8 @@ class MotorSkillsTracker {
   // ========== ORIGINAL COMPLETE METHOD ==========
   
   // Complete motor skills session (flush remaining interactions + compute session summary)
-  async complete() {
+  // opts: { perf, viewportWidth, viewportHeight, highContrastMode, reducedMotionPreference }
+  async complete(opts = {}) {
     // ========== FLUSH AURA DATA ==========
     if (auraIntegration.isEnabled()) {
       console.log('🌟 Flushing remaining AURA data...');
@@ -545,10 +546,10 @@ class MotorSkillsTracker {
       // Flush any remaining attempts
       await this.flushAuraAttempts();
       
-      // Compute session summary on AURA backend
+      // Compute session summary on AURA backend (with perf for ML feature vector)
       try {
         console.log('📈 Computing AURA session summary...');
-        await auraIntegration.computeSessionSummary();
+        await auraIntegration.computeSessionSummary(opts);
       } catch (error) {
         console.error('Error computing AURA session summary:', error);
       }

@@ -281,7 +281,13 @@ const MotorChallenge = () => {
     });
     
     if (motorTrackerRef.current) {
-      await motorTrackerRef.current.complete();
+      await motorTrackerRef.current.complete({
+        perf: finalPerfMetrics,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        highContrastMode: window.matchMedia?.('(prefers-contrast: high)')?.matches ?? false,
+        reducedMotionPreference: window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false,
+      });
     }
     
     try {

@@ -25,7 +25,9 @@ function App() {
     if (auraIntegration.isEnabled()) {
       console.log('🌟 AURA mode detected, starting onboarding session');
       
-      // Collect device info
+      // Collect device info for ML feature vector
+      const getHighContrast = () => window.matchMedia?.('(prefers-contrast: high)')?.matches ?? false;
+      const getReducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
       const deviceInfo = {
         device: {
           userAgent: navigator.userAgent,
@@ -42,11 +44,16 @@ function App() {
           canvasHeight: 600,
         },
         perf: {
+          samplingHzTarget: 60,
           memory: performance.memory ? {
             jsHeapSizeLimit: performance.memory.jsHeapSizeLimit,
             totalJSHeapSize: performance.memory.totalJSHeapSize,
           } : null,
         },
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        highContrastMode: getHighContrast(),
+        reducedMotionPreference: getReducedMotion(),
       };
       
       auraIntegration.startSession(deviceInfo).catch((error) => {
