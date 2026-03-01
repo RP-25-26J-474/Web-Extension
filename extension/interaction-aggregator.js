@@ -506,7 +506,10 @@ class InteractionAggregator {
    */
   async syncBatchesToServer() {
     try {
-      const result = await chrome.storage.local.get(['aggregatedBatches', 'authToken']);
+      const result = await chrome.storage.local.get(['aggregatedBatches', 'authToken', 'onboardingCompleted']);
+      if (!result.onboardingCompleted) {
+        return; // Do not sync aggregated batches until onboarding is complete
+      }
       const batches = result.aggregatedBatches || [];
       
       if (batches.length === 0) {

@@ -72,6 +72,9 @@ document.addEventListener('DOMContentLoaded', async function() {
       showOnboardingPrompt(userData.user);
       return;
     }
+
+    // Onboarding complete – enable aggregated/global tracking
+    await chrome.storage.local.set({ onboardingCompleted: true });
     
     // Both consent and onboarding complete - show main content
     showMainContent();

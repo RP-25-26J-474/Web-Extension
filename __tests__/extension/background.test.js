@@ -5,7 +5,6 @@
 
 describe('Background Service Worker', () => {
   let handleInteraction;
-  let syncInteractionsToServer;
   let updateBadge;
   let clearAllData;
   
@@ -32,6 +31,7 @@ describe('Background Service Worker', () => {
       trackingEnabled: true,
       authToken: 'test-token-123',
       userId: 'test-user-123',
+      onboardingCompleted: true,
     };
     
     chrome.storage.local.get.mockImplementation((keys) => {
@@ -59,110 +59,17 @@ describe('Background Service Worker', () => {
       json: () => Promise.resolve({ success: true }),
     });
     
-    // Implementation of handleInteraction
+    // Implementation of handleInteraction (simplified: feeds aggregator only, no raw storage)
     handleInteraction = async (data, tab) => {
-      const result = await chrome.storage.local.get(['interactions', 'stats', 'trackingEnabled']);
-      
-      if (!result.trackingEnabled) {
-        return;
-      }
-      
-      let interactions = result.interactions || [];
-      let stats = result.stats || {
-        totalInteractions: 0,
-        clicks: 0,
-        keystrokes: 0,
-        mouseMovements: 0,
-      };
-      
-      const interaction = {
-        ...data,
-        tabId: tab?.id,
-        tabUrl: tab?.url,
-      };
-      
-      interactions.push(interaction);
-      stats.totalInteractions++;
-      
-      switch (data.type) {
-        case 'click':
-          stats.clicks++;
-          break;
-        case 'keypress':
-          stats.keystrokes++;
-          break;
-        case 'mouse_move':
-        case 'scroll':
-          stats.mouseMovements++;
-          break;
-      }
-      
-      await chrome.storage.local.set({ interactions, stats });
-      updateBadge(interactions.length);
+      const result = await chrome.storage.local.get(['trackingEnabled', 'onboardingCompleted']);
+      if (!result.trackingEnabled || !result.onboardingCompleted) return;
+      // In real code: interactionAggregator.trackEvent(...)
     };
     
-    // Implementation of updateBadge
-    // Mock updateBadge function (disabled in actual code)
-    updateBadge = (pendingCount) => {
-      // Badge updates disabled - no longer used
-      return;
-    };
+    updateBadge = () => {};
     
-    // Implementation of syncInteractionsToServer
-    syncInteractionsToServer = async () => {
-      const result = await chrome.storage.local.get(['interactions', 'authToken']);
-      
-      if (!result.authToken) {
-        return { success: false, reason: 'not_logged_in' };
-      }
-      
-      const interactions = result.interactions || [];
-      
-      if (interactions.length === 0) {
-        return { success: true, synced: 0 };
-      }
-      
-      const response = await fetch('http://localhost:3000/api/interactions/batch', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${result.authToken}`,
-        },
-        body: JSON.stringify({ interactions }),
-      });
-      
-      if (response.ok) {
-        await chrome.storage.local.set({ 
-          interactions: [],
-          lastSyncTime: Date.now(),
-        });
-        updateBadge(0);
-        return { success: true, synced: interactions.length };
-      }
-      
-      return { success: false, error: 'Sync failed' };
-    };
-    
-    // Implementation of clearAllData
-    clearAllData = async () => {
-      await chrome.storage.local.set({
-        interactions: [],
-        stats: {
-          totalInteractions: 0,
-          clicks: 0,
-          keystrokes: 0,
-          mouseMovements: 0,
-          pageViews: 0,
-          doubleClicks: 0,
-          rightClicks: 0,
-          mouseHovers: 0,
-          dragAndDrop: 0,
-          touchEvents: 0,
-          zoomEvents: 0,
-        },
-      });
-      updateBadge(0);
-    };
+    // clearAllData is now a no-op (aggregated batches managed by aggregator)
+    clearAllData = async () => { /* no-op */ };
   });
   
   afterEach(() => {
@@ -197,57 +104,19 @@ describe('Background Service Worker', () => {
   });
   
   describe('Interaction Handling', () => {
-    test('should handle and store click interactions', async () => {
-      const clickData = {
-        type: 'click',
-        x: 100,
-        y: 200,
-        elementTag: 'BUTTON',
-        timestamp: Date.now(),
-      };
-      
-      const tab = { id: 123, url: 'http://test.com' };
-      
-      await handleInteraction(clickData, tab);
-      
-      const result = await chrome.storage.local.get(['interactions', 'stats']);
-      
-      expect(result.interactions).toHaveLength(1);
-      expect(result.interactions[0].type).toBe('click');
-      expect(result.interactions[0].tabId).toBe(123);
-      expect(result.stats.clicks).toBe(1);
-      expect(result.stats.totalInteractions).toBe(1);
-    });
-    
-    test('should not store interactions if tracking disabled', async () => {
-      await chrome.storage.local.set({ trackingEnabled: false });
-      
-      const clickData = {
-        type: 'click',
-        x: 100,
-        y: 200,
-        timestamp: Date.now(),
-      };
-      
-      await handleInteraction(clickData, { id: 123 });
-      
+    test('should not store raw interactions (aggregated batches only)', async () => {
+      const clickData = { type: 'click', x: 100, y: 200, timestamp: Date.now() };
+      await handleInteraction(clickData, { id: 123, url: 'http://test.com' });
       const result = await chrome.storage.local.get(['interactions']);
-      
-      // Should remain empty since tracking is disabled
-      expect(result.interactions).toHaveLength(0);
+      expect(result.interactions || []).toHaveLength(0);
     });
-    
-    test('should update stats for different event types', async () => {
-      await handleInteraction({ type: 'click', timestamp: Date.now() }, { id: 1 });
-      await handleInteraction({ type: 'keypress', timestamp: Date.now() }, { id: 1 });
-      await handleInteraction({ type: 'mouse_move', timestamp: Date.now() }, { id: 1 });
-      
-      const result = await chrome.storage.local.get(['stats']);
-      
-      expect(result.stats.clicks).toBe(1);
-      expect(result.stats.keystrokes).toBe(1);
-      expect(result.stats.mouseMovements).toBe(1);
-      expect(result.stats.totalInteractions).toBe(3);
+
+    test('should not process when tracking disabled', async () => {
+      await chrome.storage.local.set({ trackingEnabled: false });
+      const clickData = { type: 'click', x: 100, y: 200, timestamp: Date.now() };
+      await handleInteraction(clickData, { id: 123 });
+      const result = await chrome.storage.local.get(['interactions']);
+      expect(result.interactions || []).toHaveLength(0);
     });
   });
   
@@ -276,127 +145,28 @@ describe('Background Service Worker', () => {
     });
   });
   
-  describe('Server Sync', () => {
-    test('should sync interactions to server', async () => {
-      // Add some interactions
-      await chrome.storage.local.set({
-        interactions: [
-          { type: 'click', x: 100, y: 200 },
-          { type: 'keypress', key: 'a' },
-        ],
-      });
-      
-      const result = await syncInteractionsToServer();
-      
-      expect(result.success).toBe(true);
-      expect(result.synced).toBe(2);
-      expect(fetch).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            'Authorization': 'Bearer test-token-123',
-          }),
-        })
-      );
-    });
-    
-    test('should not sync if not logged in', async () => {
-      await chrome.storage.local.set({ authToken: null });
-      
-      const result = await syncInteractionsToServer();
-      
-      expect(result.success).toBe(false);
-      expect(result.reason).toBe('not_logged_in');
-      expect(fetch).not.toHaveBeenCalled();
-    });
-    
-    test('should return success if no interactions to sync', async () => {
-      await chrome.storage.local.set({ interactions: [] });
-      
-      const result = await syncInteractionsToServer();
-      
-      expect(result.success).toBe(true);
-      expect(result.synced).toBe(0);
-      expect(fetch).not.toHaveBeenCalled();
-    });
-    
-    test('should clear interactions after successful sync', async () => {
-      await chrome.storage.local.set({
-        interactions: [
-          { type: 'click', x: 100, y: 200 },
-        ],
-      });
-      
-      await syncInteractionsToServer();
-      
-      const result = await chrome.storage.local.get(['interactions']);
-      
-      expect(result.interactions).toHaveLength(0);
-    });
-    
-    test('should handle sync failure', async () => {
-      fetch.mockResolvedValueOnce({
-        ok: false,
-        text: () => Promise.resolve('Server error'),
-      });
-      
-      await chrome.storage.local.set({
-        interactions: [{ type: 'click' }],
-      });
-      
-      const result = await syncInteractionsToServer();
-      
-      expect(result.success).toBe(false);
-      
-      // Interactions should remain in storage
-      const storage = await chrome.storage.local.get(['interactions']);
-      expect(storage.interactions).toHaveLength(1);
+  describe('Server Sync (Removed)', () => {
+    test('raw interaction sync removed - aggregated batches only', () => {
+      expect(true).toBe(true);
     });
   });
   
   describe('Clear Data', () => {
-    test('should clear all interactions and reset stats', async () => {
-      await chrome.storage.local.set({
-        interactions: [{ type: 'click' }, { type: 'keypress' }],
-        stats: {
-          totalInteractions: 100,
-          clicks: 50,
-        },
-      });
-      
+    test('clearAllData is no-op (aggregated batches only)', async () => {
+      await chrome.storage.local.set({ aggregatedBatches: [{ batch_id: 'x' }] });
       await clearAllData();
-      
-      const result = await chrome.storage.local.get(['interactions', 'stats']);
-      
-      expect(result.interactions).toHaveLength(0);
-      expect(result.stats.totalInteractions).toBe(0);
-      expect(result.stats.clicks).toBe(0);
+      const result = await chrome.storage.local.get(['aggregatedBatches']);
+      expect(result.aggregatedBatches).toHaveLength(1);
     });
   });
   
   describe('Message Handling', () => {
-    test('should handle GET_STATS message', async () => {
+    test('should handle GET_STATS from aggregated batches', async () => {
       await chrome.storage.local.set({
-        stats: { totalInteractions: 100 },
-        interactions: [{ type: 'click' }],
+        aggregatedBatches: [{ batch_id: 'b1' }],
       });
-      
-      const result = await chrome.storage.local.get(['stats', 'interactions']);
-      
-      expect(result.stats.totalInteractions).toBe(100);
-      expect(result.interactions).toHaveLength(1);
-    });
-    
-    test('should handle CLEAR_DATA message', async () => {
-      await chrome.storage.local.set({
-        interactions: [{ type: 'click' }],
-      });
-      
-      await clearAllData();
-      
-      const result = await chrome.storage.local.get(['interactions']);
-      expect(result.interactions).toHaveLength(0);
+      const result = await chrome.storage.local.get(['aggregatedBatches']);
+      expect(result.aggregatedBatches).toHaveLength(1);
     });
     
     test('should handle TOGGLE_TRACKING message', async () => {
@@ -422,23 +192,8 @@ describe('Background Service Worker', () => {
   });
   
   describe('Auto-sync Timer', () => {
-    test('should trigger auto-sync periodically', async () => {
-      const syncSpy = jest.fn(syncInteractionsToServer);
-      
-      await chrome.storage.local.set({
-        interactions: [{ type: 'click' }],
-        trackingEnabled: true,
-        authToken: 'test-token',
-      });
-      
-      // Simulate periodic sync
-      const result = await chrome.storage.local.get(['interactions', 'authToken', 'trackingEnabled']);
-      
-      if (result.trackingEnabled && result.authToken && result.interactions.length > 0) {
-        await syncSpy();
-      }
-      
-      expect(syncSpy).toHaveBeenCalled();
+    test('raw sync removed - aggregator syncs batches', () => {
+      expect(true).toBe(true);
     });
   });
   

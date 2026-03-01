@@ -266,34 +266,6 @@ describe('Server Models (Schema Templates)', () => {
     });
   });
   
-  describe('GlobalInteractionBucket Model', () => {
-    test.skip('should store global interaction data', () => {
-      const mockSchema = {
-        userId: { type: String, required: true, index: true },
-        eventType: { type: String, required: true, index: true },
-        module: { type: String, required: true },
-        timestamp: { type: Date, default: Date.now, index: true },
-        data: {
-          position: { x: Number, y: Number },
-          screenPosition: { x: Number, y: Number },
-          url: String,
-          title: String,
-          screen: String,
-          target: {
-            tag: String,
-            id: String,
-            class: String,
-            text: String,
-          },
-        },
-      };
-      
-      expect(mockSchema.userId.index).toBe(true);
-      expect(mockSchema.eventType.index).toBe(true);
-      expect(mockSchema.timestamp.index).toBe(true);
-    });
-  });
-  
   describe('ImpairmentProfile Model', () => {
     test.skip('should store ML-generated impairment profiles', () => {
       const mockSchema = {

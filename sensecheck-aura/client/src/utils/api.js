@@ -326,24 +326,5 @@ export const computeSessionSummary = async (sessionId, participantId) => {
   }
 };
 
-/**
- * Log global interactions (for ML training) - AURA-compatible
- * @param {string} sessionId - Session ID
- * @param {array} interactions - Array of global interaction objects
- */
-export const logGlobalInteractions = async (sessionId, interactions) => {
-  try {
-    // Use AURA onboarding endpoint
-    const response = await api.post('/onboarding/global/interactions', {
-      sessionId,
-      interactions,
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error logging global interactions:', error);
-    throw error;
-  }
-};
-
 export default api;
 

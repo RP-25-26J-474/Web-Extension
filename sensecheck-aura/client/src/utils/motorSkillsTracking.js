@@ -415,35 +415,13 @@ class MotorSkillsTracker {
     }
   }
 
-  // Helper: Flush batch to backend
+  // Helper: Flush batch (global interactions removed – aggregated batches only)
   async flushBatch() {
-    // Prevent concurrent flushes
-    if (this.isFlushing) return;
     if (this.interactionBuffer.length === 0) return;
-    
-    // ONLY send data in AURA mode
-    if (!auraIntegration.isEnabled()) {
-      this.interactionBuffer = []; // Clear buffer in standalone mode
-      return;
-    }
-    
-    this.isFlushing = true;
-    const batch = [...this.interactionBuffer];
     this.interactionBuffer = [];
-    
     if (this.batchTimer) {
       clearTimeout(this.batchTimer);
       this.batchTimer = null;
-    }
-    
-    try {
-      await auraIntegration.saveGlobalInteractions(batch);
-      console.log(`📦 Flushed ${batch.length} motor skill interactions via AURA`);
-    } catch (error) {
-      // Don't retry on errors - just drop the batch to prevent request floods
-      console.error('Error flushing motor skills batch (data dropped):', error.message);
-    } finally {
-      this.isFlushing = false;
     }
   }
 
@@ -573,6 +551,14 @@ class MotorSkillsTracker {
         await auraIntegration.computeSessionSummary();
       } catch (error) {
         console.error('Error computing AURA session summary:', error);
+      }
+
+      // Call ML motor-score immediately for impairment profile (no delay)
+      try {
+        console.log('🤖 Calling ML motor-score for impairment profile...');
+        await auraIntegration.callMotorScore();
+      } catch (error) {
+        console.error('Error calling ML motor-score:', error);
       }
     }
     

@@ -7,7 +7,6 @@ const OnboardingLiteracyResult = require('../models/OnboardingLiteracyResult');
 const OnboardingVisionResult = require('../models/OnboardingVisionResult');
 const MotorPointerTraceBucket = require('../models/MotorPointerTraceBucket');
 const MotorAttemptBucket = require('../models/MotorAttemptBucket');
-const GlobalInteractionBucket = require('../models/GlobalInteractionBucket');
 const { MotorRoundSummary, MotorSessionSummary, computeRoundFeatures, computeSessionFeatures } = require('../models/MotorSummary');
 const User = require('../models/User');
 const { buildMotorFeatureRow } = require('../utils/mlFeatureBuilder');
@@ -387,120 +386,6 @@ router.get('/motor/feature-vector', authMiddleware, async (req, res) => {
     
   } catch (error) {
     console.error('Error building motor feature vector:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-// Log global interactions
-router.post('/global/interactions', authMiddleware, async (req, res) => {
-  try {
-    const { interactions } = req.body;
-    
-    if (!Array.isArray(interactions) || interactions.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Interactions array is required',
-      });
-    }
-    
-    const bucket = await GlobalInteractionBucket.addInteractions(req.userId, interactions);
-    
-    res.json({
-      success: true,
-      data: {
-        bucketNumber: bucket.bucketNumber,
-        totalInteractions: bucket.count,
-      },
-    });
-    
-  } catch (error) {
-    console.error('Error logging global interactions:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-// Get global interactions (paginated) - for extension
-router.get('/global/interactions', authMiddleware, async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
-    
-    const interactions = await GlobalInteractionBucket.getUserInteractions(req.userId);
-    
-    // Paginate
-    const startIndex = (page - 1) * limit;
-    const endIndex = page * limit;
-    const paginatedInteractions = interactions.slice(startIndex, endIndex);
-    
-    res.json({
-      success: true,
-      data: {
-        interactions: paginatedInteractions,
-        pagination: {
-          page,
-          limit,
-          total: interactions.length,
-          pages: Math.ceil(interactions.length / limit),
-        },
-      },
-    });
-    
-  } catch (error) {
-    console.error('Error getting global interactions:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-// Get recent global interactions - for extension
-router.get('/global/interactions/recent', authMiddleware, async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 10;
-    
-    const allInteractions = await GlobalInteractionBucket.getUserInteractions(req.userId);
-    
-    // Sort by timestamp descending and take recent
-    const recentInteractions = allInteractions
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-      .slice(0, limit);
-    
-    res.json({
-      success: true,
-      data: {
-        interactions: recentInteractions,
-      },
-    });
-    
-  } catch (error) {
-    console.error('Error getting recent interactions:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-// Clear all global interactions - for extension
-router.delete('/global/interactions/clear', authMiddleware, async (req, res) => {
-  try {
-    // Delete all buckets for this user
-    await GlobalInteractionBucket.deleteMany({ userId: req.userId });
-    
-    res.json({
-      success: true,
-      message: 'All interactions cleared successfully',
-    });
-    
-  } catch (error) {
-    console.error('Error clearing interactions:', error);
     res.status(500).json({
       success: false,
       error: error.message,

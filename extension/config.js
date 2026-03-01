@@ -14,11 +14,6 @@ const API_CONFIG = {
     LOGOUT: '/auth/logout',
     ME: '/auth/me',
     UPDATE_SETTINGS: '/auth/settings',
-    // Unified interaction storage (uses GlobalInteractionBucket)
-    SAVE_INTERACTIONS: '/onboarding/global/interactions',
-    GET_INTERACTIONS: '/onboarding/global/interactions',
-    GET_RECENT: '/onboarding/global/interactions/recent',
-    CLEAR_INTERACTIONS: '/onboarding/global/interactions/clear',
     GET_STATS: '/stats',
     ONBOARDING_STATUS: '/onboarding/status',
     ONBOARDING_MOTOR_SESSION_SUMMARY: '/onboarding/motor/summary/session',

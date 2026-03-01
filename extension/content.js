@@ -769,6 +769,15 @@
     })();
   });
 
+  // ========== AURA ONBOARDING COMPLETE: Relay to background ==========
+  // Sensecheck posts AURA_ONBOARDING_COMPLETE when game finishes; relay so
+  // extension can enable aggregated/global tracking.
+  window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
+    if (event.data?.type !== 'AURA_ONBOARDING_COMPLETE') return;
+    chrome.runtime.sendMessage({ type: 'ONBOARDING_COMPLETE' }).catch(() => {});
+  });
+
   // ========== AURA TOKEN PING-PONG: Token-only exchange ==========
   // Separate ping-pong for components that only need the auth token.
   // Send AURA_EXT_TOKEN_PING, receive AURA_EXT_TOKEN_PONG with { token }.

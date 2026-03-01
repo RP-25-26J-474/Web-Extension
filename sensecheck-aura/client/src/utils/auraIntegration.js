@@ -290,15 +290,6 @@ class AuraIntegration {
     return await this.callAuraAPI('motor/summary/session', {});
   }
   
-  // Save global interactions (clicks, scrolls, etc. from all modules)
-  async saveGlobalInteractions(interactions) {
-    if (!this.isEnabled()) return null;
-    
-    console.log(`🌍 Saving ${interactions.length} global interactions to AURA`);
-    
-    return await this.callAuraAPI('global/interactions', { interactions });
-  }
-  
   // ========== LEGACY METHODS (kept for backward compatibility) ==========
   
   // Save motor skills results (legacy - use bucket methods above instead)
@@ -357,7 +348,50 @@ class AuraIntegration {
       }, '*');
     }
     
+    // Also post to window so content script (on same page) can relay to extension background
+    window.postMessage({ type: 'AURA_ONBOARDING_COMPLETE', overallScore: result?.overallScore }, '*');
+    
     return result;
+  }
+
+  /**
+   * Call ML motor-score for impairment profile. Call right after motor game completes.
+   * Fetches feature vector from server, then POSTs to ML service.
+   */
+  async callMotorScore() {
+    if (!this.isEnabled()) return null;
+    
+    const apiBase = this.auraAPI.replace('/onboarding', '');
+    try {
+      const fvRes = await fetch(`${apiBase}/onboarding/motor/feature-vector`, {
+        headers: { Authorization: `Bearer ${this.token}` },
+      });
+      if (!fvRes.ok) {
+        console.warn('Motor feature vector not ready:', fvRes.status);
+        return null;
+      }
+      const { data: featureRow } = await fvRes.json();
+      if (!featureRow) return null;
+      
+      const scoreRes = await fetch(`${apiBase}/ml/motor-score`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.token}`,
+        },
+        body: JSON.stringify(featureRow),
+      });
+      if (!scoreRes.ok) {
+        console.warn('ML motor-score failed:', scoreRes.status);
+        return null;
+      }
+      const result = await scoreRes.json();
+      console.log('✅ ML motor-score called, impairment profile updated:', result?.motor_profile);
+      return result;
+    } catch (err) {
+      console.error('callMotorScore error:', err);
+      return null;
+    }
   }
   
   // Redirect back to extension or show completion message

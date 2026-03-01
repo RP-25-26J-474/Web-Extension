@@ -1,9 +1,8 @@
 /**
  * Verification Script for AURA Extension
  * 
- * This script verifies that:
- * 1. Aggregated interactions are being stored in MongoDB
- * 2. Global interactions are being stored in MongoDB
+ * This script verifies that aggregated interaction batches are being stored in MongoDB.
+ * (Global interactions/buckets removed – aggregated batches only)
  * 
  * Run this in the Chrome Extension Service Worker console or as a standalone script
  */
@@ -19,7 +18,6 @@ class ExtensionVerifier {
     this.startTime = Date.now();
     this.results = {
       aggregatedBatches: { checked: 0, found: 0, errors: [] },
-      globalInteractions: { checked: 0, found: 0, errors: [] },
     };
   }
 
@@ -78,7 +76,6 @@ class ExtensionVerifier {
     
     await Promise.all([
       this.checkAggregatedBatches(authToken),
-      this.checkGlobalInteractions(authToken),
       this.checkLocalStorage(),
     ]);
   }
@@ -136,57 +133,12 @@ class ExtensionVerifier {
   }
 
   /**
-   * Check global interactions in MongoDB
-   */
-  async checkGlobalInteractions(authToken) {
-    this.results.globalInteractions.checked++;
-    
-    try {
-      const response = await fetch(
-        `${VERIFY_CONFIG.API_BASE_URL}/onboarding/global/interactions?page=1&limit=10`,
-        {
-          headers: { Authorization: `Bearer ${authToken}` },
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      const count = data.data?.pagination?.total || 0;
-      
-      if (count > 0) {
-        this.results.globalInteractions.found = count;
-        console.log(`✅ Global Interactions: ${count} total`);
-        
-        // Show sample if available
-        if (data.data?.interactions && data.data.interactions.length > 0) {
-          const latest = data.data.interactions[data.data.interactions.length - 1];
-          console.log(`   Latest interaction:`, {
-            type: latest.eventType,
-            module: latest.module,
-            timestamp: latest.timestamp,
-          });
-        }
-      } else {
-        console.log(`⚠️  Global Interactions: None found yet`);
-      }
-      
-    } catch (error) {
-      this.results.globalInteractions.errors.push(error.message);
-      console.error(`❌ Global Interactions Error:`, error.message);
-    }
-  }
-
-  /**
    * Check local chrome storage
    */
   async checkLocalStorage() {
     if (typeof chrome !== 'undefined' && chrome.storage) {
       try {
         const result = await chrome.storage.local.get([
-          'interactions',
           'aggregatedBatches',
           'trackingEnabled',
           'userId'
@@ -195,7 +147,6 @@ class ExtensionVerifier {
         console.log(`📦 Local Storage:`);
         console.log(`   Tracking Enabled: ${result.trackingEnabled ? '✅' : '❌'}`);
         console.log(`   User ID: ${result.userId || 'Not set'}`);
-        console.log(`   Raw Interactions: ${result.interactions?.length || 0}`);
         console.log(`   Aggregated Batches (pending): ${result.aggregatedBatches?.length || 0}`);
         
       } catch (error) {
@@ -225,27 +176,13 @@ class ExtensionVerifier {
     }
     console.log('');
     
-    console.log('Global Interactions:');
-    console.log(`  Checks performed: ${this.results.globalInteractions.checked}`);
-    console.log(`  Total found: ${this.results.globalInteractions.found}`);
-    console.log(`  Errors: ${this.results.globalInteractions.errors.length}`);
-    if (this.results.globalInteractions.errors.length > 0) {
-      console.log(`  Error messages:`, this.results.globalInteractions.errors);
-    }
-    console.log('');
-    
     // Overall status
     const aggregatedOK = this.results.aggregatedBatches.found > 0;
-    const globalOK = this.results.globalInteractions.found > 0;
     
-    if (aggregatedOK && globalOK) {
-      console.log('✅ PASS: Both aggregated batches and global interactions are being stored!');
-    } else if (aggregatedOK) {
-      console.log('⚠️  PARTIAL: Aggregated batches OK, but global interactions not found');
-    } else if (globalOK) {
-      console.log('⚠️  PARTIAL: Global interactions OK, but aggregated batches not found');
+    if (aggregatedOK) {
+      console.log('✅ PASS: Aggregated batches are being stored!');
     } else {
-      console.log('❌ FAIL: Neither aggregated batches nor global interactions are being stored');
+      console.log('❌ FAIL: Aggregated batches are not being stored');
       console.log('');
       console.log('Troubleshooting:');
       console.log('1. Check if tracking is enabled (extension icon → settings)');

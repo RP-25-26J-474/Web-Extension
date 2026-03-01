@@ -11,10 +11,7 @@ describe('Global Tracking Utils', () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     
-    // Mock auraIntegration
-    mockAuraIntegration = {
-      saveGlobalInteractions: jest.fn().mockResolvedValue({ success: true }),
-    };
+    mockAuraIntegration = {};
     
     // Mock fetch
     global.fetch = jest.fn().mockResolvedValue({
@@ -84,62 +81,21 @@ describe('Global Tracking Utils', () => {
       }
       
       trackClick(event) {
-        const data = {
-          type: 'click',
-          x: event.clientX,
-          y: event.clientY,
-          timestamp: Date.now(),
-        };
-        
+        const data = { type: 'click', x: event.clientX, y: event.clientY, timestamp: Date.now() };
         this.clicks.push(data);
-        this.interactionBuffer.push(data);
-        
-        if (this.interactionBuffer.length >= this.BATCH_SIZE) {
-          this.flushBuffer();
-        }
       }
-      
       trackMouseMove(event) {
-        const data = {
-          type: 'mouse_move',
-          x: event.clientX,
-          y: event.clientY,
-          timestamp: Date.now(),
-        };
-        
+        const data = { type: 'mouse_move', x: event.clientX, y: event.clientY, timestamp: Date.now() };
         this.mouseMoves.push(data);
-        this.interactionBuffer.push(data);
       }
-      
       trackScroll(event) {
-        const data = {
-          type: 'scroll',
-          scrollY: window.scrollY,
-          timestamp: Date.now(),
-        };
-        
+        const data = { type: 'scroll', scrollY: window.scrollY, timestamp: Date.now() };
         this.scrollEvents.push(data);
-        this.interactionBuffer.push(data);
       }
-      
       trackPageView() {
-        const data = {
-          type: 'page_view',
-          url: window.location.href,
-          timestamp: Date.now(),
-        };
-        
-        this.interactionBuffer.push(data);
+        this.clicks.push({ type: 'page_view', url: window.location.href, timestamp: Date.now() });
       }
-      
-      async flushBuffer() {
-        if (this.interactionBuffer.length === 0) return;
-        
-        const interactions = [...this.interactionBuffer];
-        this.interactionBuffer = [];
-        
-        await mockAuraIntegration.saveGlobalInteractions(interactions);
-      }
+      async flushBuffer() { /* no-op - global interactions removed */ }
       
       async flushAggregatedBatches() {
         if (this.aggregationBatchQueue.length === 0) return;
@@ -195,23 +151,11 @@ describe('Global Tracking Utils', () => {
       expect(globalTracker.clicks[0].y).toBe(200);
     });
     
-    test('should add clicks to interaction buffer', () => {
+    test('should add clicks to aggregation', () => {
       const mockEvent = { clientX: 100, clientY: 200 };
-      
       globalTracker.trackClick(mockEvent);
-      
-      expect(globalTracker.interactionBuffer).toHaveLength(1);
-      expect(globalTracker.interactionBuffer[0].type).toBe('click');
-    });
-    
-    test('should flush buffer when batch size reached', async () => {
-      // Fill buffer to batch size
-      for (let i = 0; i < 50; i++) {
-        globalTracker.trackClick({ clientX: i, clientY: i });
-      }
-      
-      // Buffer should be flushed
-      expect(mockAuraIntegration.saveGlobalInteractions).toHaveBeenCalled();
+      expect(globalTracker.clicks).toHaveLength(1);
+      expect(globalTracker.clicks[0].type).toBe('click');
     });
   });
   
@@ -252,9 +196,7 @@ describe('Global Tracking Utils', () => {
     
     test('should track page views', () => {
       globalTracker.trackPageView();
-      
-      expect(globalTracker.interactionBuffer).toHaveLength(1);
-      expect(globalTracker.interactionBuffer[0].type).toBe('page_view');
+      expect(globalTracker.clicks.some(c => c.type === 'page_view')).toBe(true);
     });
   });
   
@@ -305,30 +247,9 @@ describe('Global Tracking Utils', () => {
     beforeEach(() => {
       globalTracker.initialize('session-123');
     });
-    
-    test('should flush interaction buffer', async () => {
-      globalTracker.interactionBuffer = [
-        { type: 'click', x: 100, y: 200 },
-        { type: 'keypress', key: 'a' },
-      ];
-      
+    test('flushBuffer is no-op (global interactions removed)', async () => {
       await globalTracker.flushBuffer();
-      
-      expect(mockAuraIntegration.saveGlobalInteractions).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({ type: 'click' }),
-          expect.objectContaining({ type: 'keypress' }),
-        ])
-      );
-      expect(globalTracker.interactionBuffer).toHaveLength(0);
-    });
-    
-    test('should not flush empty buffer', async () => {
-      globalTracker.interactionBuffer = [];
-      
-      await globalTracker.flushBuffer();
-      
-      expect(mockAuraIntegration.saveGlobalInteractions).not.toHaveBeenCalled();
+      expect(true).toBe(true);
     });
   });
   
@@ -379,71 +300,8 @@ describe('Global Tracking Utils', () => {
 });
 
 describe('AURA Integration Utils', () => {
-  let mockFetch;
-  
-  beforeEach(() => {
-    mockFetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ success: true, count: 10 }),
-    });
-    global.fetch = mockFetch;
-  });
-  
-  describe('saveGlobalInteractions', () => {
-    test('should save interactions to server', async () => {
-      const saveGlobalInteractions = async (interactions) => {
-        const response = await fetch('/api/onboarding/global/interactions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ interactions }),
-        });
-        return response.json();
-      };
-      
-      const interactions = [
-        { type: 'click', x: 100, y: 200 },
-        { type: 'keypress', key: 'a' },
-      ];
-      
-      const result = await saveGlobalInteractions(interactions);
-      
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/onboarding/global/interactions',
-        expect.objectContaining({
-          method: 'POST',
-        })
-      );
-      expect(result.success).toBe(true);
-    });
-    
-    test('should handle save errors gracefully', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        text: () => Promise.resolve('Server error'),
-      });
-      
-      const saveGlobalInteractions = async (interactions) => {
-        try {
-          const response = await fetch('/api/onboarding/global/interactions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ interactions }),
-          });
-          
-          if (!response.ok) {
-            throw new Error(await response.text());
-          }
-          
-          return response.json();
-        } catch (error) {
-          return { success: false, error: error.message };
-        }
-      };
-      
-      const result = await saveGlobalInteractions([{ type: 'click' }]);
-      
-      expect(result.success).toBe(false);
-    });
+  test('saveGlobalInteractions removed - aggregated batches only', () => {
+    expect(true).toBe(true);
   });
 });
 

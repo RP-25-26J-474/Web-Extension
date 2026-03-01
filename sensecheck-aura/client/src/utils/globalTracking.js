@@ -49,7 +49,7 @@ class GlobalTracker {
     this.sessionId = sessionId;
     this.setupEventListeners();
     this.trackPageView();
-    this.setupBatchFlushing();
+    // setupBatchFlushing removed – global interactions deprecated, aggregated batches only
     
     // Start aggregation system
     if (this.aggregationEnabled) {
@@ -443,84 +443,18 @@ class GlobalTracker {
     };
   }
 
-  // Helper: Add interaction to buffer
+  // Helper: Add interaction to buffer (no-op – global interactions removed, aggregated only)
   addToBuffer(data) {
-    // Skip if data is null (no sessionId)
     if (!data) return;
-    
-    // Prevent buffer from growing too large (memory protection)
-    if (this.interactionBuffer.length >= this.MAX_BUFFER_SIZE) {
-      // Drop oldest interactions to make room
-      this.interactionBuffer = this.interactionBuffer.slice(-this.MAX_BUFFER_SIZE + 1);
-    }
-    
-    this.interactionBuffer.push(data);
-    
-    // Auto-flush if buffer is full (but don't flood with requests)
-    if (this.interactionBuffer.length >= this.BATCH_SIZE && !this.isFlushing) {
-      this.flushBatch();
-    } else if (!this.batchTimer) {
-      // Set batch timer only if not already set
-      this.batchTimer = setTimeout(() => {
-        this.flushBatch();
-      }, this.BATCH_TIMEOUT);
-    }
+    // No-op: global interactions deprecated
   }
 
-  // Helper: Flush batch to backend
+  // Helper: Flush batch (no-op – global interactions removed)
   async flushBatch(synchronous = false) {
-    // Prevent concurrent flushes (which cause ERR_INSUFFICIENT_RESOURCES)
-    if (this.isFlushing && !synchronous) {
-      return;
-    }
-    
-    if (this.interactionBuffer.length === 0) return;
-    
-    // Skip if no sessionId
-    if (!this.sessionId) {
-      this.interactionBuffer = []; // Clear invalid buffer
-      return;
-    }
-    
-    // ONLY send data in AURA mode (when properly authenticated)
-    if (!auraIntegration.isEnabled()) {
-      this.interactionBuffer = []; // Clear buffer in standalone mode
-      return;
-    }
-    
-    this.isFlushing = true;
-    const batch = [...this.interactionBuffer];
     this.interactionBuffer = [];
-    
     if (this.batchTimer) {
       clearTimeout(this.batchTimer);
       this.batchTimer = null;
-    }
-    
-    try {
-      if (synchronous) {
-        // Use sendBeacon for synchronous unload
-        const token = auraIntegration.getToken();
-        const url = token 
-          ? `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding/global/interactions?token=${token}`
-          : `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding/global/interactions`;
-        
-        const blob = new Blob([JSON.stringify({
-          sessionId: this.sessionId,
-          interactions: batch,
-        })], { type: 'application/json' });
-        
-        navigator.sendBeacon(url, blob);
-      } else {
-        // Async batch - use AURA integration
-        await auraIntegration.saveGlobalInteractions(batch);
-        console.log(`📦 Flushed ${batch.length} global interactions via AURA`);
-      }
-    } catch (error) {
-      // Don't retry on errors - just drop the batch to prevent request floods
-      console.error('Error flushing interaction batch (data dropped):', error.message);
-    } finally {
-      this.isFlushing = false;
     }
   }
 
@@ -890,35 +824,14 @@ class GlobalTracker {
         this.closeAggregationWindow();
         
         // Try to flush aggregated batches synchronously
-        if (this.aggregationBatchQueue.length > 0) {
+        if (this.aggregationBatchQueue.length > 0 && auraIntegration.getToken()) {
           const batches = [...this.aggregationBatchQueue];
-          const token = auraIntegration.getToken();
           const url = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/interactions/aggregated-batches`;
-          
           const blob = new Blob([JSON.stringify({ batches })], { type: 'application/json' });
           navigator.sendBeacon(url, blob);
         }
       }
-      
-      // Use sendBeacon for reliable delivery during unload
-      const data = this.createInteractionData('page_unload', {
-        timeOnPage,
-        url: window.location.href,
-      });
-      
-      if (data) {
-        const token = auraIntegration.getToken();
-        const url = token 
-          ? `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding/global/interactions?token=${token}`
-          : `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding/global/interactions`;
-        
-        const blob = new Blob([JSON.stringify({
-          sessionId: this.sessionId,
-          interactions: [data],
-        })], { type: 'application/json' });
-        
-        navigator.sendBeacon(url, blob);
-      }
+      // page_unload to global interactions removed – aggregated batches only
     });
   }
 
