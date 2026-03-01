@@ -30,7 +30,22 @@ export const API_CONFIG = {
   BATCH_SIZE: 50,
   
   // Interval for syncing (in milliseconds)
-  SYNC_INTERVAL: 30000 // 30 seconds
+  SYNC_INTERVAL: 30000, // 30 seconds
+  
+  // ===== AGGREGATED BATCHES – Integration for external components =====
+  // If a separate component (e.g. ML pipeline, dashboard) needs to fetch the latest
+  // aggregated records every 30s, use this structure:
+  //
+  //   const start = new Date(Date.now() - 60000).toISOString().split('T')[0]; // e.g. "2025-02-28"
+  //   const end = new Date().toISOString().split('T')[0];
+  //   const res = await fetch(
+  //     `${API_CONFIG.BASE_URL}/interactions/aggregated-batches?start=${start}&end=${end}`,
+  //     { headers: { Authorization: `Bearer ${token}` } }
+  //   );
+  //   const data = await res.json(); // { batches: [...], count: N }
+  //
+  // Poll every 30 seconds (SYNC_INTERVAL) to stay in sync with extension push.
+  AGGREGATED_BATCHES_GET: '/interactions/aggregated-batches',
 };
 
 

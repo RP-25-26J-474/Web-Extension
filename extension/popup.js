@@ -426,11 +426,11 @@ async function handleLogin() {
       showConsentSection();
     }
     
-    // Notify other components (tabs with sensecheck, dashboard, etc.) of logged-in user
+    // Notify other components (tabs with sensecheck, dashboard, etc.) - broadcast token, not userId
     chrome.runtime.sendMessage({
       type: 'BROADCAST_USER_LOGIN',
+      token: data.token,
       user: {
-        userId: data.user._id,
         email: data.user.email ?? null,
         name: data.user.name ?? null,
       },
@@ -480,7 +480,25 @@ async function handleRegister() {
     document.getElementById('registerBtn').textContent = 'Creating account...';
     errorDiv.style.display = 'none';
     
-    await apiClient.register(email, password, name, age, gender);
+    const data = await apiClient.register(email, password, name, age, gender);
+    
+    // Sync userProfile to storage so ping-pong can return user info
+    if (data.user) {
+      await chrome.storage.local.set({
+        userProfile: {
+          userId: data.user._id,
+          email: data.user.email ?? null,
+          name: data.user.name ?? null,
+        },
+      });
+    }
+    
+    // Broadcast token (not userId) so other components (e.g. sensecheck, dashboard) can make API calls
+    chrome.runtime.sendMessage({
+      type: 'BROADCAST_USER_LOGIN',
+      token: data.token,
+      user: data.user ? { email: data.user.email, name: data.user.name } : null,
+    }).catch(() => {});
     
     showConsentSection();
     showNotification('Account created successfully!', 'success');

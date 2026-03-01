@@ -29,19 +29,28 @@ class AuraIntegration {
       if (event.source !== window) return;
       const data = event.data;
       if (!data || data.source !== 'aura-extension') return;
-      if (data.type === 'AURA_EXTENSION_PONG') {
+      if (data.type === 'AURA_EXT_PONG') {
         this.extensionPresent = data.extensionPresent === true;
-        if (data.loggedIn && data.user) {
-          this.userId = data.user.userId;
-          // Token is not shared for security; URL params or session still needed for API calls
-          if (!this.token && !this.isAuraMode) {
+        if (data.loggedIn && data.token) {
+          this.token = data.token;
+          // userId not broadcast; use token for API calls
+          if (!this.isAuraMode) {
             console.log('🔗 AURA extension detected with logged-in user');
           }
         }
-      } else if (data.type === 'AURA_USER_UPDATE') {
-        if (data.loggedIn && data.user) {
-          this.userId = data.user.userId;
+      } else if (data.type === 'AURA_EXT_TOKEN_PONG') {
+        if (data.token) {
+          this.token = data.token;
           this.extensionPresent = true;
+          if (!this.isAuraMode) {
+            console.log('🔗 AURA token received (from extension)');
+          }
+        }
+      } else if (data.type === 'AURA_USER_UPDATE') {
+        if (data.loggedIn && data.token) {
+          this.token = data.token;
+          this.extensionPresent = true;
+          // userId not broadcast; use token for API calls
           console.log('🔗 AURA user logged in (from extension)');
         } else {
           this.userId = null;
@@ -66,24 +75,48 @@ class AuraIntegration {
       }, AURA_PING_TIMEOUT_MS);
       const handler = (event) => {
         if (event.source !== window) return;
-        if (event.data?.type === 'AURA_EXTENSION_PONG' && event.data?.source === 'aura-extension') {
+        if (event.data?.type === 'AURA_EXT_PONG' && event.data?.source === 'aura-extension') {
           clearTimeout(timeout);
           window.removeEventListener('message', handler);
           resolve({
             present: event.data.extensionPresent === true,
             loggedIn: event.data.loggedIn === true,
+            token: event.data.token ?? null,
             user: event.data.user ?? null,
           });
         }
       };
       window.addEventListener('message', handler);
-      window.postMessage({ type: 'AURA_EXTENSION_PING', source: 'aura-web' }, '*');
+      window.postMessage({ type: 'AURA_EXT_PING', source: 'aura-web' }, '*');
     });
   }
   
   /** Check if AURA extension is installed (convenience method) */
   isExtensionPresent() {
     return this.extensionPresent;
+  }
+
+  /**
+   * Token-only ping-pong: request just the auth token from the extension.
+   * Returns { token: string | null }. Resolves with token: null if no PONG within timeout.
+   */
+  checkToken() {
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        window.removeEventListener('message', handler);
+        resolve({ token: null });
+      }, AURA_PING_TIMEOUT_MS);
+      const handler = (event) => {
+        if (event.source !== window) return;
+        if (event.data?.type === 'AURA_EXT_TOKEN_PONG' && event.data?.source === 'aura-extension') {
+          clearTimeout(timeout);
+          window.removeEventListener('message', handler);
+          resolve({ token: event.data.token ?? null });
+        }
+      };
+      window.addEventListener('message', handler);
+      window.postMessage({ type: 'AURA_EXT_TOKEN_PING', source: 'aura-web' }, '*');
+    });
   }
   
   initialize() {

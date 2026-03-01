@@ -706,10 +706,11 @@
       trackingConfig = { ...trackingConfig, ...message.config };
       sendResponse({ success: true });
     } else if (message.type === 'USER_LOGGED_IN') {
-      // Broadcast to web page so other components (e.g. React app) can update
+      // Broadcast token (not userId) to web page so other components can make API calls
       window.postMessage({
         type: 'AURA_USER_UPDATE',
         source: 'aura-extension',
+        token: message.token,
         user: message.user,
         loggedIn: true,
       }, '*');
@@ -718,6 +719,7 @@
       window.postMessage({
         type: 'AURA_USER_UPDATE',
         source: 'aura-extension',
+        token: null,
         user: null,
         loggedIn: false,
       }, '*');
@@ -728,11 +730,11 @@
   });
 
   // ========== AURA PING-PONG: Extension presence detection ==========
-  // Web pages (React app, dashboard, etc.) send AURA_EXTENSION_PING to detect if extension is installed.
-  // Content script responds with AURA_EXTENSION_PONG including user details if logged in.
+  // Web pages (React app, dashboard, etc.) send AURA_EXT_PING to detect if extension is installed.
+  // Content script responds with AURA_EXT_PONG including token and user details if logged in.
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
-    if (event.data?.type !== 'AURA_EXTENSION_PING') return;
+    if (event.data?.type !== 'AURA_EXT_PING') return;
     // Optional: validate event.data.source to restrict which pages can ping
 
     (async () => {
@@ -743,23 +745,52 @@
         const hasUser = !!(result.authToken && result.userId);
 
         window.postMessage({
-          type: 'AURA_EXTENSION_PONG',
+          type: 'AURA_EXT_PONG',
           source: 'aura-extension',
           extensionPresent: true,
           loggedIn: hasUser,
+          token: hasUser ? result.authToken : null,
           user: hasUser ? {
-            userId: result.userId,
             email: result.userProfile?.email ?? null,
             name: result.userProfile?.name ?? null,
           } : null,
         }, '*');
       } catch (err) {
         window.postMessage({
-          type: 'AURA_EXTENSION_PONG',
+          type: 'AURA_EXT_PONG',
           source: 'aura-extension',
           extensionPresent: true,
           loggedIn: false,
+          token: null,
           user: null,
+          error: err.message,
+        }, '*');
+      }
+    })();
+  });
+
+  // ========== AURA TOKEN PING-PONG: Token-only exchange ==========
+  // Separate ping-pong for components that only need the auth token.
+  // Send AURA_EXT_TOKEN_PING, receive AURA_EXT_TOKEN_PONG with { token }.
+  window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
+    if (event.data?.type !== 'AURA_EXT_TOKEN_PING') return;
+
+    (async () => {
+      try {
+        const result = await chrome.storage.local.get(['authToken', 'userId']);
+        const hasToken = !!(result.authToken && result.userId);
+
+        window.postMessage({
+          type: 'AURA_EXT_TOKEN_PONG',
+          source: 'aura-extension',
+          token: hasToken ? result.authToken : null,
+        }, '*');
+      } catch (err) {
+        window.postMessage({
+          type: 'AURA_EXT_TOKEN_PONG',
+          source: 'aura-extension',
+          token: null,
           error: err.message,
         }, '*');
       }

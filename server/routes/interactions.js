@@ -284,6 +284,12 @@ router.post('/aggregated-batches', authMiddleware, async (req, res) => {
 /**
  * Get aggregated batches for a user in a time range
  * GET /api/interactions/aggregated-batches?start=2025-01-01&end=2025-12-31
+ * 
+ * Integration: If an external component needs to fetch latest records every 30s:
+ *   GET /api/interactions/aggregated-batches?start=YYYY-MM-DD&end=YYYY-MM-DD
+ *   Headers: Authorization: Bearer <token>
+ *   Response: { batches: [...], count: N }
+ *   Poll every 30 seconds to stay in sync with extension batch sync.
  */
 router.get('/aggregated-batches', authMiddleware, async (req, res) => {
   try {

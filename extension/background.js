@@ -211,9 +211,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
-  // Broadcast user login/logout to all tabs (for React app, dashboard, etc.)
+  // Broadcast token (not userId) on login/register to all tabs (for React app, dashboard, etc.)
   if (message.type === 'BROADCAST_USER_LOGIN') {
-    broadcastToAllTabs({ type: 'USER_LOGGED_IN', user: message.user });
+    broadcastToAllTabs({ type: 'USER_LOGGED_IN', token: message.token, user: message.user });
     sendResponse({ success: true });
     return false;
   }
