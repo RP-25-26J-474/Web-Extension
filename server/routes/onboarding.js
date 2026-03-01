@@ -13,16 +13,109 @@ const User = require('../models/User');
 const { buildMotorFeatureRow } = require('../utils/mlFeatureBuilder');
 const ImpairmentProfile = require('../models/ImpairmentProfile');
 
+function toFiniteNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function mean(values) {
+  const finiteValues = values
+    .map(toFiniteNumber)
+    .filter(v => v != null);
+
+  if (finiteValues.length === 0) {
+    return null;
+  }
+
+  return finiteValues.reduce((sum, value) => sum + value, 0) / finiteValues.length;
+}
+
+function getFirstFinite(...values) {
+  for (const value of values) {
+    const finite = toFiniteNumber(value);
+    if (finite != null) {
+      return finite;
+    }
+  }
+  return null;
+}
+
+function parseOS(userAgent) {
+  if (!userAgent) return null;
+
+  const ua = String(userAgent).toLowerCase();
+
+  if (ua.includes('windows nt 10')) return 'Windows 10/11';
+  if (ua.includes('windows nt 6.3')) return 'Windows 8.1';
+  if (ua.includes('windows nt 6.2')) return 'Windows 8';
+  if (ua.includes('windows nt 6.1')) return 'Windows 7';
+  if (ua.includes('windows')) return 'Windows';
+
+  if (ua.includes('mac os x')) {
+    const match = ua.match(/mac os x (\d+[._]\d+)/);
+    if (match) return `macOS ${match[1].replace('_', '.')}`;
+    return 'macOS';
+  }
+
+  if (ua.includes('iphone') || ua.includes('ipad')) return 'iOS';
+  if (ua.includes('android')) {
+    const match = ua.match(/android (\d+(\.\d+)?)/);
+    if (match) return `Android ${match[1]}`;
+    return 'Android';
+  }
+
+  if (ua.includes('linux')) return 'Linux';
+  if (ua.includes('cros')) return 'ChromeOS';
+
+  return null;
+}
+
+function parseBrowser(userAgent) {
+  if (!userAgent) return null;
+
+  const ua = String(userAgent).toLowerCase();
+
+  if (ua.includes('edg/')) {
+    const match = String(userAgent).match(/Edg\/(\d+)/);
+    return match ? `Edge ${match[1]}` : 'Edge';
+  }
+
+  if (ua.includes('opr/') || ua.includes('opera')) {
+    const match = String(userAgent).match(/OPR\/(\d+)/i);
+    return match ? `Opera ${match[1]}` : 'Opera';
+  }
+
+  if (ua.includes('chrome') && !ua.includes('chromium')) {
+    const match = String(userAgent).match(/Chrome\/(\d+)/);
+    return match ? `Chrome ${match[1]}` : 'Chrome';
+  }
+
+  if (ua.includes('safari') && !ua.includes('chrome')) {
+    const match = String(userAgent).match(/Version\/(\d+)/);
+    return match ? `Safari ${match[1]}` : 'Safari';
+  }
+
+  if (ua.includes('firefox')) {
+    const match = String(userAgent).match(/Firefox\/(\d+)/i);
+    return match ? `Firefox ${match[1]}` : 'Firefox';
+  }
+
+  if (ua.includes('msie') || ua.includes('trident')) return 'Internet Explorer';
+
+  return null;
+}
+
 function buildDeviceContext(session) {
   const device = session?.device || {};
   const screen = session?.screen || {};
+  const userAgent = device.userAgent || session?.userAgent || null;
 
   return {
-    os: device.os || null,
-    browser: device.browser || null,
+    os: device.os || parseOS(userAgent) || null,
+    browser: device.browser || parseBrowser(userAgent) || null,
     screen_w: screen.width ?? null,
     screen_h: screen.height ?? null,
-    dpr: screen.dpr ?? null,
+    dpr: getFirstFinite(screen.dpr, screen.pixelRatio, session?.devicePixelRatio),
   };
 }
 
@@ -69,7 +162,27 @@ router.post('/start', authMiddleware, async (req, res) => {
     }
     
     // No session exists - create a new one
-    const { device, screen, game, perf } = req.body;
+    const { game, perf } = req.body || {};
+    const incomingDevice = req.body?.device || {};
+    const incomingScreen = req.body?.screen || {};
+    const userAgent = incomingDevice.userAgent || req.get('user-agent') || null;
+
+    const device = {
+      ...incomingDevice,
+      userAgent,
+      os: incomingDevice.os || parseOS(userAgent),
+      browser: incomingDevice.browser || parseBrowser(userAgent),
+    };
+    const screen = {
+      ...incomingScreen,
+      width: toFiniteNumber(incomingScreen.width),
+      height: toFiniteNumber(incomingScreen.height),
+      dpr: getFirstFinite(
+        incomingScreen.dpr,
+        incomingScreen.pixelRatio,
+        incomingScreen.devicePixelRatio,
+      ),
+    };
     
     session = new OnboardingSession({
       userId: req.userId,
@@ -667,8 +780,22 @@ router.get('/impairment-profile', authMiddleware, async (req, res) => {
     const visionLossScore = visionResult?.overallScore;
     const colorBlindnessScore = visionResult?.colorBlindness?.colorVisionScore;
     const literacyScore = literacyResult?.score?.computerLiteracyScore;
+    const existingHitRate = toFiniteNumber(profile?.onboarding_metrics?.hit_rate);
+    const overallHitRate = toFiniteNumber(motorResult?.overallMetrics?.overallHitRate);
+    const hitRate = overallHitRate ?? existingHitRate ?? null;
+    const existingAvgReaction = toFiniteNumber(profile?.onboarding_metrics?.avg_reaction_ms);
+    const overallAvgReaction = toFiniteNumber(motorResult?.overallMetrics?.avgReactionTime);
+    const attemptsAvgReaction = mean(
+      Array.isArray(motorResult?.attempts)
+        ? motorResult.attempts.map(attempt => attempt?.timing?.reactionTimeMs)
+        : []
+    );
+    const avgReactionMs = existingAvgReaction ?? overallAvgReaction ?? attemptsAvgReaction ?? null;
 
     const motorExisting = profile?.impairment_probs?.motor || {};
+    const inaccurateClick = motorExisting.inaccurate_click ?? (
+      hitRate != null ? Number((1 - hitRate).toFixed(4)) : null
+    );
     const impairment_probs = {
       vision: {
         vision_loss: Number.isFinite(visionLossScore) ? visionLossScore / 100 : null,
@@ -676,17 +803,15 @@ router.get('/impairment-profile', authMiddleware, async (req, res) => {
       },
       motor: {
         delayed_reaction: motorExisting.delayed_reaction ?? null,
-        inaccurate_click: motorExisting.inaccurate_click ?? null,
+        inaccurate_click: inaccurateClick,
         motor_impairment: motorExisting.motor_impairment ?? null,
       },
       literacy: Number.isFinite(literacyScore) ? literacyScore / 100 : null,
     };
 
     const onboarding_metrics = {
-      avg_reaction_ms: profile?.onboarding_metrics?.avg_reaction_ms
-        ?? motorResult?.overallMetrics?.avgReactionTime
-        ?? null,
-      hit_rate: motorResult?.overallMetrics?.overallHitRate ?? null,
+      avg_reaction_ms: avgReactionMs,
+      hit_rate: hitRate,
     };
 
     const updatedProfile = await ImpairmentProfile.findOneAndUpdate(
