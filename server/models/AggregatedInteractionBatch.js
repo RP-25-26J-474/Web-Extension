@@ -159,13 +159,19 @@ aggregatedInteractionBatchSchema.statics.bulkInsertBatches = async function(user
 
 /**
  * Static method to get batches for a user in a time range
+ * startDate, endDate: YYYY-MM-DD strings
+ * endDate is inclusive (includes full day) - new Date("2025-03-01") is midnight,
+ * so we use < start of next day to include all batches on endDate.
  */
 aggregatedInteractionBatchSchema.statics.getUserBatches = async function(userId, startDate, endDate) {
+  const start = new Date(startDate);
+  const endExclusive = new Date(new Date(endDate).getTime() + 86400000); // start of next day
+  
   const query = {
     userId,
     captured_at: {
-      $gte: new Date(startDate),
-      $lte: new Date(endDate),
+      $gte: start,
+      $lt: endExclusive,
     },
   };
   
