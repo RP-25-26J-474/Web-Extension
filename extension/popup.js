@@ -80,7 +80,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     showMainContent();
     displayUserInfo(userData.user);
     await loadData();
-    await logMotorPrediction();
   } catch (error) {
     console.error('Authentication error:', error);
     await apiClient.clearToken();
@@ -614,7 +613,6 @@ async function handleAcceptConsent() {
         displayUserInfo(userData.user);
       }
       showNotification('Tracking enabled!', 'success');
-      await logMotorPrediction();
     } else {
       // Show onboarding prompt
       console.log('🎮 Showing onboarding prompt...');
@@ -642,23 +640,8 @@ async function handleAcceptConsent() {
 
 
 
-// Call ML service after onboarding completes and log prediction
-async function logMotorPrediction() {
-  try {
-    const featureResponse = await apiClient.getMotorFeatureVector();
-    const features = featureResponse?.data;
-    
-    if (!features || Object.keys(features).length === 0) {
-      console.warn('No motor feature vector available for ML prediction.');
-      return;
-    }
-    
-    const mlResult = await apiClient.getMotorScore(features);
-    console.log('Motor ML prediction:', mlResult);
-  } catch (error) {
-    console.warn('Motor ML prediction failed:', error.message || error);
-  }
-}
+// Impairment profile / ML motor-score: created only when motor game completes during onboarding.
+// Do NOT call feature-vector or motor-score from popup on login – that triggers unnecessary API calls.
 
 // Load all data
 async function loadData() {
