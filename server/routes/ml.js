@@ -278,10 +278,25 @@ function buildDeviceContext(session, payload) {
 }
 
 // Proxy ML scoring to the internal Python service
+// Impairment profile is created ONLY during registration/onboarding. Do NOT call ML on login.
 router.post('/motor-score', authMiddleware, async (req, res) => {
   try {
     if (typeof fetch !== 'function') {
       return res.status(500).json({ error: 'Fetch not available in this Node.js version' });
+    }
+
+    // Guard: if impairment profile already exists (created at registration), skip ML - do not re-score on login
+    const existingProfile = await ImpairmentProfile.findOne({
+      user_id: String(req.userId),
+      'impairment_probs.motor.motor_impairment': { $exists: true, $ne: null },
+    });
+    if (existingProfile) {
+      console.log('⏭️ Impairment profile already exists – skipping ML (no re-score on login)');
+      return res.json({
+        motor_profile: existingProfile.impairment_probs?.motor || {},
+        skipped: true,
+        reason: 'profile_already_created',
+      });
     }
 
     const [session, motorResult] = await Promise.all([
