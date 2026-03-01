@@ -138,41 +138,41 @@ function showOnboardingPrompt(user) {
     onboardingPrompt.innerHTML = `
       <div class="onboarding-prompt">
         <div class="welcome-badge">
-          <span class="welcome-emoji">🎮</span>
+          <span class="welcome-emoji">🔦</span>
         </div>
         <h2>Welcome ${userName}!</h2>
         <p class="onboarding-description">
-          Ready for a quick brain challenge? Four fun mini-games await to help us 
-          personalize your experience!
+          Ready to restore the lighthouse? Four assessment tasks await to help us 
+          personalize your experience and build your AURA profile.
         </p>
         
         <div class="game-cards-grid">
           <div class="game-card">
             <div class="game-card-icon">🎨</div>
             <div class="game-card-content">
-              <h3>Pattern Hunt</h3>
-              <p>Find hidden numbers</p>
+              <h3>Calibrate the Light Colors</h3>
+              <p>Align the prism so signals are not lost</p>
             </div>
           </div>
           <div class="game-card">
-            <div class="game-card-icon">🦅</div>
+            <div class="game-card-icon">🔍</div>
             <div class="game-card-content">
-              <h3>Eagle Eye</h3>
-              <p>Test your focus</p>
+              <h3>Focus the Beam</h3>
+              <p>Sharpen the light to reach distant signals</p>
             </div>
           </div>
           <div class="game-card">
-            <div class="game-card-icon">🎯</div>
+            <div class="game-card-icon">💨</div>
             <div class="game-card-content">
-              <h3>Bubble Pop</h3>
-              <p>Speed & precision</p>
+              <h3>Clear the Rising Fog</h3>
+              <p>Remove corrupted data blocking the path</p>
             </div>
           </div>
           <div class="game-card">
-            <div class="game-card-icon">🧠</div>
+            <div class="game-card-icon">⚙️</div>
             <div class="game-card-content">
-              <h3>Quick Think</h3>
-              <p>Digital trivia</p>
+              <h3>Restore the Control Panel</h3>
+              <p>Make correct operational decisions</p>
             </div>
           </div>
         </div>
@@ -180,15 +180,15 @@ function showOnboardingPrompt(user) {
         <div class="onboarding-features">
           <div class="feature-item">
             <span class="feature-icon">⏱️</span>
-            <span>Only 5 minutes</span>
+            <span>About 5 minutes</span>
           </div>
           <div class="feature-item">
             <span class="feature-icon">🔒</span>
             <span>100% Private</span>
           </div>
           <div class="feature-item">
-            <span class="feature-icon">🏆</span>
-            <span>Earn badges</span>
+            <span class="feature-icon">✨</span>
+            <span>Personalized profile</span>
           </div>
         </div>
         

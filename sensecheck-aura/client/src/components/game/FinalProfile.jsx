@@ -258,6 +258,17 @@ const FinalProfile = () => {
         
         {/* Footer */}
         <div className="text-center mt-6">
+          <div 
+            className="p-4 rounded-xl mb-4 text-left"
+            style={{ backgroundColor: 'rgba(var(--primary-color-rgb), 0.08)' }}
+          >
+            <p className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
+              ✅ You have been successfully registered and logged in.
+            </p>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              You can now close this tab and return to the AURA extension.
+            </p>
+          </div>
           <div className="flex items-center justify-center gap-2 mb-2">
             <img src={logo} alt="Logo" className="w-5 h-5" />
             <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
