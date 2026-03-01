@@ -193,9 +193,9 @@ function showOnboardingPrompt(user) {
         </div>
         
         <div class="onboarding-actions">
-          <button id="startOnboardingBtn" class="btn btn-primary full-width btn-glow">
+          <button id="startOnboardingBtn" class="btn btn-primary full-width btn-glow" aria-label="Start onboarding game - opens in new tab">
             <span class="btn-text">Let's Play!</span>
-            <span class="btn-arrow">→</span>
+            <span class="btn-arrow" aria-hidden="true">→</span>
           </button>
         </div>
       </div>

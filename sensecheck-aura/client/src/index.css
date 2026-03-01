@@ -67,7 +67,9 @@
 }
 
 @layer base {
+  /* WCAG 2.2: Resize text - use rem, base 16px */
   html {
+    font-size: 16px;
     touch-action: none;
     -ms-touch-action: none;
   }
@@ -99,12 +101,36 @@
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 1rem;
+    line-height: 1.5;
     transition: background 0.3s ease, color 0.3s ease;
   }
 
   #root {
     touch-action: pan-x pan-y;
     -ms-touch-action: pan-x pan-y;
+  }
+
+  /* WCAG 2.4.7 Focus Visible - consistent focus indicator */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+
+  /* WCAG 2.3.3 Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
@@ -176,13 +202,14 @@
     border-color: var(--border-secondary);
   }
 
-  /* Primary Button - Green themed */
+  /* Primary Button - Green themed, WCAG 2.5.8 min target 44x44 */
   .btn-primary {
     @apply px-6 py-3 rounded-xl font-semibold;
     @apply transition-all duration-300;
     @apply shadow-lg hover:shadow-xl;
     @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100;
     @apply hover:scale-[1.02] active:scale-[0.98];
+    min-height: 44px;
     background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%);
     box-shadow: 0 4px 20px var(--primary-color-glow);
     color: white;
@@ -222,18 +249,26 @@
     box-shadow: 0 0 40px rgba(var(--primary-color-rgb), 0.1);
   }
 
-  /* Input Field */
+  /* Input Field - WCAG 2.4.7 focus visible */
   .input-field {
     @apply w-full px-4 py-3 rounded-xl placeholder-gray-400;
-    @apply focus:outline-none transition-all duration-300;
+    @apply transition-all duration-300;
+    min-height: 44px;
+    font-size: 1rem;
     background: var(--bg-input);
     border: 2px solid var(--border-secondary);
     color: var(--text-primary);
   }
 
   .input-field:focus {
+    outline: none;
     border-color: rgba(var(--primary-color-rgb), 0.5);
-    box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
+    box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.15);
+  }
+
+  .input-field:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
   }
 
   /* Glow Effect */

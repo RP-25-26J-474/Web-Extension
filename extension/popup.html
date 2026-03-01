@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>User Interaction Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="popup.css">
   <script src="config.js"></script>
   <script src="api-client.js"></script>
@@ -22,13 +25,13 @@
     <!-- Login/Register Section -->
     <div id="authSection" class="section auth-section" style="display: none;">
       <div class="auth-box">
-        <div class="auth-tabs">
-          <button id="loginTab" class="auth-tab active">Login</button>
-          <button id="registerTab" class="auth-tab">Register</button>
+        <div class="auth-tabs" role="tablist" aria-label="Authentication">
+          <button id="loginTab" class="auth-tab active" role="tab" aria-selected="true" aria-controls="loginForm">Login</button>
+          <button id="registerTab" class="auth-tab" role="tab" aria-selected="false" aria-controls="registerForm">Register</button>
         </div>
         
         <!-- Login Form -->
-        <div id="loginForm" class="auth-form">
+        <div id="loginForm" class="auth-form" role="tabpanel" aria-labelledby="loginTab">
           <h2>Welcome Back!</h2>
           <p class="auth-description">Login to start tracking your interactions</p>
           
@@ -48,7 +51,7 @@
         </div>
         
         <!-- Register Form -->
-        <div id="registerForm" class="auth-form" style="display: none;">
+        <div id="registerForm" class="auth-form" role="tabpanel" aria-labelledby="registerTab" style="display: none;">
           <h2>Create Account</h2>
           <p class="auth-description">Register to start tracking and analyzing your interactions</p>
           
