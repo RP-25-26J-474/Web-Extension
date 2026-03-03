@@ -1,0 +1,30 @@
+{
+  "name": "aura-interaction-tracker",
+  "version": "1.0.0",
+  "description": "AURA Interaction Tracker - Full Stack Testing Suite",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:extension": "jest --testPathPattern=extension",
+    "test:server": "jest --testPathPattern=server",
+    "test:client": "jest --testPathPattern=client",
+    "test:verbose": "jest --verbose"
+  },
+  "keywords": ["aura", "tracking", "testing"],
+  "author": "AURA Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.1.4",
+    "@testing-library/user-event": "^14.5.1",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "identity-obj-proxy": "^3.0.0",
+    "supertest": "^6.3.3",
+    "mongodb-memory-server": "^9.1.3"
+  }
+}
+
+
+
