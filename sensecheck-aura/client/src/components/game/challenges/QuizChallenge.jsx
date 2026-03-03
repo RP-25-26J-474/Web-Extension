@@ -146,6 +146,8 @@ const QuizChallenge = () => {
         return <Settings className="w-4 h-4" />;
       case 'terminology':
         return <BookOpen className="w-4 h-4" />;
+      case 'interaction':
+        return <MousePointer className="w-4 h-4" />;
       default:
         return <MousePointer className="w-4 h-4" />;
     }
@@ -154,11 +156,13 @@ const QuizChallenge = () => {
   const getCategoryName = (category) => {
     switch (category) {
       case 'icons':
-        return 'Signal Icons';
+        return 'Icon Knowledge';
       case 'terminology':
-        return 'System Terms';
+        return 'Terminology';
+      case 'interaction':
+        return 'Interaction Concepts';
       default:
-        return 'Operations';
+        return category || 'General';
     }
   };
   

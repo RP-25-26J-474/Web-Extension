@@ -570,14 +570,15 @@ router.post('/vision', authMiddleware, async (req, res) => {
     if (!visionResult) {
       visionResult = new OnboardingVisionResult({
         userId: req.userId,
-        colorBlindness,
-        visualAcuity,
-        testConditions,
+        colorBlindness: colorBlindness || {},
+        visualAcuity: visualAcuity || {},
+        testConditions: testConditions || {},
       });
     } else {
-      visionResult.colorBlindness = colorBlindness;
-      visionResult.visualAcuity = visualAcuity;
-      visionResult.testConditions = testConditions;
+      // Merge updates – don't overwrite with undefined/null (e.g. VisualAcuity saves after ColorBlindness)
+      if (colorBlindness != null && typeof colorBlindness === 'object') visionResult.colorBlindness = colorBlindness;
+      if (visualAcuity != null && typeof visualAcuity === 'object') visionResult.visualAcuity = visualAcuity;
+      if (testConditions != null && typeof testConditions === 'object') visionResult.testConditions = testConditions;
     }
     
     // Calculate score

@@ -836,7 +836,7 @@
   // ========== AURA_EXT_SET_ADAPTIVE_PROFILE: External component pushes JSON ==========
   // A separate component sends this to store the adaptive optimized profile.
   // No backend calls – JSON is passed as argument and stored as AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE.
-  // Only accepts from trusted origins to prevent malicious profile injection.
+  // Only accepts from trusted origins. Requires user to be logged in.
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data?.type !== 'AURA_EXT_SET_ADAPTIVE_PROFILE') return;
@@ -844,17 +844,23 @@
     const profile = event.data?.profile;
     if (!profile || typeof profile !== 'object') return;
 
-    chrome.storage.local.set({ AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE: profile }).then(() => {
+    (async () => {
+      const result = await chrome.storage.local.get(['authToken', 'userId']);
+      if (!result.authToken || !result.userId) {
+        sendBridgePong(event, { type: 'AURA_EXT_SET_ADAPTIVE_PROFILE_ACK', source: 'aura-extension', success: false, error: 'User must be logged in' });
+        return;
+      }
+      await chrome.storage.local.set({ AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE: profile });
       sendBridgePong(event, {
         type: 'AURA_EXT_SET_ADAPTIVE_PROFILE_ACK',
         source: 'aura-extension',
         success: true,
       });
-    });
+    })();
   });
 
   // ========== AURA_EXT_ML_PERSONALIZED_PROFILE_PING: Return personalized profile ==========
-  // Ping → PONG with { profile, available }.
+  // Ping → PONG with { profile, available }. Only when user is logged in.
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data?.type !== 'AURA_EXT_ML_PERSONALIZED_PROFILE_PING') return;
@@ -862,9 +868,10 @@
 
     (async () => {
       try {
-        const result = await chrome.storage.local.get(['AURA_EXT_ML_PERSONALIZED_PROFILE']);
-        const profile = result.AURA_EXT_ML_PERSONALIZED_PROFILE ?? null;
-        const available = !!profile;
+        const result = await chrome.storage.local.get(['AURA_EXT_ML_PERSONALIZED_PROFILE', 'authToken', 'userId']);
+        const loggedIn = !!(result.authToken && result.userId);
+        const profile = loggedIn ? (result.AURA_EXT_ML_PERSONALIZED_PROFILE ?? null) : null;
+        const available = loggedIn && !!profile;
 
         sendBridgePong(event, {
           type: 'AURA_EXT_ML_PERSONALIZED_PROFILE_PONG',
@@ -885,7 +892,7 @@
   });
 
   // ========== AURA_EXT_ADAPTIVE_PROFILE_PING: Return adaptive optimized profile ==========
-  // Ping → PONG with { profile, available }.
+  // Ping → PONG with { profile, available }. Only when user is logged in.
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data?.type !== 'AURA_EXT_ADAPTIVE_PROFILE_PING') return;
@@ -893,9 +900,10 @@
 
     (async () => {
       try {
-        const result = await chrome.storage.local.get(['AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE']);
-        const profile = result.AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE ?? null;
-        const available = !!profile;
+        const result = await chrome.storage.local.get(['AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE', 'authToken', 'userId']);
+        const loggedIn = !!(result.authToken && result.userId);
+        const profile = loggedIn ? (result.AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE ?? null) : null;
+        const available = loggedIn && !!profile;
 
         sendBridgePong(event, {
           type: 'AURA_EXT_ADAPTIVE_PROFILE_PONG',
@@ -916,7 +924,7 @@
   });
 
   // ========== AURA_EXT_ML_FINAL_PROFILE_PING: Adaptive if exists, else personalized ==========
-  // Ping → PONG with { profile, source: 'adaptive'|'personalized', available }.
+  // Ping → PONG with { profile, source: 'adaptive'|'personalized', available }. Only when user is logged in.
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data?.type !== 'AURA_EXT_ML_FINAL_PROFILE_PING') return;
@@ -927,14 +935,17 @@
         const result = await chrome.storage.local.get([
           'AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE',
           'AURA_EXT_ML_PERSONALIZED_PROFILE',
+          'authToken',
+          'userId',
         ]);
-        const adaptive = result.AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE ?? null;
-        const personalized = result.AURA_EXT_ML_PERSONALIZED_PROFILE ?? null;
+        const loggedIn = !!(result.authToken && result.userId);
+        const adaptive = loggedIn ? (result.AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE ?? null) : null;
+        const personalized = loggedIn ? (result.AURA_EXT_ML_PERSONALIZED_PROFILE ?? null) : null;
 
         const hasAdaptive = !!adaptive;
         const profile = hasAdaptive ? adaptive : personalized;
         const source = hasAdaptive ? 'adaptive' : 'personalized';
-        const available = !!profile;
+        const available = loggedIn && !!profile;
 
         sendBridgePong(event, {
           type: 'AURA_EXT_ML_FINAL_PROFILE_PONG',

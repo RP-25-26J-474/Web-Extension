@@ -142,15 +142,14 @@ const VisualAcuityTest = () => {
       });
       
       // Save to AURA backend if in AURA mode
+      // Pass null for colorBlindness – it was already saved by ColorBlindnessTest with colorVisionScore.
+      // Sending partial data here would overwrite and lose colorVisionScore on the server.
       if (auraIntegration.isEnabled()) {
         console.log('👁️ Saving vision results to AURA backend');
         await auraIntegration.saveVisionResults(
-          colorBlindnessData.completed ? {
-            plates: colorBlindnessData.plates,
-          } : null,
+          null,
           resultsData,
           {
-            // Add any test conditions here if needed
             device: navigator.userAgent,
           }
         );
