@@ -338,6 +338,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // SET_ADAPTIVE_PROFILE_REQUEST – handled in background for authoritative auth check
+  // Content script forwards here; background is source of truth for logout state
+  if (message.type === 'SET_ADAPTIVE_PROFILE_REQUEST') {
+    const profile = message.profile;
+    if (!profile || typeof profile !== 'object') {
+      sendResponse({ success: false, error: 'Invalid profile' });
+      return false;
+    }
+    chrome.storage.local.get(['authToken', 'userId']).then((result) => {
+      const hasAuth = !!(result.authToken && result.userId &&
+        String(result.authToken).trim() !== '' &&
+        String(result.userId).trim() !== '');
+      if (!hasAuth) {
+        sendResponse({ success: false, error: 'User must be logged in' });
+        return;
+      }
+      chrome.storage.local.set({ AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE: profile })
+        .then(() => sendResponse({ success: true }))
+        .catch((err) => sendResponse({ success: false, error: err?.message || 'Storage failed' }));
+    });
+    return true;
+  }
+
   return false;
 });
 

@@ -851,10 +851,8 @@ elementClass: safeClassString(target),
     })();
   });
 
-  // ========== AURA_EXT_SET_ADAPTIVE_PROFILE: External component pushes JSON ==========
-  // A separate component sends this to store the adaptive optimized profile.
-  // No backend calls – JSON is passed as argument and stored as AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE.
-  // Only accepts from trusted origins. Requires user to be logged in.
+  // ========== AURA_EXT_SET_ADAPTIVE_PROFILE: Forward to background for authoritative auth check ==========
+  // Background is source of truth for logout state; content script storage can lag after logout.
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data?.type !== 'AURA_EXT_SET_ADAPTIVE_PROFILE') return;
@@ -862,19 +860,26 @@ elementClass: safeClassString(target),
     const profile = event.data?.profile;
     if (!profile || typeof profile !== 'object') return;
 
-    (async () => {
-      const result = await chrome.storage.local.get(['authToken', 'userId']);
-      if (!result.authToken || !result.userId) {
-        sendBridgePong(event, { type: 'AURA_EXT_SET_ADAPTIVE_PROFILE_ACK', source: 'aura-extension', success: false, error: 'User must be logged in' });
-        return;
+    chrome.runtime.sendMessage(
+      { type: 'SET_ADAPTIVE_PROFILE_REQUEST', profile },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          sendBridgePong(event, {
+            type: 'AURA_EXT_SET_ADAPTIVE_PROFILE_ACK',
+            source: 'aura-extension',
+            success: false,
+            error: chrome.runtime.lastError.message || 'Extension error',
+          });
+          return;
+        }
+        sendBridgePong(event, {
+          type: 'AURA_EXT_SET_ADAPTIVE_PROFILE_ACK',
+          source: 'aura-extension',
+          success: response?.success ?? false,
+          error: response?.error,
+        });
       }
-      await chrome.storage.local.set({ AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE: profile });
-      sendBridgePong(event, {
-        type: 'AURA_EXT_SET_ADAPTIVE_PROFILE_ACK',
-        source: 'aura-extension',
-        success: true,
-      });
-    })();
+    );
   });
 
   // ========== AURA_EXT_ML_PERSONALIZED_PROFILE_PING: Return personalized profile ==========
