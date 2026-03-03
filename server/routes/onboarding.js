@@ -669,21 +669,37 @@ router.get('/results', authMiddleware, async (req, res) => {
 });
 
 // Save impairment profile (POST from client after game completion)
+// NOTE: motor.motor_impairment and motor.delayed_reaction come from ML motor-score, not the client.
+// The client only provides inaccurate_click. Merge with existing to avoid overwriting ML values.
 router.post('/impairment-profile', authMiddleware, async (req, res) => {
   try {
     const {
-      impairment_probs,
+      impairment_probs: incomingProbs,
       onboarding_metrics,
       device_context,
     } = req.body;
     
     // Validation
-    if (!impairment_probs || !onboarding_metrics || !device_context) {
+    if (!incomingProbs || !onboarding_metrics || !device_context) {
       return res.status(400).json({ error: 'Missing required profile data' });
     }
     
     // Get session for session_id
     const session = await OnboardingSession.findOne({ userId: req.userId });
+    
+    // Merge motor: preserve motor_impairment and delayed_reaction from ML (client doesn't send them)
+    const existingProfile = await ImpairmentProfile.findOne({ user_id: String(req.userId) });
+    const existingMotor = existingProfile?.impairment_probs?.motor || {};
+    const incomingMotor = incomingProbs?.motor || {};
+    const mergedMotor = {
+      delayed_reaction: existingMotor.delayed_reaction ?? incomingMotor.delayed_reaction ?? null,
+      inaccurate_click: incomingMotor.inaccurate_click ?? existingMotor.inaccurate_click ?? null,
+      motor_impairment: existingMotor.motor_impairment ?? incomingMotor.motor_impairment ?? null,
+    };
+    const impairment_probs = {
+      ...incomingProbs,
+      motor: mergedMotor,
+    };
     
     // Save or update the profile
     const updatedProfile = await ImpairmentProfile.findOneAndUpdate(
