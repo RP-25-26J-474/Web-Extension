@@ -21,6 +21,7 @@ describe('Interactions Routes (Template - Skipped)', () => {
   const mockAggregatedBatch = {
     bulkInsertBatches: jest.fn(),
     getUserBatches: jest.fn(),
+    getUserBatchesLast24h: jest.fn(),
     getUserAggregatedStats: jest.fn(),
   };
   let app;
@@ -250,6 +251,23 @@ describe('Interactions Routes (Template - Skipped)', () => {
     });
   });
   
+  describe('GET /api/interactions/aggregated-batches/last-24h', () => {
+    test.skip('should get aggregated batches for last 24 hours', async () => {
+      const mockBatches = [
+        { batch_id: 'b_1_123', captured_at: '2025-01-01T00:00:00Z' },
+      ];
+      AggregatedInteractionBatch.getUserBatchesLast24h.mockResolvedValue(mockBatches);
+
+      const response = await request(app)
+        .get('/api/interactions/aggregated-batches/last-24h')
+        .set('Authorization', 'Bearer fake-token');
+
+      expect(response.status).toBe(200);
+      expect(response.body.batches).toEqual(mockBatches);
+      expect(response.body.count).toBe(1);
+    });
+  });
+
   describe('GET /api/interactions/aggregated-batches', () => {
     test.skip('should get aggregated batches for date range', async () => {
       const mockBatches = [

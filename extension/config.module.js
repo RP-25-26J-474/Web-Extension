@@ -31,15 +31,14 @@ export const API_CONFIG = {
   // If a separate component (e.g. ML pipeline, dashboard) needs to fetch the latest
   // aggregated records every 30s, use this structure:
   //
-  //   const start = new Date(Date.now() - 60000).toISOString().split('T')[0]; // e.g. "2025-02-28"
-  //   const end = new Date().toISOString().split('T')[0];
-  //   const res = await fetch(
-  //     `${API_CONFIG.BASE_URL}/interactions/aggregated-batches?start=${start}&end=${end}`,
-  //     { headers: { Authorization: `Bearer ${token}` } }
-  //   );
+  //   Integration: GET last 24h of batches for the user (use this for ML pipeline, dashboard):
+  //   const res = await fetch(`${API_CONFIG.BASE_URL}/interactions/aggregated-batches/last-24h`, {
+  //     headers: { Authorization: `Bearer ${token}` }
+  //   });
   //   const data = await res.json(); // { batches: [...], count: N }
+  //   Poll every 30 seconds (SYNC_INTERVAL) to stay in sync with extension push.
   //
-  // Poll every 30 seconds (SYNC_INTERVAL) to stay in sync with extension push.
+  //   For custom date range: GET /interactions/aggregated-batches?start=YYYY-MM-DD&end=YYYY-MM-DD
   AGGREGATED_BATCHES_GET: '/interactions/aggregated-batches',
 
   // ===== ML PERSONALIZED PROFILE – Daily fetch from separate component =====

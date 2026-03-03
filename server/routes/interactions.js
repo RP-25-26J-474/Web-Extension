@@ -282,14 +282,40 @@ router.post('/aggregated-batches', authMiddleware, async (req, res) => {
 });
 
 /**
+ * Get aggregated batches for the authenticated user in the last 24 hours
+ * GET /api/interactions/aggregated-batches/last-24h
+ *
+ * Integration endpoint: Call with Bearer token to get user's batches for the past 24h.
+ * Use this for ML pipelines, dashboards, or any component that needs recent interaction data.
+ * Poll every 30 seconds to stay in sync with extension batch sync.
+ *
+ *   GET /api/interactions/aggregated-batches/last-24h
+ *   Headers: Authorization: Bearer <token>
+ *   Response: { batches: [...], count: N }
+ */
+router.get('/aggregated-batches/last-24h', authMiddleware, async (req, res) => {
+  try {
+    const batches = await AggregatedInteractionBatch.getUserBatchesLast24h(req.userId);
+
+    res.json({
+      batches,
+      count: batches.length,
+    });
+  } catch (error) {
+    console.error('Get aggregated batches (last 24h) error:', error);
+    res.status(500).json({ error: 'Failed to get aggregated batches' });
+  }
+});
+
+/**
  * Get aggregated batches for a user in a time range
  * GET /api/interactions/aggregated-batches?start=2025-01-01&end=2025-12-31
- * 
- * Integration: If an external component needs to fetch latest records every 30s:
+ *
+ * Integration: If an external component needs a custom date range:
  *   GET /api/interactions/aggregated-batches?start=YYYY-MM-DD&end=YYYY-MM-DD
  *   Headers: Authorization: Bearer <token>
  *   Response: { batches: [...], count: N }
- *   Poll every 30 seconds to stay in sync with extension batch sync.
+ *   For last 24h only, prefer GET /aggregated-batches/last-24h
  */
 router.get('/aggregated-batches', authMiddleware, async (req, res) => {
   try {

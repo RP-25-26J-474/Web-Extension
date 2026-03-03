@@ -179,6 +179,25 @@ aggregatedInteractionBatchSchema.statics.getUserBatches = async function(userId,
 };
 
 /**
+ * Static method to get batches for a user in the last 24 hours
+ * Used by external components for integration (e.g. ML pipeline, dashboard).
+ */
+aggregatedInteractionBatchSchema.statics.getUserBatchesLast24h = async function(userId) {
+  const now = new Date();
+  const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  const query = {
+    userId,
+    captured_at: {
+      $gte: twentyFourHoursAgo,
+      $lte: now,
+    },
+  };
+
+  return this.find(query).sort({ captured_at: 1 }).lean();
+};
+
+/**
  * Static method to get aggregated statistics for a user
  */
 aggregatedInteractionBatchSchema.statics.getUserAggregatedStats = async function(userId, startDate, endDate) {
