@@ -3,7 +3,31 @@
 
 (function() {
   'use strict';
-  
+
+  // Trusted origins for AURA bridge ping-pong – only respond to pages from these origins.
+  // Add production domains when deploying ('https://dashboard.aura.com').
+  const BRIDGE_TRUSTED_ORIGINS = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:5000',
+    'http://localhost:8080',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5000',
+    'http://127.0.0.1:8080',
+  ];
+
+  function isTrustedOrigin(origin) {
+    if (!origin || typeof origin !== 'string') return false;
+    return BRIDGE_TRUSTED_ORIGINS.includes(origin);
+  }
+
+  function sendBridgePong(event, payload) {
+    if (!event.source || typeof event.source.postMessage !== 'function') return;
+    if (!isTrustedOrigin(event.origin)) return;
+    event.source.postMessage(payload, event.origin);
+  }
+
   let isTrackingEnabled = false;
   let trackingConfig = {
     clicks: true,
@@ -732,10 +756,11 @@
   // ========== AURA PING-PONG: Extension presence detection ==========
   // Web pages (React app, dashboard, etc.) send AURA_EXT_PING to detect if extension is installed.
   // Content script responds with AURA_EXT_PONG including token and user details if logged in.
+  // Only responds to trusted origins (BRIDGE_TRUSTED_ORIGINS).
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data?.type !== 'AURA_EXT_PING') return;
-    // Optional: validate event.data.source to restrict which pages can ping
+    if (!isTrustedOrigin(event.origin)) return;
 
     (async () => {
       try {
@@ -744,7 +769,7 @@
         ]);
         const hasUser = !!(result.authToken && result.userId);
 
-        window.postMessage({
+        sendBridgePong(event, {
           type: 'AURA_EXT_PONG',
           source: 'aura-extension',
           extensionPresent: true,
@@ -754,9 +779,9 @@
             email: result.userProfile?.email ?? null,
             name: result.userProfile?.name ?? null,
           } : null,
-        }, '*');
+        });
       } catch (err) {
-        window.postMessage({
+        sendBridgePong(event, {
           type: 'AURA_EXT_PONG',
           source: 'aura-extension',
           extensionPresent: true,
@@ -764,7 +789,7 @@
           token: null,
           user: null,
           error: err.message,
-        }, '*');
+        });
       }
     })();
   });
@@ -775,6 +800,7 @@
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data?.type !== 'AURA_ONBOARDING_COMPLETE') return;
+    if (!isTrustedOrigin(event.origin)) return;
     chrome.runtime.sendMessage({ type: 'ONBOARDING_COMPLETE' }).catch(() => {});
   });
 
@@ -784,28 +810,152 @@
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data?.type !== 'AURA_EXT_TOKEN_PING') return;
+    if (!isTrustedOrigin(event.origin)) return;
 
     (async () => {
       try {
         const result = await chrome.storage.local.get(['authToken', 'userId']);
         const hasToken = !!(result.authToken && result.userId);
 
-        window.postMessage({
+        sendBridgePong(event, {
           type: 'AURA_EXT_TOKEN_PONG',
           source: 'aura-extension',
           token: hasToken ? result.authToken : null,
-        }, '*');
+        });
       } catch (err) {
-        window.postMessage({
+        sendBridgePong(event, {
           type: 'AURA_EXT_TOKEN_PONG',
           source: 'aura-extension',
           token: null,
           error: err.message,
-        }, '*');
+        });
       }
     })();
   });
-  
+
+  // ========== AURA_EXT_SET_ADAPTIVE_PROFILE: External component pushes JSON ==========
+  // A separate component sends this to store the adaptive optimized profile.
+  // No backend calls – JSON is passed as argument and stored as AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE.
+  // Only accepts from trusted origins to prevent malicious profile injection.
+  window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
+    if (event.data?.type !== 'AURA_EXT_SET_ADAPTIVE_PROFILE') return;
+    if (!isTrustedOrigin(event.origin)) return;
+    const profile = event.data?.profile;
+    if (!profile || typeof profile !== 'object') return;
+
+    chrome.storage.local.set({ AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE: profile }).then(() => {
+      sendBridgePong(event, {
+        type: 'AURA_EXT_SET_ADAPTIVE_PROFILE_ACK',
+        source: 'aura-extension',
+        success: true,
+      });
+    });
+  });
+
+  // ========== AURA_EXT_ML_PERSONALIZED_PROFILE_PING: Return personalized profile ==========
+  // Ping → PONG with { profile, available }.
+  window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
+    if (event.data?.type !== 'AURA_EXT_ML_PERSONALIZED_PROFILE_PING') return;
+    if (!isTrustedOrigin(event.origin)) return;
+
+    (async () => {
+      try {
+        const result = await chrome.storage.local.get(['AURA_EXT_ML_PERSONALIZED_PROFILE']);
+        const profile = result.AURA_EXT_ML_PERSONALIZED_PROFILE ?? null;
+        const available = !!profile;
+
+        sendBridgePong(event, {
+          type: 'AURA_EXT_ML_PERSONALIZED_PROFILE_PONG',
+          source: 'aura-extension',
+          profile,
+          available,
+        });
+      } catch (err) {
+        sendBridgePong(event, {
+          type: 'AURA_EXT_ML_PERSONALIZED_PROFILE_PONG',
+          source: 'aura-extension',
+          profile: null,
+          available: false,
+          error: err.message,
+        });
+      }
+    })();
+  });
+
+  // ========== AURA_EXT_ADAPTIVE_PROFILE_PING: Return adaptive optimized profile ==========
+  // Ping → PONG with { profile, available }.
+  window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
+    if (event.data?.type !== 'AURA_EXT_ADAPTIVE_PROFILE_PING') return;
+    if (!isTrustedOrigin(event.origin)) return;
+
+    (async () => {
+      try {
+        const result = await chrome.storage.local.get(['AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE']);
+        const profile = result.AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE ?? null;
+        const available = !!profile;
+
+        sendBridgePong(event, {
+          type: 'AURA_EXT_ADAPTIVE_PROFILE_PONG',
+          source: 'aura-extension',
+          profile,
+          available,
+        });
+      } catch (err) {
+        sendBridgePong(event, {
+          type: 'AURA_EXT_ADAPTIVE_PROFILE_PONG',
+          source: 'aura-extension',
+          profile: null,
+          available: false,
+          error: err.message,
+        });
+      }
+    })();
+  });
+
+  // ========== AURA_EXT_ML_FINAL_PROFILE_PING: Adaptive if exists, else personalized ==========
+  // Ping → PONG with { profile, source: 'adaptive'|'personalized', available }.
+  window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
+    if (event.data?.type !== 'AURA_EXT_ML_FINAL_PROFILE_PING') return;
+    if (!isTrustedOrigin(event.origin)) return;
+
+    (async () => {
+      try {
+        const result = await chrome.storage.local.get([
+          'AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE',
+          'AURA_EXT_ML_PERSONALIZED_PROFILE',
+        ]);
+        const adaptive = result.AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE ?? null;
+        const personalized = result.AURA_EXT_ML_PERSONALIZED_PROFILE ?? null;
+
+        const hasAdaptive = !!adaptive;
+        const profile = hasAdaptive ? adaptive : personalized;
+        const source = hasAdaptive ? 'adaptive' : 'personalized';
+        const available = !!profile;
+
+        sendBridgePong(event, {
+          type: 'AURA_EXT_ML_FINAL_PROFILE_PONG',
+          source: 'aura-extension',
+          profile,
+          sourceType: source,
+          available,
+        });
+      } catch (err) {
+        sendBridgePong(event, {
+          type: 'AURA_EXT_ML_FINAL_PROFILE_PONG',
+          source: 'aura-extension',
+          profile: null,
+          sourceType: null,
+          available: false,
+          error: err.message,
+        });
+      }
+    })();
+  });
+
   // Initialize when script loads
   initializeTracking();
   

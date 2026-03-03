@@ -437,6 +437,9 @@ async function handleLogin() {
         name: data.user.name ?? null,
       },
     }).catch(() => {});
+
+    // Fetch ML personalized profile on login (and when logging in again after logout)
+    chrome.runtime.sendMessage({ type: 'FETCH_ML_PERSONALIZED_PROFILE' }).catch(() => {});
     
     showNotification('Login successful!', 'success');
     
@@ -501,6 +504,9 @@ async function handleRegister() {
       token: data.token,
       user: data.user ? { email: data.user.email, name: data.user.name } : null,
     }).catch(() => {});
+
+    // Fetch ML personalized profile on register (token created)
+    chrome.runtime.sendMessage({ type: 'FETCH_ML_PERSONALIZED_PROFILE' }).catch(() => {});
     
     showConsentSection();
     showNotification('Account created successfully!', 'success');

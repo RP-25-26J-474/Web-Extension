@@ -41,6 +41,11 @@ export const API_CONFIG = {
   //
   // Poll every 30 seconds (SYNC_INTERVAL) to stay in sync with extension push.
   AGGREGATED_BATCHES_GET: '/interactions/aggregated-batches',
+
+  // ===== ML PERSONALIZED PROFILE – Daily fetch from separate component =====
+  // Dummy URL – replace with actual ML profile API when integrated.
+  // When token exists, extension fetches this daily and stores as AURA_EXT_ML_PERSONALIZED_PROFILE.
+  ML_PROFILE_API_URL: 'https://ml-profile.example.com/api/profile',
 };
 
 

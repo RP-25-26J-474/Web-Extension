@@ -87,6 +87,8 @@ async function initializeAggregator() {
     if (result.authToken) {
       console.log('🔐 User authenticated, initializing aggregator with userId:', result.userId);
       await interactionAggregator.initialize();
+      scheduleMlProfileFetch();
+      fetchMlPersonalizedProfile();
       // One-time check: if onboarding already complete (e.g. from previous session), enable tracking
       try {
         const res = await fetch(`${API_CONFIG.BASE_URL}/onboarding/status`, {
@@ -117,9 +119,53 @@ chrome.storage.onChanged.addListener(async (changes, namespace) => {
   if (newValue && !oldValue) {
     console.log('✅ User logged in - initializing aggregator');
     await initializeAggregator();
+    scheduleMlProfileFetch();
+    fetchMlPersonalizedProfile();
   } else if (!newValue && oldValue) {
     console.log('👋 User logged out - broadcasting to tabs');
     broadcastToAllTabs({ type: 'USER_LOGGED_OUT' });
+    cancelMlProfileFetch();
+    await chrome.storage.local.remove(['AURA_EXT_ML_PERSONALIZED_PROFILE', 'AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE']);
+  }
+});
+
+// ========== ML PERSONALIZED PROFILE – Daily fetch ==========
+// When token exists, fetch profile from separate ML component daily.
+// Stored as AURA_EXT_ML_PERSONALIZED_PROFILE (no backend in extension – fetches from external API).
+const ML_PROFILE_ALARM = 'aura-ml-profile-daily';
+
+function scheduleMlProfileFetch() {
+  chrome.alarms.create(ML_PROFILE_ALARM, { periodInMinutes: 24 * 60 }); // daily
+  console.log('ML profile daily fetch scheduled');
+}
+
+function cancelMlProfileFetch() {
+  chrome.alarms.clear(ML_PROFILE_ALARM).then(() => {
+    console.log('ML profile daily fetch cancelled');
+  });
+}
+
+async function fetchMlPersonalizedProfile() {
+  try {
+    const result = await chrome.storage.local.get(['authToken']);
+    if (!result.authToken) return;
+
+    const url = API_CONFIG.ML_PROFILE_API_URL || 'https://ml-profile.example.com/api/profile';
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${result.authToken}` },
+    });
+    if (!res.ok) throw new Error(`ML profile API returned ${res.status}`);
+    const json = await res.json();
+    await chrome.storage.local.set({ AURA_EXT_ML_PERSONALIZED_PROFILE: json });
+    console.log('ML personalized profile fetched and stored');
+  } catch (e) {
+    console.debug('Could not fetch ML personalized profile:', e.message);
+  }
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === ML_PROFILE_ALARM) {
+    fetchMlPersonalizedProfile();
   }
 });
 
@@ -236,6 +282,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     broadcastToAllTabs({ type: 'USER_LOGGED_OUT' });
     sendResponse({ success: true });
     return false;
+  }
+
+  // Explicit fetch of ML personalized profile (called on login/register from popup)
+  if (message.type === 'FETCH_ML_PERSONALIZED_PROFILE') {
+    fetchMlPersonalizedProfile().then(() => sendResponse({ success: true }));
+    return true;
   }
 
   if (message.type === 'ONBOARDING_COMPLETE') {
