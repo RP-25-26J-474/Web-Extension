@@ -135,14 +135,18 @@ chrome.storage.onChanged.addListener(async (changes, namespace) => {
 const ML_PROFILE_ALARM = 'aura-ml-profile-daily';
 
 function scheduleMlProfileFetch() {
-  chrome.alarms.create(ML_PROFILE_ALARM, { periodInMinutes: 24 * 60 }); // daily
-  console.log('ML profile daily fetch scheduled');
+  if (typeof chrome !== 'undefined' && chrome.alarms) {
+    chrome.alarms.create(ML_PROFILE_ALARM, { periodInMinutes: 24 * 60 }); // daily
+    console.log('ML profile daily fetch scheduled');
+  }
 }
 
 function cancelMlProfileFetch() {
-  chrome.alarms.clear(ML_PROFILE_ALARM).then(() => {
-    console.log('ML profile daily fetch cancelled');
-  });
+  if (typeof chrome !== 'undefined' && chrome.alarms) {
+    chrome.alarms.clear(ML_PROFILE_ALARM).then(() => {
+      console.log('ML profile daily fetch cancelled');
+    });
+  }
 }
 
 async function fetchMlPersonalizedProfile() {
@@ -163,11 +167,13 @@ async function fetchMlPersonalizedProfile() {
   }
 }
 
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === ML_PROFILE_ALARM) {
-    fetchMlPersonalizedProfile();
-  }
-});
+if (typeof chrome !== 'undefined' && chrome.alarms && chrome.alarms.onAlarm) {
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === ML_PROFILE_ALARM) {
+      fetchMlPersonalizedProfile();
+    }
+  });
+}
 
 // SINGLE message listener for all messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
