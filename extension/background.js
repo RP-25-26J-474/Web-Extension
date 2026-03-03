@@ -231,13 +231,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
-  // Initialize tracking (called when user gives consent)
+  // Initialize tracking (called when user gives consent or logs in with tracking enabled)
   if (message.type === 'INIT_TRACKING') {
     chrome.storage.local.get(['userId']).then(result => {
       if (result.userId && interactionAggregator) {
         interactionAggregator.userId = result.userId;
         interactionAggregator.initialize();
         console.log('✅ Tracking initialized for user:', result.userId);
+        // Sync tracking state to all content scripts so they start capturing
+        chrome.tabs.query({}, (tabs) => {
+          tabs.forEach((tab) => {
+            if (tab.id) {
+              chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_TRACKING', enabled: true }).catch(() => {});
+            }
+          });
+        });
         sendResponse({ success: true, userId: result.userId });
       } else {
         console.warn('⚠️ Cannot initialize tracking: missing userId');
@@ -255,10 +263,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
-  // Onboarding complete
+  // Onboarding complete – enable aggregated batch tracking
   if (message.type === 'ONBOARDING_COMPLETE') {
     console.log('🎉 Onboarding completed!');
     chrome.storage.local.remove('onboardingTabId');
+    chrome.storage.local.set({ onboardingCompleted: true }).then(() => {
+      console.log('✅ Onboarding completed – aggregated tracking now enabled');
+    });
     if (sender.tab?.id) {
       chrome.tabs.remove(sender.tab.id).catch(() => {});
     }
@@ -273,13 +284,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   // Broadcast token (not userId) on login/register to all tabs (for React app, dashboard, etc.)
+  // Also sync tracking state to content scripts so existing tabs start tracking when user logs in with tracking enabled
   if (message.type === 'BROADCAST_USER_LOGIN') {
     broadcastToAllTabs({ type: 'USER_LOGGED_IN', token: message.token, user: message.user });
+    chrome.storage.local.get(['trackingEnabled', 'consentGiven']).then((result) => {
+      if (result.trackingEnabled && result.consentGiven) {
+        chrome.tabs.query({}, (tabs) => {
+          tabs.forEach((tab) => {
+            if (tab.id) {
+              chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_TRACKING', enabled: true }).catch(() => {});
+            }
+          });
+        });
+      }
+    });
     sendResponse({ success: true });
     return false;
   }
   if (message.type === 'BROADCAST_USER_LOGOUT') {
     broadcastToAllTabs({ type: 'USER_LOGGED_OUT' });
+    // Stop tracking in all content scripts
+    chrome.tabs.query({}, (tabs) => {
+      tabs.forEach((tab) => {
+        if (tab.id) {
+          chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_TRACKING', enabled: false }).catch(() => {});
+        }
+      });
+    });
     sendResponse({ success: true });
     return false;
   }
@@ -290,14 +321,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message.type === 'ONBOARDING_COMPLETE') {
-    chrome.storage.local.set({ onboardingCompleted: true }).then(() => {
-      console.log('✅ Onboarding completed – aggregated/global tracking now enabled');
-      sendResponse({ success: true });
-    });
-    return true;
-  }
-  
   return false;
 });
 

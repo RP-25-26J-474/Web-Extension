@@ -398,8 +398,10 @@ async function handleLogin() {
     const data = await apiClient.login(email, password);
     
     // CRITICAL: Sync consent and tracking settings from server to local storage
+    // Include userId so aggregator and background have it immediately (avoids race with api-client setToken)
     console.log('📥 Syncing user settings from server...');
     await chrome.storage.local.set({
+      userId: data.user._id,
       consentGiven: data.user.consentGiven || false,
       trackingEnabled: data.user.trackingEnabled || false,
       userProfile: {
@@ -487,9 +489,10 @@ async function handleRegister() {
     
     const data = await apiClient.register(email, password, name, age, gender);
     
-    // Sync userProfile to storage so ping-pong can return user info
+    // Sync userProfile and userId to storage so ping-pong and aggregator have them immediately
     if (data.user) {
       await chrome.storage.local.set({
+        userId: data.user._id,
         userProfile: {
           userId: data.user._id,
           email: data.user.email ?? null,

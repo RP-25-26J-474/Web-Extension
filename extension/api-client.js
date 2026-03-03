@@ -7,18 +7,20 @@ class APIClient {
 
   async setToken(token) {
     this.token = token;
-    await chrome.storage.local.set({ authToken: token });
-    
-    // Fetch and store userId
+    let userId = null;
     try {
       const userData = await this.getCurrentUser();
       if (userData && userData.user && userData.user._id) {
-        await chrome.storage.local.set({ userId: userData.user._id });
-        console.log('✅ User ID stored:', userData.user._id);
+        userId = userData.user._id;
       }
     } catch (error) {
       console.error('Failed to fetch and store userId:', error);
     }
+    await chrome.storage.local.set({
+      authToken: token,
+      ...(userId && { userId }),
+    });
+    if (userId) console.log('✅ User ID stored:', userId);
   }
 
   async getToken() {
