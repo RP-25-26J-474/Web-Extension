@@ -15,10 +15,7 @@ const Complete = () => {
       auraIntegration.completeOnboarding()
         .then((result) => {
           console.log('🎉 AURA onboarding completed:', result);
-          // Close tab and redirect back to extension after 3 seconds
-          setTimeout(() => {
-            auraIntegration.redirectToExtension();
-          }, 3000);
+          auraIntegration.redirectToExtension();
         })
         .catch((error) => {
           console.error('❌ Failed to complete AURA onboarding:', error);
@@ -173,7 +170,7 @@ const Complete = () => {
             </button>
 
             <p className="relative text-gray-600 text-xs mt-4">
-              Redirecting automatically in a few seconds...
+              Please close this tab when you're done.
             </p>
           </div>
 

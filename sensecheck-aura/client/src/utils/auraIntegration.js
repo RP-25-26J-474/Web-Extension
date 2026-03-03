@@ -404,16 +404,12 @@ class AuraIntegration {
     }
   }
   
-  // Redirect back to extension or show completion message
+  // Notify extension that onboarding is complete (user closes tab manually)
   redirectToExtension() {
     if (window.opener) {
-      // Opened from extension - close tab and notify
       window.opener.postMessage({ type: 'AURA_ONBOARDING_COMPLETE' }, '*');
-      setTimeout(() => {
-        window.close();
-      }, 2000);
+      // User closes tab manually – no auto-close
     } else {
-      // Opened directly - show message
       alert('Onboarding completed! You can now close this tab and return to the AURA extension.');
     }
   }

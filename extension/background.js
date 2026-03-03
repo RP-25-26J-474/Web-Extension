@@ -288,9 +288,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
       }
     });
-    if (sender.tab?.id) {
-      chrome.tabs.remove(sender.tab.id).catch(() => {});
-    }
+    // Do not auto-close tab – user closes it manually
     sendResponse({ success: true });
     return false;
   }
