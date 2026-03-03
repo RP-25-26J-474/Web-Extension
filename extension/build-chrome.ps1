@@ -1,5 +1,4 @@
-# Build AURA Extension for Chrome/Edge
-# Uses manifest-chrome.json
+# Build AURA Extension for Chrome
 
 Write-Host "🌟 Building AURA Extension for Chrome/Edge..." -ForegroundColor Green
 
@@ -11,11 +10,16 @@ New-Item -ItemType Directory -Path $buildDir | Out-Null
 
 # Files to include
 $includeItems = @(
+    "manifest.json",
     "background.js",
     "content.js",
     "popup.html",
     "popup.js",
     "popup.css",
+    "config.js",
+    "config.module.js",
+    "api-client.js",
+    "interaction-aggregator.js",
     "icons",
     "LICENSE"
 )
@@ -27,10 +31,6 @@ foreach ($item in $includeItems) {
         Write-Host "   ✓ $item" -ForegroundColor Gray
     }
 }
-
-# Use Chrome manifest
-Copy-Item "manifest-chrome.json" -Destination "$buildDir\manifest.json"
-Write-Host "   ✓ manifest.json (Chrome version)" -ForegroundColor Gray
 
 Write-Host ""
 Write-Host "✅ Chrome/Edge build complete!" -ForegroundColor Green

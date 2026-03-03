@@ -46,11 +46,8 @@ A comprehensive, privacy-focused browser extension with MongoDB integration that
 - Easy data export to CSV
 - Intuitive toggle controls
 
-### 🌐 Cross-Browser Compatible
-- ✅ Chrome 88+
-- ✅ Firefox 109+
-- ✅ Edge 88+
-- ✅ Safari 14+ (with conversion)
+### 🌐 Chrome Extension
+- ✅ Chrome 88+ (Manifest V3)
 
 ## 📦 Installation
 
@@ -66,10 +63,6 @@ A comprehensive, privacy-focused browser extension with MongoDB integration that
    ```
 
 2. **Load Extension in Chrome**
-   ```bash
-   # Ensure Chrome manifest is active
-   copy manifest-chrome.json manifest.json
-   ```
    - Open `chrome://extensions/`
    - Enable "Developer mode"
    - Click "Load unpacked"
@@ -96,7 +89,7 @@ For detailed setup instructions including:
 
 ## 📖 Quick Setup Guide
 
-### Chrome / Edge
+### Chrome
 
 1. **Download the Extension**
    - Clone or download this repository
@@ -105,83 +98,16 @@ For detailed setup instructions including:
    cd aura-interaction-tracker
    ```
 
-2. **Prepare Chrome Manifest** (if needed)
-   ```bash
-   # If manifest.json is currently Firefox version, switch to Chrome
-   copy manifest-chrome.json manifest.json
-   ```
-
-3. **Load in Chrome/Edge**
-   - Open Chrome and navigate to `chrome://extensions/` (or `edge://extensions/` for Edge)
+2. **Load in Chrome**
+   - Open Chrome and navigate to `chrome://extensions/`
    - Enable "Developer mode" (toggle in top-right)
    - Click "Load unpacked"
    - Select the extension directory
 
-4. **Start Using**
+3. **Start Using**
    - Click the AURA extension icon
    - Accept the consent prompt
    - Enable tracking and enjoy!
-
-### Firefox
-
-1. **Download the Extension**
-   ```bash
-   git clone https://github.com/yourusername/aura-interaction-tracker.git
-   cd aura-interaction-tracker
-   ```
-
-2. **Prepare Firefox Manifest** (REQUIRED)
-   ```bash
-   # Backup Chrome manifest
-   copy manifest.json manifest-chrome.json
-   
-   # Use Firefox-compatible manifest
-   copy manifest-firefox.json manifest.json
-   ```
-   
-   **Important:** The file MUST be named `manifest.json` for Firefox to recognize it.
-
-3. **Load Temporary Add-on** (for testing)
-   - Open Firefox and navigate to `about:debugging#/runtime/this-firefox`
-   - Click "Load Temporary Add-on"
-   - Select `manifest.json` from the extension directory
-
-4. **Start Using**
-   - Click the AURA extension icon
-   - Accept consent and enable tracking
-
-### Safari
-
-Safari requires additional steps due to its WebExtension implementation:
-
-1. **Prerequisites**
-   - macOS Big Sur (11.0) or later
-   - Xcode 12 or later (free from App Store)
-   - Apple Developer account (free for personal use, $99/year for distribution)
-
-2. **Convert WebExtension to Safari Extension**
-   ```bash
-   # Open Terminal and navigate to your Desktop or preferred location
-   cd ~/Desktop
-   
-   # Run Safari Web Extension Converter
-   xcrun safari-web-extension-converter /path/to/interaction-tracker
-   ```
-
-3. **Open in Xcode**
-   - Xcode will open automatically
-   - Select your development team
-   - Build and run (⌘R)
-
-4. **Enable in Safari**
-   - Safari will launch with the extension
-   - Go to Safari → Preferences → Extensions
-   - Enable "User Interaction Tracker"
-
-5. **For Distribution**
-   - Archive the app in Xcode
-   - Submit to App Store Connect
-   - Include a macOS app wrapper (required by Apple)
 
 ## 🚀 Usage
 
@@ -279,8 +205,6 @@ aura-interaction-tracker/
 │
 ├── Extension Files:
 ├── manifest.json           # Extension configuration (Manifest V3)
-├── manifest-chrome.json    # Chrome/Edge specific manifest
-├── manifest-firefox.json   # Firefox specific manifest
 ├── background.js           # Service worker for data processing
 ├── content.js              # Content script for interaction tracking
 ├── popup.html              # Extension popup interface
@@ -373,8 +297,7 @@ For detailed privacy information, see the Privacy Information section in the ext
    - Ensure consent was given
 
 2. **Reload the extension**
-   - Chrome/Edge: Go to extensions page → Toggle off/on
-   - Firefox: `about:debugging` → Reload
+   - Chrome: Extensions page → Toggle off/on or Reload
 
 3. **Check browser console**
    - F12 → Console tab

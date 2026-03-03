@@ -749,12 +749,14 @@ elementClass: safeClassString(target),
       sendResponse({ success: true });
     } else if (message.type === 'USER_LOGGED_IN') {
       // Broadcast token (not userId) to web page so other components can make API calls
+      // onboardingComplete: true when sent after impairment profile saved
       window.postMessage({
         type: 'AURA_USER_UPDATE',
         source: 'aura-extension',
         token: message.token,
         user: message.user,
         loggedIn: true,
+        onboardingComplete: message.onboardingComplete || false,
       }, '*');
       sendResponse({ success: true });
     } else if (message.type === 'USER_LOGGED_OUT') {

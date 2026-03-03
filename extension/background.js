@@ -270,12 +270,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
-  // Onboarding complete – enable aggregated batch tracking
+  // Onboarding complete – impairment profile saved; enable tracking and broadcast user registered
   if (message.type === 'ONBOARDING_COMPLETE') {
-    console.log('🎉 Onboarding completed!');
+    console.log('🎉 Onboarding completed! Impairment profile saved.');
     chrome.storage.local.remove('onboardingTabId');
     chrome.storage.local.set({ onboardingCompleted: true }).then(() => {
       console.log('✅ Onboarding completed – aggregated tracking now enabled');
+    });
+    // Broadcast user registered (impairment profile created) so tabs can refresh ML profile, etc.
+    chrome.storage.local.get(['authToken', 'userId', 'userProfile']).then((result) => {
+      if (result.authToken && result.userId) {
+        broadcastToAllTabs({
+          type: 'USER_LOGGED_IN',
+          token: result.authToken,
+          user: result.userProfile ? { email: result.userProfile.email, name: result.userProfile.name } : null,
+          onboardingComplete: true,
+        });
+      }
     });
     if (sender.tab?.id) {
       chrome.tabs.remove(sender.tab.id).catch(() => {});
