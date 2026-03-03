@@ -1,0 +1,74 @@
+# Build directories
+build/
+build-chrome/
+build-firefox/
+dist/
+
+# ZIP files
+*.zip
+*.xpi
+*.crx
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Temporary files
+temp/
+tmp/
+
+# Node modules (if you add build tools later)
+node_modules/
+
+# Environment files
+.env
+.env.local
+venv/
+.venv/
+server/.venv/
+ml/training/.venv/
+
+# Generated data/exports
+ml/datasets/final/motor_sessions.csv
+ml/model_registry/**/preprocess/impute_medians.json
+ml/model_registry/**/reports/
+server/scripts/impairement_profiles.json
+server/scripts/ml-export-*.csv
+ml/serving/__pycache__/
+
+coverage/
+*.lcov
+.nyc_output/
+
+# Jest cache
+.jest-cache/
+jest-results.json
+
+# Test output
+test-results/
+junit.xml
+
+# Temporary test files
+*.test.tmp
+*.spec.tmp
+__tests__/tmp/
+
+# Log files from tests
+test-*.log
+npm-debug.log*
+
+# Environment files (if used for testing)
+.env.test
+.env.test.local
+package-lock.json
