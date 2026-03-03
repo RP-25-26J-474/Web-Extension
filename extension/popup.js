@@ -531,12 +531,13 @@ async function handleLogout() {
   }
   
   try {
+    // 1. Clear token + userId (triggers storage.onChanged → background cleanup)
     await apiClient.logout();
     
-    // Notify other components that user logged out
-    chrome.runtime.sendMessage({ type: 'BROADCAST_USER_LOGOUT' }).catch(() => {});
+    // 2. Explicitly broadcast logout so background clears auth + ML profiles (belt-and-suspenders)
+    await chrome.runtime.sendMessage({ type: 'BROADCAST_USER_LOGOUT' }).catch(() => {});
     
-    // Clear local storage
+    // 3. Clear remaining local storage (consent, config, etc.)
     await chrome.storage.local.clear();
     
     showAuthSection();

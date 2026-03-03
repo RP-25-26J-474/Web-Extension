@@ -33,7 +33,7 @@ class APIClient {
 
   async clearToken() {
     this.token = null;
-    await chrome.storage.local.remove('authToken');
+    await chrome.storage.local.remove(['authToken', 'userId']);
   }
 
   async request(endpoint, options = {}) {

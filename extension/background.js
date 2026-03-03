@@ -123,9 +123,10 @@ chrome.storage.onChanged.addListener(async (changes, namespace) => {
     fetchMlPersonalizedProfile();
   } else if (!newValue && oldValue) {
     console.log('👋 User logged out - broadcasting to tabs');
+    if (interactionAggregator) interactionAggregator.userId = null;
     broadcastToAllTabs({ type: 'USER_LOGGED_OUT' });
     cancelMlProfileFetch();
-    await chrome.storage.local.remove(['AURA_EXT_ML_PERSONALIZED_PROFILE', 'AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE']);
+    await chrome.storage.local.remove(['userId', 'AURA_EXT_ML_PERSONALIZED_PROFILE', 'AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE']);
   }
 });
 
@@ -308,13 +309,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
   if (message.type === 'BROADCAST_USER_LOGOUT') {
-    broadcastToAllTabs({ type: 'USER_LOGGED_OUT' });
-    // Stop tracking in all content scripts
-    chrome.tabs.query({}, (tabs) => {
-      tabs.forEach((tab) => {
-        if (tab.id) {
-          chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_TRACKING', enabled: false }).catch(() => {});
-        }
+    // Reset aggregator userId immediately so no further batches use stale user
+    if (interactionAggregator) interactionAggregator.userId = null;
+    // Explicitly clear auth data and ML profiles so logout is reliable even if popup closes early
+    chrome.storage.local.remove([
+      'authToken',
+      'userId',
+      'AURA_EXT_ML_PERSONALIZED_PROFILE',
+      'AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE',
+    ]).then(() => {
+      cancelMlProfileFetch();
+      broadcastToAllTabs({ type: 'USER_LOGGED_OUT' });
+      chrome.tabs.query({}, (tabs) => {
+        tabs.forEach((tab) => {
+          if (tab.id) {
+            chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_TRACKING', enabled: false }).catch(() => {});
+          }
+        });
       });
     });
     sendResponse({ success: true });
