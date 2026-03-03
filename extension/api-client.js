@@ -1,0 +1,148 @@
+// API Helper Functions for Extension
+class APIClient {
+  constructor() {
+    this.baseURL = API_CONFIG.BASE_URL;
+    this.token = null;
+  }
+
+  async setToken(token) {
+    this.token = token;
+    let userId = null;
+    try {
+      const userData = await this.getCurrentUser();
+      if (userData && userData.user && userData.user._id) {
+        userId = userData.user._id;
+      }
+    } catch (error) {
+      console.error('Failed to fetch and store userId:', error);
+    }
+    await chrome.storage.local.set({
+      authToken: token,
+      ...(userId && { userId }),
+    });
+    if (userId) console.log('✅ User ID stored:', userId);
+  }
+
+  async getToken() {
+    if (!this.token) {
+      const result = await chrome.storage.local.get(['authToken']);
+      this.token = result.authToken;
+    }
+    return this.token;
+  }
+
+  async clearToken() {
+    this.token = null;
+    await chrome.storage.local.remove(['authToken', 'userId']);
+  }
+
+  async request(endpoint, options = {}) {
+    const token = await this.getToken();
+    
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(`${this.baseURL}${endpoint}`, {
+        ...options,
+        headers
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Request failed');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('API Request error:', error);
+      throw error;
+    }
+  }
+
+  // Auth methods
+  async register(email, password, name, age, gender) {
+    const data = await this.request(API_CONFIG.ENDPOINTS.REGISTER, {
+      method: 'POST',
+      body: JSON.stringify({ email, password, name, age, gender })
+    });
+    
+    if (data.token) {
+      await this.setToken(data.token);
+    }
+    
+    return data;
+  }
+
+  async login(email, password) {
+    const data = await this.request(API_CONFIG.ENDPOINTS.LOGIN, {
+      method: 'POST',
+      body: JSON.stringify({ email, password })
+    });
+    
+    if (data.token) {
+      await this.setToken(data.token);
+    }
+    
+    return data;
+  }
+
+  async logout() {
+    try {
+      await this.request(API_CONFIG.ENDPOINTS.LOGOUT, { method: 'POST' });
+    } finally {
+      await this.clearToken();
+    }
+  }
+
+  async getCurrentUser() {
+    return await this.request(API_CONFIG.ENDPOINTS.ME);
+  }
+
+  async updateSettings(consentGiven, trackingEnabled) {
+    return await this.request(API_CONFIG.ENDPOINTS.UPDATE_SETTINGS, {
+      method: 'PUT',
+      body: JSON.stringify({ consentGiven, trackingEnabled })
+    });
+  }
+
+  // Interaction methods (global interactions removed – use aggregated batches only)
+  async getStats() {
+    return await this.request(API_CONFIG.ENDPOINTS.GET_STATS);
+  }
+  
+  // Onboarding methods
+  async getOnboardingStatus() {
+    return await this.request(API_CONFIG.ENDPOINTS.ONBOARDING_STATUS);
+  }
+
+  async computeMotorSessionSummary() {
+    return await this.request(API_CONFIG.ENDPOINTS.ONBOARDING_MOTOR_SESSION_SUMMARY, {
+      method: 'POST'
+    });
+  }
+
+  async getMotorFeatureVector() {
+    return await this.request(API_CONFIG.ENDPOINTS.ONBOARDING_MOTOR_FEATURE_VECTOR);
+  }
+
+  async getMotorScore(sessionFeatures) {
+    return await this.request(API_CONFIG.ENDPOINTS.ML_MOTOR_SCORE, {
+      method: 'POST',
+      body: JSON.stringify(sessionFeatures || {})
+    });
+  }
+}
+
+// Export for use in extension
+if (typeof window !== 'undefined') {
+  window.APIClient = APIClient;
+}
+
