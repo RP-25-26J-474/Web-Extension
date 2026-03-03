@@ -42,6 +42,19 @@
     zoomEvents: true
   };
   
+  // Safely get string for structured clone (SVG elements use SVGAnimatedString, not string)
+  function safeClassString(el) {
+    if (!el || !el.className) return null;
+    const c = el.className;
+    return typeof c === 'string' ? c : (c.baseVal || null);
+  }
+  function safeTextString(el, maxLen) {
+    if (!el) return null;
+    const t = el.innerText ?? el.textContent ?? '';
+    const s = typeof t === 'string' ? t : String(t);
+    return s.substring(0, maxLen || 100) || null;
+  }
+
   // Throttle function for mouse movements to avoid excessive data
   function throttle(func, limit) {
     let inThrottle;
@@ -77,19 +90,24 @@
   // Send interaction data to background script
   function sendInteraction(data) {
     if (!isTrackingEnabled) return;
-    
-    chrome.runtime.sendMessage({
-      type: 'INTERACTION',
-      data: {
-        ...data,
-        url: window.location.href,
-        timestamp: Date.now(),
-        pageTitle: document.title
-      }
-    }).catch(err => {
-      // Silently handle errors (e.g., extension context invalidated)
-      console.debug('Failed to send interaction:', err);
-    });
+    try {
+      const payload = {
+        type: 'INTERACTION',
+        data: {
+          ...data,
+          url: window.location.href,
+          timestamp: Date.now(),
+          pageTitle: document.title
+        }
+      };
+      chrome.runtime.sendMessage(payload).catch(err => {
+        // Silently handle errors (e.g., extension context invalidated, DataCloneError)
+        console.debug('Failed to send interaction:', err);
+      });
+    } catch (err) {
+      // Catches DataCloneError when payload contains non-serializable values (e.g. SVGAnimatedString)
+      console.debug('Failed to serialize interaction:', err);
+    }
   }
   
   // Track mouse clicks
@@ -101,8 +119,8 @@
       type: 'click',
       elementTag: target.tagName,
       elementId: target.id || null,
-      elementClass: target.className || null,
-      elementText: target.innerText?.substring(0, 100) || null,
+elementClass: safeClassString(target),
+        elementText: safeTextString(target, 100),
       x: event.clientX,
       y: event.clientY,
       button: event.button
@@ -183,8 +201,8 @@
       type: 'double_click',
       elementTag: target.tagName,
       elementId: target.id || null,
-      elementClass: target.className || null,
-      elementText: target.innerText?.substring(0, 100) || null,
+elementClass: safeClassString(target),
+        elementText: safeTextString(target, 100),
       x: event.clientX,
       y: event.clientY
     };
@@ -201,8 +219,8 @@
       type: 'right_click',
       elementTag: target.tagName,
       elementId: target.id || null,
-      elementClass: target.className || null,
-      elementText: target.innerText?.substring(0, 100) || null,
+elementClass: safeClassString(target),
+        elementText: safeTextString(target, 100),
       x: event.clientX,
       y: event.clientY
     };
@@ -281,7 +299,7 @@
       type: 'drag_start',
       elementTag: target.tagName,
       elementId: target.id || null,
-      elementClass: target.className || null,
+      elementClass: safeClassString(target),
       x: event.clientX,
       y: event.clientY
     };
@@ -346,7 +364,7 @@
       type: 'touch_start',
       elementTag: target.tagName,
       elementId: target.id || null,
-      elementClass: target.className || null,
+      elementClass: safeClassString(target),
       touchCount: event.touches.length,
       x: touch.clientX,
       y: touch.clientY
