@@ -1,0 +1,514 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Stage, Layer, Circle, Rect } from 'react-konva';
+import { useGame } from '../../../context/GameContext';
+import { useTheme } from '../../../context/ThemeContext';
+import useStore from '../../../state/store';
+import MotorSkillsTracker from '../../../utils/motorSkillsTracking';
+import usePerformanceMetrics from '../../../hooks/usePerformanceMetrics';
+import auraIntegration from '../../../utils/auraIntegration';
+import { CloudFog, Flame, Play, Target } from 'lucide-react';
+
+const FOG_PATTERNS = [
+  { speed: 1.5, spawnInterval: 1200, duration: 20000, pattern: [0, 1, 2, 3, 4, 0, 2, 4, 1, 3, 2, 0, 4, 1, 3] },
+  { speed: 2.5, spawnInterval: 900, duration: 20000, pattern: [1, 3, 0, 4, 2, 1, 3, 0, 2, 4, 1, 0, 3, 2, 4, 1, 3] },
+  { speed: 3.5, spawnInterval: 700, duration: 20000, pattern: [2, 0, 4, 1, 3, 2, 4, 0, 3, 1, 4, 2, 0, 3, 1, 4, 2, 0, 1, 3] },
+];
+
+const STAGE_WIDTH = 700;
+const STAGE_HEIGHT = 500;
+const COLUMN_WIDTH = STAGE_WIDTH / 5;
+const FOG_ORB_RADIUS = 25;
+
+const getPrimaryColor = () => getComputedStyle(document.documentElement).getPropertyValue('--primary-color').trim() || '#8BC53F';
+
+const MotorChallenge = () => {
+  const { completeChallenge, updateStats, recordCorrectAnswer, recordIncorrectAnswer, state, updateChallengeProgress } = useGame();
+  const { isDark } = useTheme();
+  const { setMotorRound, completeMotorSkillsTest, completeModule } = useStore();
+  
+  const motorTrackerRef = useRef(null);
+  const perfMetrics = usePerformanceMetrics();
+  
+  const savedProgress = state.challengeProgress?.motorSkills || {};
+  
+  const [currentWave, setCurrentWave] = useState(savedProgress.currentRound || 1);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [fogOrbs, setFogOrbs] = useState([]);
+  const [timeRemaining, setTimeRemaining] = useState(20);
+  const [showWaveIntro, setShowWaveIntro] = useState(true);
+  
+  const waveStatsRef = useRef({ cleared: 0, escaped: 0, streak: 0 });
+  const totalStatsRef = useRef(savedProgress.totalStats || { hits: 0, misses: 0, bestStreak: 0 });
+  
+  const [displayWaveStats, setDisplayWaveStats] = useState({ cleared: 0, escaped: 0, streak: 0 });
+  const [displayTotalStats, setDisplayTotalStats] = useState(savedProgress.totalStats || { hits: 0, misses: 0, bestStreak: 0 });
+  
+  const orbsRef = useRef([]);
+  const animationFrameRef = useRef(null);
+  const spawnTimerRef = useRef(null);
+  const waveTimerRef = useRef(null);
+  const patternIndexRef = useRef(0);
+  const isPlayingRef = useRef(false);
+  const isEndingWaveRef = useRef(false);
+  
+  // Track which orbs have been cleared to prevent double-pops
+  const clearedOrbsRef = useRef(new Set());
+  
+  const currentPattern = FOG_PATTERNS[currentWave - 1];
+  
+  useEffect(() => {
+    const userId = state.userId || auraIntegration.getUserId();
+    if (!motorTrackerRef.current && userId) {
+      motorTrackerRef.current = new MotorSkillsTracker(null, userId);
+    }
+  }, [state.userId]);
+  
+  useEffect(() => {
+    if (currentWave > 1 || displayTotalStats.hits > 0) {
+      updateChallengeProgress('motorSkills', {
+        currentRound: currentWave,
+        totalStats: displayTotalStats,
+      });
+    }
+  }, [currentWave, displayTotalStats, updateChallengeProgress]);
+  
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+  
+  const syncDisplayStats = useCallback(() => {
+    setDisplayWaveStats({ ...waveStatsRef.current });
+  }, []);
+  
+  const generateOrbId = () => `fog_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  
+  const spawnFogOrb = useCallback(() => {
+    if (!isPlayingRef.current) return;
+    
+    const pattern = FOG_PATTERNS[currentWave - 1];
+    const columnIndex = pattern.pattern[patternIndexRef.current % pattern.pattern.length];
+    patternIndexRef.current++;
+    
+    const newOrb = {
+      id: generateOrbId(),
+      x: columnIndex * COLUMN_WIDTH + COLUMN_WIDTH / 2,
+      y: STAGE_HEIGHT,
+      column: columnIndex,
+      speed: pattern.speed,
+      radius: FOG_ORB_RADIUS,
+      spawnTime: Date.now(),
+    };
+    
+    orbsRef.current.push(newOrb);
+    setFogOrbs([...orbsRef.current]);
+    
+    if (motorTrackerRef.current) {
+      motorTrackerRef.current.trackBubbleSpawn(newOrb);
+    }
+  }, [currentWave]);
+  
+  const animate = useCallback(() => {
+    perfMetrics.recordFrame();
+    
+    const escapedOrbs = [];
+    const updatedOrbs = orbsRef.current.filter((orb) => {
+      orb.y -= orb.speed;
+      
+      if (orb.y < -FOG_ORB_RADIUS) {
+        escapedOrbs.push(orb);
+        return false;
+      }
+      return true;
+    });
+    
+    escapedOrbs.forEach(orb => {
+      if (motorTrackerRef.current) {
+        motorTrackerRef.current.trackBubbleMiss(orb);
+      }
+      
+      waveStatsRef.current.escaped += 1;
+      waveStatsRef.current.streak = 0;
+      
+      totalStatsRef.current.bestStreak = Math.max(
+        totalStatsRef.current.bestStreak, 
+        waveStatsRef.current.streak
+      );
+      
+      recordIncorrectAnswer();
+    });
+    
+    orbsRef.current = updatedOrbs;
+    setFogOrbs([...updatedOrbs]);
+    syncDisplayStats();
+    
+    if (isPlayingRef.current) {
+      animationFrameRef.current = requestAnimationFrame(animate);
+    }
+  }, [perfMetrics, recordIncorrectAnswer, syncDisplayStats]);
+  
+  // Handle orb click with double-pop prevention for better trackpad support
+  const handleOrbClear = useCallback((orb, event) => {
+    // Prevent double-pops from multiple event types firing
+    if (clearedOrbsRef.current.has(orb.id)) return;
+    clearedOrbsRef.current.add(orb.id);
+    
+    // Clean up old entries periodically
+    if (clearedOrbsRef.current.size > 100) {
+      clearedOrbsRef.current.clear();
+    }
+    
+    perfMetrics.recordInputEvent(event.evt?.timeStamp);
+    
+    if (motorTrackerRef.current) {
+      motorTrackerRef.current.trackBubbleHit(orb, event.evt);
+    }
+    
+    waveStatsRef.current.cleared += 1;
+    waveStatsRef.current.streak += 1;
+    
+    totalStatsRef.current.bestStreak = Math.max(
+      totalStatsRef.current.bestStreak, 
+      waveStatsRef.current.streak
+    );
+    
+    syncDisplayStats();
+    
+    const reactionTime = Date.now() - orb.spawnTime;
+    recordCorrectAnswer(reactionTime);
+    
+    orbsRef.current = orbsRef.current.filter((o) => o.id !== orb.id);
+    setFogOrbs([...orbsRef.current]);
+  }, [perfMetrics, recordCorrectAnswer, syncDisplayStats]);
+  
+  const startWave = () => {
+    setShowWaveIntro(false);
+    setIsPlaying(true);
+    isPlayingRef.current = true;
+    isEndingWaveRef.current = false;
+    setTimeRemaining(currentPattern.duration / 1000);
+    patternIndexRef.current = 0;
+    orbsRef.current = [];
+    setFogOrbs([]);
+    clearedOrbsRef.current.clear();
+    
+    waveStatsRef.current = { cleared: 0, escaped: 0, streak: 0 };
+    setDisplayWaveStats({ cleared: 0, escaped: 0, streak: 0 });
+    
+    setMotorRound(currentWave);
+    
+    if (motorTrackerRef.current) {
+      motorTrackerRef.current.round = currentWave;
+    }
+    
+    if (currentWave === 1) {
+      perfMetrics.startTracking();
+    }
+    
+    spawnTimerRef.current = setInterval(() => spawnFogOrb(), currentPattern.spawnInterval);
+    animationFrameRef.current = requestAnimationFrame(animate);
+    
+    const startTime = Date.now();
+    waveTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, Math.ceil((currentPattern.duration - elapsed) / 1000));
+      setTimeRemaining(remaining);
+      
+      if (remaining === 0) {
+        clearInterval(waveTimerRef.current);
+        endWave();
+      }
+    }, 100);
+  };
+  
+  const endWave = async () => {
+    if (isEndingWaveRef.current) return;
+    isEndingWaveRef.current = true;
+    
+    setIsPlaying(false);
+    isPlayingRef.current = false;
+    
+    clearInterval(spawnTimerRef.current);
+    clearInterval(waveTimerRef.current);
+    cancelAnimationFrame(animationFrameRef.current);
+    
+    const finalWaveStats = { ...waveStatsRef.current };
+    
+    totalStatsRef.current = {
+      hits: totalStatsRef.current.hits + finalWaveStats.cleared,
+      misses: totalStatsRef.current.misses + finalWaveStats.escaped,
+      bestStreak: Math.max(totalStatsRef.current.bestStreak, finalWaveStats.streak),
+    };
+    
+    const newTotalStats = { ...totalStatsRef.current };
+    setDisplayTotalStats(newTotalStats);
+    
+    if (motorTrackerRef.current) {
+      motorTrackerRef.current.trackRoundComplete({
+        hits: finalWaveStats.cleared,
+        misses: finalWaveStats.escaped,
+        escaped: finalWaveStats.escaped,
+        duration: currentPattern.duration,
+        averageReactionTime: 0,
+      }).catch(() => {});
+    }
+    
+    orbsRef.current = [];
+    setFogOrbs([]);
+    
+    if (currentWave < 3) {
+      setTimeout(() => {
+        const nextWave = currentWave + 1;
+        setCurrentWave(nextWave);
+        setShowWaveIntro(true);
+        isEndingWaveRef.current = false;
+      }, 500);
+    } else {
+      await finishChallenge(newTotalStats);
+    }
+  };
+  
+  const finishChallenge = async (stats) => {
+    completeMotorSkillsTest();
+    
+    const finalPerfMetrics = perfMetrics.stopTracking();
+    const accuracy = stats.hits + stats.misses > 0 
+      ? Math.round((stats.hits / (stats.hits + stats.misses)) * 100) 
+      : 0;
+    
+    updateStats({
+      totalCorrect: stats.hits,
+      totalAttempts: stats.hits + stats.misses,
+    });
+    
+    if (motorTrackerRef.current) {
+      await motorTrackerRef.current.complete({
+        perf: finalPerfMetrics,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        highContrastMode: window.matchMedia?.('(prefers-contrast: high)')?.matches ?? false,
+        reducedMotionPreference: window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false,
+      });
+    }
+    
+    try {
+      await completeModule('reaction');
+    } catch (error) {
+      console.error('Failed to save results:', error);
+    }
+    
+    updateChallengeProgress('motorSkills', { 
+      currentRound: 1, 
+      totalStats: { hits: 0, misses: 0, bestStreak: 0 } 
+    });
+    
+    await completeChallenge('motor-skills', {
+      accuracy,
+      totalHits: stats.hits,
+      totalMisses: stats.misses,
+      bestStreak: stats.bestStreak,
+      performanceMetrics: finalPerfMetrics,
+    });
+  };
+  
+  useEffect(() => {
+    return () => {
+      clearInterval(spawnTimerRef.current);
+      clearInterval(waveTimerRef.current);
+      cancelAnimationFrame(animationFrameRef.current);
+    };
+  }, []);
+  
+  const primaryColor = getPrimaryColor();
+  
+  // Wave intro screen
+  if (showWaveIntro) {
+    return (
+      <div className="text-center">
+        <div 
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6"
+          style={{ 
+            backgroundColor: 'rgba(var(--primary-color-rgb), 0.1)',
+            border: '1px solid rgba(var(--primary-color-rgb), 0.2)'
+          }}
+        >
+          <CloudFog className="w-5 h-5" style={{ color: 'var(--primary-color)' }} />
+          <span className="text-sm font-medium" style={{ color: 'var(--primary-color)' }}>
+            Wave {currentWave} of 3
+          </span>
+        </div>
+        
+        <h3 className="text-2xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
+          {currentWave === 1 ? 'Clearing the Rising Fog' : currentWave === 2 ? 'Denser Fog Ahead!' : 'Final Fog Storm!'}
+        </h3>
+        
+        <p className="mb-6 max-w-md mx-auto" style={{ color: 'var(--text-secondary)' }}>
+          {currentWave === 1 
+            ? 'Corrupted data fog rises and blocks the light. Clear it before it overwhelms the tower!'
+            : currentWave === 2
+              ? 'The fog thickens. The corrupted signals are moving faster!'
+              : 'Maximum corruption! Clear everything to restore the pathway!'}
+        </p>
+        
+        <div className="flex justify-center gap-2 mb-8">
+          {[1, 2, 3].map((wave) => (
+            <div
+              key={wave}
+              className={`h-3 rounded-full transition-all duration-300 ${
+                wave <= currentWave ? 'opacity-100' : 'opacity-30'
+              }`}
+              style={{ 
+                backgroundColor: wave <= currentWave ? 'var(--primary-color)' : 'var(--border-secondary)',
+                width: `${40 + wave * 10}px`
+              }}
+            />
+          ))}
+        </div>
+        
+        <button
+          onClick={startWave}
+          className="px-8 py-4 rounded-xl font-semibold text-white transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 mx-auto"
+          style={{ 
+            background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%)',
+            boxShadow: '0 4px 20px var(--primary-color-glow)'
+          }}
+        >
+          <Play className="w-5 h-5" />
+          {currentWave === 1 ? "Let's Go!" : 'Next Wave!'}
+        </button>
+        
+        {displayTotalStats.hits > 0 && (
+          <div 
+            className="mt-6 p-4 rounded-xl transition-colors duration-300"
+            style={{ backgroundColor: 'var(--bg-input)' }}
+          >
+            <div className="flex justify-center gap-6 text-sm">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4" style={{ color: 'var(--primary-color)' }} />
+                <span style={{ color: 'var(--text-tertiary)' }}>Cleared:</span>
+                <span className="font-bold" style={{ color: 'var(--primary-color)' }}>{displayTotalStats.hits}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Flame className="w-4 h-4" style={{ color: '#f59e0b' }} />
+                <span style={{ color: 'var(--text-tertiary)' }}>Best Streak:</span>
+                <span className="font-bold" style={{ color: '#f59e0b' }}>{displayTotalStats.bestStreak}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  // Game stage
+  const stageBgColor = isDark ? '#1e293b' : '#f1f5f9';
+  const columnColor = isDark ? '#334155' : '#e2e8f0';
+  
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <CloudFog className="w-5 h-5" style={{ color: 'var(--primary-color)' }} />
+          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Wave {currentWave}</span>
+        </div>
+        
+        <div 
+          className={`px-4 py-2 rounded-xl font-mono font-bold text-xl ${
+            timeRemaining <= 5 ? 'text-red-500 animate-pulse' : ''
+          }`}
+          style={{ 
+            backgroundColor: timeRemaining <= 5 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(var(--primary-color-rgb), 0.1)',
+            color: timeRemaining <= 5 ? '#ef4444' : 'var(--primary-color)'
+          }}
+        >
+          {timeRemaining}s
+        </div>
+        
+        <div className="flex gap-4 text-sm">
+          <div className="text-center flex items-center gap-1">
+            <Target className="w-4 h-4" style={{ color: 'var(--primary-color)' }} />
+            <span className="font-bold" style={{ color: 'var(--primary-color)' }}>{displayWaveStats.cleared}</span>
+          </div>
+          <div className="text-center flex items-center gap-1">
+            <Flame className="w-4 h-4" style={{ color: '#f59e0b' }} />
+            <span className="font-bold" style={{ color: '#f59e0b' }}>{displayWaveStats.streak}</span>
+          </div>
+        </div>
+      </div>
+      
+      <div 
+        className="rounded-2xl overflow-hidden flex justify-center transition-colors duration-300"
+        style={{ 
+          backgroundColor: 'var(--bg-stage)',
+          border: '1px solid var(--border-primary)'
+        }}
+      >
+        <Stage
+          width={STAGE_WIDTH}
+          height={STAGE_HEIGHT}
+          style={{ 
+            cursor: 'crosshair',
+            // Prevent browser delays on touch/click for better trackpad support
+            touchAction: 'manipulation',
+            WebkitTouchCallout: 'none',
+            WebkitUserSelect: 'none',
+            userSelect: 'none',
+          }}
+          onMouseMove={(e) => {
+            if (isPlayingRef.current && motorTrackerRef.current) {
+              motorTrackerRef.current.trackPointerMove(e.evt);
+            }
+          }}
+          onTouchMove={(e) => {
+            if (isPlayingRef.current && motorTrackerRef.current) {
+              motorTrackerRef.current.trackPointerMove(e.evt);
+            }
+          }}
+        >
+          <Layer>
+            <Rect x={0} y={0} width={STAGE_WIDTH} height={STAGE_HEIGHT} fill={stageBgColor} />
+            
+            {[1, 2, 3, 4].map((i) => (
+              <Rect
+                key={i}
+                x={i * COLUMN_WIDTH - 0.5}
+                y={0}
+                width={1}
+                height={STAGE_HEIGHT}
+                fill={columnColor}
+              />
+            ))}
+            
+            {fogOrbs.map((orb) => (
+              <Circle
+                key={orb.id}
+                x={orb.x}
+                y={orb.y}
+                radius={orb.radius}
+                fill={primaryColor}
+                shadowColor={primaryColor}
+                shadowBlur={15}
+                shadowOpacity={0.5}
+                // Use mousedown/touchstart for immediate response (no wait for release)
+                // This fixes trackpad tap delay issues
+                onMouseDown={(e) => handleOrbClear(orb, e)}
+                onTouchStart={(e) => handleOrbClear(orb, e)}
+                // Keep onClick/onTap as fallbacks for accessibility
+                onClick={(e) => handleOrbClear(orb, e)}
+                onTap={(e) => handleOrbClear(orb, e)}
+                // Increase hit area slightly for better trackpad responsiveness
+                hitStrokeWidth={10}
+              />
+            ))}
+          </Layer>
+        </Stage>
+      </div>
+      
+      <div className="mt-4 text-center text-sm flex items-center justify-center gap-2" style={{ color: 'var(--text-tertiary)' }}>
+        <Target className="w-4 h-4" />
+        Tap the fog orbs before they escape upward!
+      </div>
+    </div>
+  );
+};
+
+export default MotorChallenge;
