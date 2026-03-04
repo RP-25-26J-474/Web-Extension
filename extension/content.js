@@ -853,6 +853,41 @@ elementClass: safeClassString(target),
     })();
   });
 
+  // ========== AURA ONBOARDING STATUS PING-PONG: Onboarding complete + token ==========
+  // Checks if onboarding is completed. When complete, includes the auth token.
+  // Send AURA_EXT_ONBOARDING_STATUS_PING, receive AURA_EXT_ONBOARDING_STATUS_PONG with
+  // { onboardingCompleted: boolean, token: string|null (only when complete) }.
+  window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
+    if (event.data?.type !== 'AURA_EXT_ONBOARDING_STATUS_PING') return;
+    if (!isTrustedOrigin(event.origin)) return;
+
+    (async () => {
+      try {
+        const result = await chrome.storage.local.get(['authToken', 'userId', 'onboardingCompleted']);
+        const completed = result.onboardingCompleted === true;
+        const hasToken = !!(result.authToken && result.userId);
+        // Only pass token when onboarding is complete
+        const token = completed && hasToken ? result.authToken : null;
+
+        sendBridgePong(event, {
+          type: 'AURA_EXT_ONBOARDING_STATUS_PONG',
+          source: 'aura-extension',
+          onboardingCompleted: completed,
+          token,
+        });
+      } catch (err) {
+        sendBridgePong(event, {
+          type: 'AURA_EXT_ONBOARDING_STATUS_PONG',
+          source: 'aura-extension',
+          onboardingCompleted: false,
+          token: null,
+          error: err.message,
+        });
+      }
+    })();
+  });
+
   // ========== AURA_EXT_SET_ADAPTIVE_PROFILE: Forward to background for authoritative auth check ==========
   // Background is source of truth for logout state; content script storage can lag after logout.
   window.addEventListener('message', (event) => {

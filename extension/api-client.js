@@ -123,6 +123,10 @@ class APIClient {
     return await this.request(API_CONFIG.ENDPOINTS.ONBOARDING_STATUS);
   }
 
+  async getImpairmentProfile() {
+    return await this.request(API_CONFIG.ENDPOINTS.IMPAIRMENT_PROFILE);
+  }
+
   async computeMotorSessionSummary() {
     return await this.request(API_CONFIG.ENDPOINTS.ONBOARDING_MOTOR_SESSION_SUMMARY, {
       method: 'POST'
