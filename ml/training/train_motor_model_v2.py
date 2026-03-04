@@ -25,6 +25,7 @@ EXCLUDE_FROM_MOTOR = {
     "r1_spawnIntervalMs", "r2_spawnIntervalMs", "r3_spawnIntervalMs",
 }
 
+
 def infer_column_groups(df: pd.DataFrame):
     cols = [c for c in df.columns if c not in ID_COLS]
 
@@ -42,6 +43,7 @@ def infer_column_groups(df: pd.DataFrame):
 
     return motor_numeric, context_numeric, context_categorical
 
+
 def percentile_rank(values: np.ndarray):
     """
     Percentile ranks in [0,1] using stable ranking.
@@ -52,59 +54,66 @@ def percentile_rank(values: np.ndarray):
     ranks[order] = np.linspace(0.0, 1.0, num=len(values))
     return ranks
 
+
+def zscore_safe(x: np.ndarray) -> np.ndarray:
+    x = np.asarray(x, dtype=float)
+    mu = np.nanmean(x)
+    sd = np.nanstd(x)
+    if not np.isfinite(sd) or sd == 0.0:
+        return np.zeros_like(x, dtype=float)
+    return (x - mu) / sd
+
+
 def ensure_pc1_direction(pc1: np.ndarray, df_motor: pd.DataFrame):
     """
-    Align PC1 so that higher PC1 = better performance.
+    PCA sign is arbitrary. Align PC1 so that higher PC1 = better motor performance.
 
-    We build a robust "better performance" anchor using multiple metrics:
-      - Higher is better: hitRate, throughput_mean, straightness_mean
-      - Lower is better: reactionTime_mean, movementTime_mean, errorDist_mean, jerkRMS_mean
+    We use a composite anchor score built from metrics with clear directions:
+      + hitRate (higher better)
+      + throughput_mean (higher better)
+      - reactionTime_mean (lower better)
+      - movementTime_mean (lower better)
+      - errorDist_mean (lower better)
 
-    Then we flip PC1 if corr(PC1, anchor) < 0.
+    If corr(PC1, anchor) < 0, flip PC1.
 
-    Returns: (pc1_aligned, flipped, corr_with_anchor, anchor_debug)
+    Returns: (pc1_aligned, flipped, corr_with_anchor, anchor_cols_used)
     """
-    higher_better_keys = ["hitRate", "throughput_mean", "straightness_mean"]
-    lower_better_keys = ["reactionTime_mean", "movementTime_mean", "errorDist_mean", "jerkRMS_mean"]
+    def pick_one(pred):
+        cols = [c for c in df_motor.columns if pred(c)]
+        return cols[0] if cols else None
 
-    higher_cols = [c for c in df_motor.columns if any(k in c for k in higher_better_keys)]
-    lower_cols  = [c for c in df_motor.columns if any(k in c for k in lower_better_keys)]
+    hit_col = pick_one(lambda c: c.endswith("_hitRate"))
+    thr_col = pick_one(lambda c: "throughput_mean" in c)
+    rt_col  = pick_one(lambda c: "reactionTime_mean" in c)
+    mt_col  = pick_one(lambda c: "movementTime_mean" in c)
+    err_col = pick_one(lambda c: "errorDist_mean" in c)
 
-    if len(higher_cols) + len(lower_cols) == 0:
-        return pc1, False, None, {"higher_cols": [], "lower_cols": []}
+    needed = [hit_col, thr_col, rt_col, mt_col, err_col]
+    if any(v is None for v in needed):
+        # Fallback: do not flip if we cannot form anchor
+        return pc1, False, None, {"hit": hit_col, "throughput": thr_col, "rt": rt_col, "mt": mt_col, "err": err_col}
 
-    def robust_z(x):
-        x = np.asarray(x, dtype=float)
-        med = np.nanmedian(x)
-        iqr = np.nanpercentile(x, 75) - np.nanpercentile(x, 25)
-        if not np.isfinite(iqr) or iqr == 0:
-            sd = np.nanstd(x)
-            iqr = sd if (np.isfinite(sd) and sd > 0) else 1.0
-        return (x - med) / iqr
+    hit = zscore_safe(df_motor[hit_col].values)
+    thr = zscore_safe(df_motor[thr_col].values)
+    rt  = zscore_safe(df_motor[rt_col].values)
+    mt  = zscore_safe(df_motor[mt_col].values)
+    err = zscore_safe(df_motor[err_col].values)
 
-    anchor = np.zeros(len(df_motor), dtype=float)
+    anchor = (+hit + thr - rt - mt - err)
 
-    for c in higher_cols:
-        anchor += robust_z(df_motor[c].values)
+    if np.std(anchor) == 0.0 or np.std(pc1) == 0.0:
+        return pc1, False, None, {"hit": hit_col, "throughput": thr_col, "rt": rt_col, "mt": mt_col, "err": err_col}
 
-    for c in lower_cols:
-        anchor -= robust_z(df_motor[c].values)
-
-    r = np.corrcoef(pc1, anchor)[0, 1]
+    r = float(np.corrcoef(pc1, anchor)[0, 1])
     flipped = False
     if np.isfinite(r) and r < 0:
         pc1 = -pc1
         flipped = True
         r = -r
 
-    anchor_debug = {
-        "higher_cols_used_count": int(len(higher_cols)),
-        "lower_cols_used_count": int(len(lower_cols)),
-        "higher_cols_example": higher_cols[:5],
-        "lower_cols_example": lower_cols[:5],
-    }
+    return pc1, flipped, r, {"hit": hit_col, "throughput": thr_col, "rt": rt_col, "mt": mt_col, "err": err_col}
 
-    return pc1, flipped, float(r), anchor_debug
 
 def build_regressor(seed: int = 42):
     return XGBRegressor(
@@ -118,6 +127,7 @@ def build_regressor(seed: int = 42):
         random_state=seed,
         n_jobs=-1,
     )
+
 
 def eval_regression_cv(model_pipeline, X, y, groups, folds=5):
     """
@@ -157,6 +167,7 @@ def eval_regression_cv(model_pipeline, X, y, groups, folds=5):
     }
     return fold_stats, overall, preds
 
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", required=True)
@@ -186,7 +197,7 @@ def main():
     keep = (motor_df.isna().mean(axis=1) <= 0.25)
     df = df.loc[keep].reset_index(drop=True)
 
-    # -------- FIX 1: median imputers learned from training data --------
+    # FIX 1: median imputers learned from training data (here: full data)
     for c in motor_cols:
         if df[c].isna().any():
             df[c] = df[c].fillna(df[c].median())
@@ -216,13 +227,11 @@ def main():
     pca = PCA(n_components=1, random_state=args.seed)
     pc1 = pca.fit_transform(X_motor_scaled).reshape(-1)
 
-    # ✅ NEW: robust anchor-based alignment
-    pc1, pc1_flipped, corr_anchor, anchor_debug = ensure_pc1_direction(pc1, df[motor_cols])
+    # ✅ Direction alignment (critical)
+    pc1, pc1_flipped, corr_anchor, anchor_cols = ensure_pc1_direction(pc1, df[motor_cols])
 
-    # Impairment score definition:
-    # PC1 aligned: higher = better performance
-    # impairment_score_A = 1 - percentile_rank(PC1)
-    pct = percentile_rank(pc1)
+    # impairment_score: 0=better, 1=assistance needed
+    pct = percentile_rank(pc1)  # low pc1 -> 0, high pc1 -> 1
     impairment_score_A = np.clip(1.0 - pct, 0.0, 1.0)
 
     # Save distribution for percentile mapping at inference
@@ -276,7 +285,7 @@ def main():
     joblib.dump(modelB2, os.path.join(args.outdir, "models", "modelB2_reg_motor_plus_context.joblib"))
 
     # ---------------------------
-    # ✅ NEW: research sanity checks on direction
+    # Research sanity checks on direction
     # ---------------------------
     sanity = {}
 
@@ -295,7 +304,7 @@ def main():
         )
 
     # ---------------------------
-    # Training report (research documentation)
+    # Training report
     # ---------------------------
     report = {
         "seed": args.seed,
@@ -303,7 +312,7 @@ def main():
             "explained_variance_ratio_pc1": float(pca.explained_variance_ratio_[0]),
             "pc1_flipped": bool(pc1_flipped),
             "corr_pc1_with_anchor": corr_anchor,
-            "anchor_debug": anchor_debug,
+            "anchor_columns_used": anchor_cols,
             "motor_feature_columns": motor_cols,
             "excluded_condition_columns": sorted(list(EXCLUDE_FROM_MOTOR)),
             "pc1_loadings": {c: float(w) for c, w in zip(motor_cols, pca.components_[0])},
@@ -344,9 +353,13 @@ def main():
     print("\nB1 (motor-only) overall:", overallB1)
     print("B2 (motor+context) overall:", overallB2)
 
-    print("\nSanity checks:")
+    print("\nSanity checks (expect: RT positive, hitRate negative):")
     for k, v in sanity.items():
         print(f"  {k}: {v:.4f}" if isinstance(v, float) else f"  {k}: {v}")
+
+    print("\nPC1 alignment:")
+    print(f"  pc1_flipped={pc1_flipped}, corr_pc1_with_anchor={corr_anchor}, anchor_cols={anchor_cols}")
+
 
 if __name__ == "__main__":
     main()
