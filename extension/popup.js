@@ -438,6 +438,7 @@ async function handleLogin() {
         email: data.user.email ?? null,
         name: data.user.name ?? null,
       },
+      source: 'login',
     }).catch(() => {});
 
     // Fetch ML personalized profile on login (and when logging in again after logout)
@@ -501,12 +502,8 @@ async function handleRegister() {
       });
     }
     
-    // Broadcast token (not userId) so other components (e.g. sensecheck, dashboard) can make API calls
-    chrome.runtime.sendMessage({
-      type: 'BROADCAST_USER_LOGIN',
-      token: data.token,
-      user: data.user ? { email: data.user.email, name: data.user.name } : null,
-    }).catch(() => {});
+    // Do NOT broadcast at registration – broadcast happens when onboarding completes
+    // (ONBOARDING_COMPLETE from sensecheck), so pages get token only when user is fully set up
 
     // Fetch ML personalized profile on register (token created)
     chrome.runtime.sendMessage({ type: 'FETCH_ML_PERSONALIZED_PROFILE' }).catch(() => {});
