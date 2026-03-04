@@ -88,8 +88,7 @@ async function initializeAggregator() {
       console.log('🔐 User authenticated, initializing aggregator with userId:', result.userId);
       await interactionAggregator.initialize();
       scheduleMlProfileFetch();
-      fetchMlPersonalizedProfile();
-      // One-time check: if onboarding already complete (e.g. from previous session), enable tracking
+      // Check onboarding status – only fetch from daily GET API when onboarding complete (login/existing user)
       try {
         const res = await fetch(`${API_CONFIG.BASE_URL}/onboarding/status`, {
           headers: { Authorization: `Bearer ${result.authToken}` },
@@ -99,6 +98,7 @@ async function initializeAggregator() {
           if (data.completed) {
             await chrome.storage.local.set({ onboardingCompleted: true });
             console.log('✅ Onboarding already complete – aggregated/global tracking enabled');
+            fetchMlPersonalizedProfile();
           }
         }
       } catch (e) {
@@ -120,7 +120,6 @@ chrome.storage.onChanged.addListener(async (changes, namespace) => {
     console.log('✅ User logged in - initializing aggregator');
     await initializeAggregator();
     scheduleMlProfileFetch();
-    fetchMlPersonalizedProfile();
   } else if (!newValue && oldValue) {
     console.log('👋 User logged out - broadcasting to tabs');
     if (interactionAggregator) interactionAggregator.userId = null;
@@ -152,7 +151,7 @@ function cancelMlProfileFetch() {
 
 async function fetchMlPersonalizedProfile() {
   try {
-    const result = await chrome.storage.local.get(['authToken']);
+    const result = await chrome.storage.local.get(['authToken', 'userId']);
     if (!result.authToken) return;
 
     const url = API_CONFIG.ML_PROFILE_API_URL || 'https://ml-profile.example.com/api/profile';
@@ -161,8 +160,16 @@ async function fetchMlPersonalizedProfile() {
     });
     if (!res.ok) throw new Error(`ML profile API returned ${res.status}`);
     const json = await res.json();
-    await chrome.storage.local.set({ AURA_EXT_ML_PERSONALIZED_PROFILE: json });
-    console.log('ML personalized profile fetched and stored');
+    // Only store if we have a valid profile (daily GET API has no data for new users until ~24h)
+    const profile = json?.profile ?? json;
+    if (!profile || typeof profile !== 'object') {
+      console.debug('Daily ML profile API did not return valid profile, skipping store');
+      return;
+    }
+    // Preserve full structure { user_id, metadata, profile, profile_changes } from daily API
+    const toStore = json.profile != null ? json : { user_id: result.userId ?? 'unknown', metadata: {}, profile, profile_changes: null };
+    await chrome.storage.local.set({ AURA_EXT_ML_PERSONALIZED_PROFILE: toStore });
+    console.log('ML personalized profile fetched and stored (from daily API)');
   } catch (e) {
     console.debug('Could not fetch ML personalized profile:', e.message);
   }
@@ -174,6 +181,49 @@ if (typeof chrome !== 'undefined' && chrome.alarms && chrome.alarms.onAlarm) {
       fetchMlPersonalizedProfile();
     }
   });
+}
+
+// ========== ML PERSONALIZED PROFILE – Initial fetch on registration ==========
+// When impairment profile is created (onboarding completes), POST impairment JSON to
+// separate component API and save response.profile as AURA_EXT_ML_PERSONALIZED_PROFILE.
+// This runs once; daily fetch (fetchMlPersonalizedProfile) handles periodic updates.
+async function fetchInitialMlProfileFromImpairment() {
+  try {
+    const result = await chrome.storage.local.get(['authToken', 'userId']);
+    if (!result.authToken || !result.userId) return;
+
+    const impairmentRes = await fetch(`${API_CONFIG.BASE_URL}/onboarding/impairment-profile`, {
+      headers: { Authorization: `Bearer ${result.authToken}` },
+    });
+    if (!impairmentRes.ok) {
+      console.debug('Could not fetch impairment profile for initial ML:', impairmentRes.status);
+      return;
+    }
+    const impairmentData = await impairmentRes.json();
+    const impairmentProfile = impairmentData?.data ?? impairmentData;
+
+    const url = API_CONFIG.IMPAIRMENT_TO_ML_PROFILE_API_URL || 'https://impairment-to-ml.example.com/api/profile-from-impairment';
+    const mlRes = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${result.authToken}`,
+      },
+      body: JSON.stringify(impairmentProfile),
+    });
+    if (!mlRes.ok) throw new Error(`Impairment-to-ML API returned ${mlRes.status}`);
+    const mlJson = await mlRes.json();
+    const profile = mlJson?.profile;
+    if (!profile || typeof profile !== 'object') {
+      console.debug('Impairment-to-ML API did not return profile');
+      return;
+    }
+    const toStore = { user_id: result.userId, metadata: { origin: 'impairment', created_at: new Date().toISOString() }, profile, profile_changes: null };
+    await chrome.storage.local.set({ AURA_EXT_ML_PERSONALIZED_PROFILE: toStore });
+    console.log('Initial ML personalized profile from impairment stored');
+  } catch (e) {
+    console.debug('Could not fetch initial ML profile from impairment:', e.message);
+  }
 }
 
 // SINGLE message listener for all messages
@@ -277,6 +327,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.storage.local.set({ onboardingCompleted: true }).then(() => {
       console.log('✅ Onboarding completed – aggregated tracking now enabled');
     });
+    // Fetch initial ML profile from impairment (POST impairment to separate API, save response.profile)
+    fetchInitialMlProfileFromImpairment();
     // Broadcast user registered (impairment profile created) so tabs can refresh ML profile, etc.
     chrome.storage.local.get(['authToken', 'userId', 'userProfile']).then((result) => {
       if (result.authToken && result.userId) {
