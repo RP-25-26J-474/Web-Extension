@@ -43,15 +43,15 @@ export const API_CONFIG = {
   AGGREGATED_BATCHES_GET: '/interactions/aggregated-batches',
 
   // ===== ML PERSONALIZED PROFILE – Daily fetch from separate component =====
-  // Dummy URL – replace with actual ML profile API when integrated.
-  // When token exists, extension fetches this daily and stores as AURA_EXT_ML_PERSONALIZED_PROFILE.
-  ML_PROFILE_API_URL: 'https://ml-profile.example.com/api/profile',
+  // For local testing: use dummy-ml-profile (npm start in dummy-ml-profile, runs on 4000)
+  // Production: replace with actual ML profile API.
+  ML_PROFILE_API_URL: 'http://localhost:4000/api/profile',
 
   // ===== IMPAIRMENT → ML PROFILE – Initial fetch on registration =====
-  // Dummy URL – replace with actual API when integrated.
-  // When impairment profile is created (onboarding completes), extension POSTs impairment JSON
-  // to this API and receives { profile } in response. Stored as AURA_EXT_ML_PERSONALIZED_PROFILE.
-  IMPAIRMENT_TO_ML_PROFILE_API_URL: 'https://impairment-to-ml.example.com/api/profile-from-impairment',
+  // For local testing: use dummy-ml-profile POST endpoint. Extension POSTs impairment JSON
+  // when onboarding completes; receives { profile } in response.
+  // Production: replace with actual API.
+  IMPAIRMENT_TO_ML_PROFILE_API_URL: 'http://localhost:4000/api/profile-from-impairment',
 };
 
 
