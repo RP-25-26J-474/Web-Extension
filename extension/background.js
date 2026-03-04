@@ -285,6 +285,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           token: result.authToken,
           user: result.userProfile ? { email: result.userProfile.email, name: result.userProfile.name } : null,
           onboardingComplete: true,
+          source: 'registration',
         });
       }
     });
@@ -302,7 +303,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Broadcast token (not userId) on login/register to all tabs (for React app, dashboard, etc.)
   // Also sync tracking state to content scripts so existing tabs start tracking when user logs in with tracking enabled
   if (message.type === 'BROADCAST_USER_LOGIN') {
-    broadcastToAllTabs({ type: 'USER_LOGGED_IN', token: message.token, user: message.user });
+    broadcastToAllTabs({
+      type: 'USER_LOGGED_IN',
+      token: message.token,
+      user: message.user,
+      source: message.source || 'login',
+    });
     chrome.storage.local.get(['trackingEnabled', 'consentGiven']).then((result) => {
       if (result.trackingEnabled && result.consentGiven) {
         chrome.tabs.query({}, (tabs) => {

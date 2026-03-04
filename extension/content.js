@@ -749,7 +749,8 @@ elementClass: safeClassString(target),
       sendResponse({ success: true });
     } else if (message.type === 'USER_LOGGED_IN') {
       // Broadcast token (not userId) to web page so other components can make API calls
-      // onboardingComplete: true when sent after impairment profile saved
+      // isRegistration: true = onboarding just completed; isLogin: true = user logged in
+      const src = message.source || 'login';
       window.postMessage({
         type: 'AURA_USER_UPDATE',
         source: 'aura-extension',
@@ -757,6 +758,8 @@ elementClass: safeClassString(target),
         user: message.user,
         loggedIn: true,
         onboardingComplete: message.onboardingComplete || false,
+        isRegistration: src === 'registration',
+        isLogin: src === 'login',
       }, '*');
       sendResponse({ success: true });
     } else if (message.type === 'USER_LOGGED_OUT') {
