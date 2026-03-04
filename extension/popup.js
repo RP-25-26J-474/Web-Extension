@@ -504,9 +504,8 @@ async function handleRegister() {
     
     // Do NOT broadcast at registration – broadcast happens when onboarding completes
     // (ONBOARDING_COMPLETE from sensecheck), so pages get token only when user is fully set up
-
-    // Fetch ML personalized profile on register (token created)
-    chrome.runtime.sendMessage({ type: 'FETCH_ML_PERSONALIZED_PROFILE' }).catch(() => {});
+    // Do NOT fetch ML profile from daily GET API here – it has no data for new users.
+    // Initial profile comes from ONBOARDING_COMPLETE → impairment POST API.
     
     showConsentSection();
     showNotification('Account created successfully!', 'success');
