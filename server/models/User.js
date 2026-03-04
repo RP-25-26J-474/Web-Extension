@@ -22,7 +22,7 @@ const userSchema = new mongoose.Schema({
   age: {
     type: Number,
     required: true,
-    min: 1,
+    min: 18,
     max: 120
   },
   gender: {

@@ -8,6 +8,12 @@
 
 import auraIntegration from './auraIntegration';
 
+const MAX_ROUNDS = 3;
+
+function clampRound(round) {
+  return Math.min(MAX_ROUNDS, Math.max(1, Number(round) || 1));
+}
+
 class MotorSkillsTracker {
   constructor(sessionId) {
     this.sessionId = sessionId;
@@ -52,11 +58,11 @@ class MotorSkillsTracker {
     return participantId;
   }
   
-  // Update round (resets round start time for AURA)
+  // Update round (resets round start time for AURA). Clamped to 1-3 for server validation.
   setRound(round) {
-    this.round = round;
+    this.round = clampRound(round);
     this.roundStartTime = Date.now(); // Reset for new round
-    console.log(`🎯 Round set to ${round}, roundStartTime reset`);
+    console.log(`🎯 Round set to ${this.round}, roundStartTime reset`);
   }
 
   // Track bubble spawn
@@ -65,7 +71,7 @@ class MotorSkillsTracker {
       bubbleId: bubbleData.id,
       column: bubbleData.column,
       speed: bubbleData.speed,
-      round: this.round,
+      round: clampRound(this.round),
       spawnTime: bubbleData.spawnTime,
       initialPosition: {
         x: bubbleData.x,
@@ -92,7 +98,7 @@ class MotorSkillsTracker {
         radiusX: event.touches[0].radiusX,
         radiusY: event.touches[0].radiusY,
       } : null,
-      round: this.round,
+      round: clampRound(this.round),
     });
   }
 
@@ -112,7 +118,7 @@ class MotorSkillsTracker {
       const yNorm = coords.y / canvasHeight;
       
       this.auraPointerSamples.push({
-        round: this.round,
+        round: clampRound(this.round),
         tms: now - this.roundStartTime, // Time since round start
         x: xNorm,
         y: yNorm,
@@ -171,7 +177,7 @@ class MotorSkillsTracker {
           velocity: parseFloat(velocity.toFixed(2)),
           acceleration: parseFloat(acceleration.toFixed(2)),
           jerkiness: parseFloat(jerkiness.toFixed(2)),
-          round: this.round,
+          round: clampRound(this.round),
         });
       }
     } else {
@@ -181,7 +187,7 @@ class MotorSkillsTracker {
         velocity: 0,
         acceleration: 0,
         jerkiness: 0,
-        round: this.round,
+        round: clampRound(this.round),
       });
     }
     
@@ -214,7 +220,7 @@ class MotorSkillsTracker {
       touchDuration,
       interTapInterval,
       trajectoryMetrics,
-      round: this.round,
+      round: clampRound(this.round),
       success: bubbleHit,
     });
   }
@@ -242,7 +248,7 @@ class MotorSkillsTracker {
       spawnTime: bubbleData.spawnTime, // Add spawn time for feature extraction
       bubbleSpeed: bubbleData.speed,
       column: bubbleData.column,
-      round: this.round,
+      round: clampRound(this.round),
     });
     
     // ========== AURA: Create attempt record ==========
@@ -262,7 +268,7 @@ class MotorSkillsTracker {
       bubbleSpeed: bubbleData.speed,
       bubbleLifetime: Date.now() - bubbleData.spawnTime,
       spawnTime: bubbleData.spawnTime, // Add spawn time for feature extraction
-      round: this.round,
+      round: clampRound(this.round),
     });
     
     // ========== AURA: Create attempt record for miss ==========
@@ -281,7 +287,7 @@ class MotorSkillsTracker {
     const successRate = totalAttempts > 0 ? parseFloat((roundData.hits / totalAttempts * 100).toFixed(2)) : 0;
     
     this.logInteraction('round_end', {
-      round: this.round,
+      round: clampRound(this.round),
       hits: roundData.hits,
       misses: roundData.misses,
       escaped: roundData.escaped,
@@ -310,8 +316,9 @@ class MotorSkillsTracker {
         await this.flushAuraAttempts();
         
         // Compute round summary on AURA backend
-        console.log(`📊 Computing AURA round ${this.round} summary...`);
-        await auraIntegration.computeRoundSummary(this.round);
+        const round = clampRound(this.round);
+        console.log(`📊 Computing AURA round ${round} summary...`);
+        await auraIntegration.computeRoundSummary(round);
         
       } catch (error) {
         console.error(`Error processing AURA round ${this.round} data:`, error);
@@ -320,8 +327,8 @@ class MotorSkillsTracker {
     
     // NOTE: Original tracking (non-AURA mode) is disabled to prevent 401 errors
     // All backend calls require AURA authentication
-    
-    this.round++;
+    // Do NOT increment round – MotorChallenge sets round via startWave. Auto-increment
+    // caused round 4 after wave 3, which broke server validation (max round = 3).
   }
 
   // Helper: Get coordinates from event
@@ -447,7 +454,7 @@ class MotorSkillsTracker {
     const clickY = coords ? coords.y / canvasHeight : null;
     
     const attempt = {
-      round: this.round,
+      round: clampRound(this.round),
       attemptId: `attempt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       bubbleId: bubbleData.id,
       spawnTms: bubbleData.spawnTime - this.roundStartTime,
@@ -485,7 +492,7 @@ class MotorSkillsTracker {
     const interaction = {
       sessionId: this.sessionId,
       module: 'motorSkills',
-      round: this.round,
+      round: clampRound(this.round),
       eventType,
       timestamp: new Date(),
       ...data,

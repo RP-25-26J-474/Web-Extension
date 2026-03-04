@@ -33,7 +33,15 @@ export const buildImpairmentProfile = ({
 
   // Vision loss from visual acuity (0.0 = no loss, 1.0 = total loss)
   // Stored directly as impairment level - higher = more impaired
-  const visionLoss = visualAcuity?.visionLoss ?? 0;
+  // Override to 1.0 if user failed ALL Ishihara plates (wrong for both normal and color-blind)
+  // AND failed the first level of visual acuity (could not read even the largest letters)
+  const failedAllIshihara = (colorBlindness?.normalVisionCount === 0 && colorBlindness?.colorBlindCount === 0)
+    && (colorBlindness?.totalPlates ?? 0) > 0;
+  const failedFirstAcuityLevel = visualAcuity?.finalLevel === 1
+    && Array.isArray(visualAcuity?.attempts)
+    && visualAcuity.attempts.filter(a => a.level === 1).every(a => !a.isCorrect);
+  const severeVisionImpairment = failedAllIshihara && failedFirstAcuityLevel;
+  const visionLoss = severeVisionImpairment ? 1.0 : (visualAcuity?.visionLoss ?? 0);
 
   // Color blindness impairment level (0-1)
   // Uses colorBlindnessScore = colorBlindCount / totalPlates (not 1 - colorVisionScore)

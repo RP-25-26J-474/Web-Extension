@@ -21,6 +21,7 @@ const QuizChallenge = () => {
   const [hoverEvents, setHoverEvents] = useState([]);
   const [responses, setResponses] = useState(savedProgress.responses || []);
   const [isAnimating, setIsAnimating] = useState(false);
+  const isCompletingRef = useRef(false);
   
   const hoverTimerRef = useRef({});
   
@@ -64,6 +65,8 @@ const QuizChallenge = () => {
   
   const handleSubmit = async () => {
     if (!selectedAnswer) return;
+    if (isCompletingRef.current) return;
+    if (isLastQuestion) isCompletingRef.current = true;
     
     const responseTime = Date.now() - questionStartTime;
     const isCorrect = selectedAnswer === currentQuestion.correctAnswer;
@@ -101,6 +104,20 @@ const QuizChallenge = () => {
       }, 200);
     }
   };
+  
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
+  
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Enter' && selectedAnswer && !isCompletingRef.current && !e.target.matches('input, textarea')) {
+        e.preventDefault();
+        handleSubmitRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedAnswer]);
   
   const finishQuiz = async (allResponses) => {
     completeLiteracyTest();
