@@ -8,6 +8,8 @@ import usePerformanceMetrics from '../../../hooks/usePerformanceMetrics';
 import auraIntegration from '../../../utils/auraIntegration';
 import { CloudFog, Flame, Play, Target } from 'lucide-react';
 
+const MAX_WAVES = 3;
+
 const FOG_PATTERNS = [
   { speed: 1.5, spawnInterval: 1200, duration: 20000, pattern: [0, 1, 2, 3, 4, 0, 2, 4, 1, 3, 2, 0, 4, 1, 3] },
   { speed: 2.5, spawnInterval: 900, duration: 20000, pattern: [1, 3, 0, 4, 2, 1, 3, 0, 2, 4, 1, 0, 3, 2, 4, 1, 3] },
@@ -30,8 +32,9 @@ const MotorChallenge = () => {
   const perfMetrics = usePerformanceMetrics();
   
   const savedProgress = state.challengeProgress?.motorSkills || {};
+  const initialWave = Math.min(MAX_WAVES, Math.max(1, savedProgress.currentRound || 1));
   
-  const [currentWave, setCurrentWave] = useState(savedProgress.currentRound || 1);
+  const [currentWave, setCurrentWave] = useState(initialWave);
   const [isPlaying, setIsPlaying] = useState(false);
   const [fogOrbs, setFogOrbs] = useState([]);
   const [timeRemaining, setTimeRemaining] = useState(20);
@@ -66,7 +69,7 @@ const MotorChallenge = () => {
   useEffect(() => {
     if (currentWave > 1 || displayTotalStats.hits > 0) {
       updateChallengeProgress('motorSkills', {
-        currentRound: currentWave,
+        currentRound: Math.min(MAX_WAVES, Math.max(1, currentWave)),
         totalStats: displayTotalStats,
       });
     }
@@ -197,7 +200,7 @@ const MotorChallenge = () => {
     setMotorRound(currentWave);
     
     if (motorTrackerRef.current) {
-      motorTrackerRef.current.round = currentWave;
+      motorTrackerRef.current.round = Math.min(MAX_WAVES, Math.max(1, currentWave));
     }
     
     if (currentWave === 1) {
@@ -255,9 +258,9 @@ const MotorChallenge = () => {
     orbsRef.current = [];
     setFogOrbs([]);
     
-    if (currentWave < 3) {
+    if (currentWave < MAX_WAVES) {
       setTimeout(() => {
-        const nextWave = currentWave + 1;
+        const nextWave = Math.min(MAX_WAVES, currentWave + 1);
         setCurrentWave(nextWave);
         setShowWaveIntro(true);
         isEndingWaveRef.current = false;
@@ -333,7 +336,7 @@ const MotorChallenge = () => {
         >
           <CloudFog className="w-5 h-5" style={{ color: 'var(--primary-color)' }} />
           <span className="text-sm font-medium" style={{ color: 'var(--primary-color)' }}>
-            Wave {currentWave} of 3
+            Wave {currentWave} of {MAX_WAVES}
           </span>
         </div>
         
@@ -350,7 +353,7 @@ const MotorChallenge = () => {
         </p>
         
         <div className="flex justify-center gap-2 mb-8">
-          {[1, 2, 3].map((wave) => (
+          {Array.from({ length: MAX_WAVES }, (_, i) => i + 1).map((wave) => (
             <div
               key={wave}
               className={`h-3 rounded-full transition-all duration-300 ${
