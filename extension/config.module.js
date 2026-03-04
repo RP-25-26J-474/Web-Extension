@@ -46,6 +46,12 @@ export const API_CONFIG = {
   // Dummy URL – replace with actual ML profile API when integrated.
   // When token exists, extension fetches this daily and stores as AURA_EXT_ML_PERSONALIZED_PROFILE.
   ML_PROFILE_API_URL: 'https://ml-profile.example.com/api/profile',
+
+  // ===== IMPAIRMENT → ML PROFILE – Initial fetch on registration =====
+  // Dummy URL – replace with actual API when integrated.
+  // When impairment profile is created (onboarding completes), extension POSTs impairment JSON
+  // to this API and receives { profile } in response. Stored as AURA_EXT_ML_PERSONALIZED_PROFILE.
+  IMPAIRMENT_TO_ML_PROFILE_API_URL: 'https://impairment-to-ml.example.com/api/profile-from-impairment',
 };
 
 
