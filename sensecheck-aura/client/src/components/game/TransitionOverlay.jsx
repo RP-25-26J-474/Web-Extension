@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useGame, PROFILE_TRAITS } from '../../context/GameContext';
 import { Palette, Focus, CloudFog, Zap, ChevronRight, Sparkles } from 'lucide-react';
 
@@ -37,6 +37,19 @@ const TransitionOverlay = () => {
       setTimeout(() => setAnimationPhase('exiting'), 2200);
     }
   }, [state.showingTransition]);
+
+  const handleKeyDown = useCallback((e) => {
+    if (state.showingTransition && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, [state.showingTransition]);
+
+  useEffect(() => {
+    if (!state.showingTransition) return;
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [state.showingTransition, handleKeyDown]);
   
   if (!state.showingTransition) return null;
   

@@ -65,6 +65,7 @@ const onboardingVisionResultSchema = new mongoose.Schema({
   // Visual Acuity Test Results
   visualAcuity: {
     attempts: [visualAcuityAttemptSchema],
+    finalLevel: Number, // 1-7, needed for severe-impairment detection (failed level 1)
     finalResolvedSize: Number, // in pixels
     visualAngle: Number, // in degrees
     mar: Number, // Minimum Angle of Resolution

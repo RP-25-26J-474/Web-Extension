@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGame } from '../../../context/GameContext';
 import { useTheme } from '../../../context/ThemeContext';
 import useStore from '../../../state/store';
@@ -36,6 +36,7 @@ const ColorChallenge = () => {
   const [plateStartTime, setPlateStartTime] = useState(Date.now());
   const [plates, setPlates] = useState(savedProgress.plates || []);
   const [isAnimating, setIsAnimating] = useState(false);
+  const isCompletingRef = useRef(false);
   
   const currentPlate = ISHIHARA_PLATES[currentPlateIndex];
   const isLastPlate = currentPlateIndex === ISHIHARA_PLATES.length - 1;
@@ -65,6 +66,8 @@ const ColorChallenge = () => {
   
   const handleSubmit = async () => {
     if (!userAnswer.trim()) return;
+    if (isCompletingRef.current) return;
+    if (isLastPlate) isCompletingRef.current = true;
     
     const responseTime = Date.now() - plateStartTime;
     const plateData = {

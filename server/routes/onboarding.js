@@ -39,6 +39,36 @@ function getFirstFinite(...values) {
   return null;
 }
 
+// Ishihara plate definitions (match client colorBlindnessAnalysis) – for severe vision impairment detection
+const ISHIHARA_PLATES = [
+  { plateId: 1, normalAnswer: '12', colorBlindAnswer: '12' },
+  { plateId: 2, normalAnswer: '6', colorBlindAnswer: '5' },
+  { plateId: 3, normalAnswer: '6', colorBlindAnswer: 'nothing' },
+  { plateId: 4, normalAnswer: 'nothing', colorBlindAnswer: '2' },
+];
+
+function isSevereVisionImpairment(visionResult) {
+  if (!visionResult) return false;
+  const plates = visionResult.colorBlindness?.plates;
+  const attempts = visionResult.visualAcuity?.attempts;
+  const finalLevel = visionResult.visualAcuity?.finalLevel;
+  if (!plates?.length || !Array.isArray(attempts)) return false;
+  let normalCount = 0;
+  let colorBlindCount = 0;
+  plates.forEach((p, i) => {
+    const def = ISHIHARA_PLATES[i];
+    if (!def) return;
+    const ua = String(p.userAnswer || '').toLowerCase().trim();
+    const norm = String(def.normalAnswer).toLowerCase();
+    const cb = String(def.colorBlindAnswer).toLowerCase();
+    if (ua === norm) normalCount++;
+    else if (ua === cb) colorBlindCount++;
+  });
+  const failedAllIshihara = normalCount === 0 && colorBlindCount === 0;
+  const failedFirstAcuity = finalLevel === 1 && attempts.length > 0 && attempts.every(a => a.isCorrect === false);
+  return failedAllIshihara && failedFirstAcuity;
+}
+
 function parseOS(userAgent) {
   if (!userAgent) return null;
 
@@ -745,7 +775,8 @@ router.get('/impairment-profile', authMiddleware, async (req, res) => {
       OnboardingVisionResult.findOne({ userId: req.userId }),
     ]);
 
-    const visionLossScore = visionResult?.overallScore;
+    const severeImpairment = isSevereVisionImpairment(visionResult);
+    const visionLossScore = severeImpairment ? 100 : visionResult?.overallScore;
     const colorBlindnessScore = visionResult?.colorBlindness?.colorVisionScore;
     const literacyScore = literacyResult?.score?.computerLiteracyScore;
     const existingHitRate = toFiniteNumber(profile?.onboarding_metrics?.hit_rate);

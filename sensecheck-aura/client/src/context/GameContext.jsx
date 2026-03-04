@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import useStore from '../state/store';
 import auraIntegration from '../utils/auraIntegration';
 
@@ -347,7 +347,12 @@ export function GameProvider({ children }) {
     dispatch({ type: ACTIONS.SET_PHASE, payload: phase });
   }, []);
   
+  const completingRef = useRef(false);
   const completeChallenge = useCallback(async (challengeId, results) => {
+    if (completingRef.current) return;
+    if (state.completedChallenges.includes(challengeId)) return;
+    completingRef.current = true;
+    try {
     // Save result
     dispatch({ 
       type: ACTIONS.SAVE_CHALLENGE_RESULT, 
@@ -388,7 +393,10 @@ export function GameProvider({ children }) {
       const nextPhase = CHALLENGE_ORDER[currentIndex + 1];
       dispatch({ type: ACTIONS.SET_PHASE, payload: nextPhase });
     }
-  }, [state.completedChallenges.length]);
+    } finally {
+      completingRef.current = false;
+    }
+  }, [state.completedChallenges.length, state.completedChallenges]);
   
   const recordCorrectAnswer = useCallback((responseTime) => {
     dispatch({ type: ACTIONS.INCREMENT_STREAK });

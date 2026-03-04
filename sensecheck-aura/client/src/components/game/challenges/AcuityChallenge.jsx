@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useGame } from '../../../context/GameContext';
 import { useTheme } from '../../../context/ThemeContext';
 import useStore from '../../../state/store';
@@ -55,6 +55,7 @@ const AcuityChallenge = () => {
   const [attemptStartTime, setAttemptStartTime] = useState(Date.now());
   const [lastCorrectLevel, setLastCorrectLevel] = useState(savedProgress.lastCorrectLevel || 1);
   const [attempts, setAttempts] = useState(savedProgress.attempts || []);
+  const isCompletingRef = useRef(false);
   
   const currentSize = levelSizes[currentLevel - 1];
   
@@ -87,9 +88,13 @@ const AcuityChallenge = () => {
   
   const handleSubmit = async () => {
     if (!userAnswer.trim()) return;
+    if (isCompletingRef.current) return;
+    
+    const isCorrect = parseInt(userAnswer) === currentNumber;
+    const willComplete = (currentLevel >= 7 && isCorrect) || (attemptNumber === 2 && !isCorrect);
+    if (willComplete) isCompletingRef.current = true;
     
     const responseTime = Date.now() - attemptStartTime;
-    const isCorrect = parseInt(userAnswer) === currentNumber;
     
     const attemptData = {
       level: currentLevel,
