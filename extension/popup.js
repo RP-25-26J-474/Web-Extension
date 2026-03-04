@@ -476,8 +476,8 @@ async function handleRegister() {
     return;
   }
   
-  if (age < 1 || age > 120) {
-    errorDiv.textContent = 'Please enter a valid age (1-120)';
+  if (age < 18 || age > 120) {
+    errorDiv.textContent = 'Please enter a valid age (18-120)';
     errorDiv.style.display = 'block';
     return;
   }

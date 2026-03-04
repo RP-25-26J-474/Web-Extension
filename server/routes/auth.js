@@ -16,7 +16,7 @@ router.post('/register', [
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 6 }),
   body('name').trim().notEmpty(),
-  body('age').isInt({ min: 1, max: 120 }),
+  body('age').isInt({ min: 18, max: 120 }),
   body('gender').isIn(['male', 'female', 'other', 'prefer-not-to-say'])
 ], async (req, res) => {
   try {
