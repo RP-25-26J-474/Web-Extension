@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const Interaction = require('../models/Interaction');
 const Stats = require('../models/Stats');
 const AggregatedInteractionBatch = require('../models/AggregatedInteractionBatch');
+const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 
 // Save interactions (batch)
@@ -171,6 +174,51 @@ router.delete('/clear', authMiddleware, async (req, res) => {
 // ===== AGGREGATED BATCHES ENDPOINTS =====
 
 /**
+ * Resolve user id from either query param (?user_id=...) or Bearer token.
+ * Query param takes priority to support integrations that do not use tokens.
+ */
+async function resolveAggregatedBatchesUserId(req) {
+  const queryUserId = req.query.user_id || req.query.userId;
+  if (queryUserId) {
+    if (!mongoose.Types.ObjectId.isValid(queryUserId)) {
+      const err = new Error('Invalid user_id query parameter');
+      err.status = 400;
+      throw err;
+    }
+    return queryUserId;
+  }
+
+  let token = req.header('Authorization')?.replace('Bearer ', '');
+  if (!token && req.query.token) {
+    token = req.query.token;
+  }
+
+  if (!token) {
+    const err = new Error('Provide either user_id query parameter or authentication token');
+    err.status = 400;
+    throw err;
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch (verifyError) {
+    const err = new Error('Invalid or expired token');
+    err.status = 401;
+    throw err;
+  }
+
+  const user = await User.findById(decoded.userId).select('_id').lean();
+  if (!user) {
+    const err = new Error('User not found');
+    err.status = 401;
+    throw err;
+  }
+
+  return user._id;
+}
+
+/**
  * Save aggregated interaction batches (10-second windows)
  * POST /api/interactions/aggregated-batches
  * 
@@ -282,20 +330,23 @@ router.post('/aggregated-batches', authMiddleware, async (req, res) => {
 });
 
 /**
- * Get aggregated batches for the authenticated user in the last 24 hours
+ * Get aggregated batches in the last 24 hours by user_id or token
  * GET /api/interactions/aggregated-batches/last-24h
  *
- * Integration endpoint: Call with Bearer token to get user's batches for the past 24h.
+ * Integration endpoint: Call with user_id query OR Bearer token.
  * Use this for ML pipelines, dashboards, or any component that needs recent interaction data.
  * Poll every 30 seconds to stay in sync with extension batch sync.
  *
  *   GET /api/interactions/aggregated-batches/last-24h
+ *   Query: user_id=<mongodb_user_id> (preferred for integrations)
+ *   Or headers/query token:
  *   Headers: Authorization: Bearer <token>
  *   Response: { batches: [...], count: N }
  */
-router.get('/aggregated-batches/last-24h', authMiddleware, async (req, res) => {
+router.get('/aggregated-batches/last-24h', async (req, res) => {
   try {
-    const batches = await AggregatedInteractionBatch.getUserBatchesLast24h(req.userId);
+    const userId = await resolveAggregatedBatchesUserId(req);
+    const batches = await AggregatedInteractionBatch.getUserBatchesLast24h(userId);
 
     res.json({
       batches,
@@ -303,7 +354,7 @@ router.get('/aggregated-batches/last-24h', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error('Get aggregated batches (last 24h) error:', error);
-    res.status(500).json({ error: 'Failed to get aggregated batches' });
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get aggregated batches' });
   }
 });
 
