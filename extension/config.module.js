@@ -51,7 +51,7 @@ export const API_CONFIG = {
   // For local testing: use dummy-ml-profile POST endpoint. Extension POSTs impairment JSON
   // when onboarding completes; receives { profile } in response.
   // Production: replace with actual API.
-  IMPAIRMENT_TO_ML_PROFILE_API_URL: 'http://localhost:4000/api/profile-from-impairment',
+  IMPAIRMENT_TO_ML_PROFILE_API_URL: 'http://localhost:8000/category/generate-profile',
 };
 
 
