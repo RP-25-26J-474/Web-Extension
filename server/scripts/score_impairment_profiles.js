@@ -120,13 +120,13 @@ async function main() {
         continue;
       }
       const impairmentScore = score.result?.motor_profile?.impairment_score;
-      const latentScore = score.result?.motor_profile?.latent_score;
+      const delayed_reaction_ms = score.result?.reaction_analysis?.delayed_reaction_ms;
 
       const profile = toPlainObject(doc);
       profile.user_id = profile.user_id || String(resolvedUserId);
       profile.impairment_probs = profile.impairment_probs || {};
       profile.impairment_probs.motor = profile.impairment_probs.motor || {};
-      profile.impairment_probs.motor.delayed_reaction = latentScore;
+      profile.impairment_probs.motor.delayed_reaction = delayed_reaction_ms;
       profile.impairment_probs.motor.impairment_score = impairmentScore;
 
       results.push(profile);
