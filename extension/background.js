@@ -130,7 +130,7 @@ chrome.storage.onChanged.addListener(async (changes, namespace) => {
 });
 
 // ========== ML PERSONALIZED PROFILE – Daily fetch ==========
-// When token exists, fetch profile from separate ML component daily.
+// For logged-in users, fetch profile from separate ML component daily using user_id.
 // Stored as AURA_EXT_ML_PERSONALIZED_PROFILE (no backend in extension – fetches from external API).
 const ML_PROFILE_ALARM = 'aura-ml-profile-daily';
 
@@ -151,13 +151,13 @@ function cancelMlProfileFetch() {
 
 async function fetchMlPersonalizedProfile() {
   try {
-    const result = await chrome.storage.local.get(['authToken', 'userId']);
-    if (!result.authToken) return;
+    const result = await chrome.storage.local.get(['userId']);
+    if (!result.userId) return;
 
-    const url = API_CONFIG.ML_PROFILE_API_URL || 'https://ml-profile.example.com/api/profile';
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${result.authToken}` },
-    });
+    const baseUrl = API_CONFIG.ML_PROFILE_API_URL || 'http://localhost:8000/data/current-profile';
+    const separator = baseUrl.includes('?') ? '&' : '?';
+    const url = `${baseUrl}${separator}user_id=${encodeURIComponent(result.userId)}`;
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`ML profile API returned ${res.status}`);
     const json = await res.json();
     // Only store if we have a valid profile (daily GET API has no data for new users until ~24h)
