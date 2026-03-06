@@ -359,6 +359,32 @@ router.get('/aggregated-batches/last-24h', async (req, res) => {
 });
 
 /**
+ * Get all active user_ids in the last 24 hours
+ * GET /api/interactions/active-users/last-24h
+ *
+ * A user is considered active if at least one aggregated batch exists
+ * in the 24-hour window ending at request time.
+ */
+router.get('/active-users/last-24h', async (req, res) => {
+  try {
+    const user_ids = await AggregatedInteractionBatch.getActiveUserIdsLast24h();
+    const now = new Date();
+
+    res.json({
+      user_ids,
+      count: user_ids.length,
+      window: {
+        start: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+        end: now.toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('Get active users (last 24h) error:', error);
+    res.status(500).json({ error: 'Failed to get active users' });
+  }
+});
+
+/**
  * Get aggregated batches for a user in a time range
  * GET /api/interactions/aggregated-batches?start=2025-01-01&end=2025-12-31
  *
