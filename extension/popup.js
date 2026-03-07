@@ -151,63 +151,16 @@ function showOnboardingPrompt(user) {
     onboardingPrompt.innerHTML = `
       <div class="onboarding-prompt">
         <div class="welcome-badge">
-          <span class="welcome-emoji">🔦</span>
+          <span class="welcome-emoji">✨</span>
         </div>
-        <h2>Welcome ${userName}!</h2>
+        <h2>Welcome, ${userName}!</h2>
         <p class="onboarding-description">
-          Ready to restore the lighthouse? Four assessment tasks await to help us 
-          personalize your experience and build your AURA profile.
+          A short assessment (~5 min) helps us build your personalized AURA profile.
         </p>
-        
-        <div class="game-cards-grid">
-          <div class="game-card">
-            <div class="game-card-icon">🎨</div>
-            <div class="game-card-content">
-              <h3>Calibrate the Light Colors</h3>
-              <p>Align the prism so signals are not lost</p>
-            </div>
-          </div>
-          <div class="game-card">
-            <div class="game-card-icon">🔍</div>
-            <div class="game-card-content">
-              <h3>Focus the Beam</h3>
-              <p>Sharpen the light to reach distant signals</p>
-            </div>
-          </div>
-          <div class="game-card">
-            <div class="game-card-icon">💨</div>
-            <div class="game-card-content">
-              <h3>Clear the Rising Fog</h3>
-              <p>Remove corrupted data blocking the path</p>
-            </div>
-          </div>
-          <div class="game-card">
-            <div class="game-card-icon">⚙️</div>
-            <div class="game-card-content">
-              <h3>Restore the Control Panel</h3>
-              <p>Make correct operational decisions</p>
-            </div>
-          </div>
-        </div>
-        
-        <div class="onboarding-features">
-          <div class="feature-item">
-            <span class="feature-icon">⏱️</span>
-            <span>About 5 minutes</span>
-          </div>
-          <div class="feature-item">
-            <span class="feature-icon">🔒</span>
-            <span>100% Private</span>
-          </div>
-          <div class="feature-item">
-            <span class="feature-icon">✨</span>
-            <span>Personalized profile</span>
-          </div>
-        </div>
-        
+        <p class="onboarding-subtext">Private • Opens in a new tab</p>
         <div class="onboarding-actions">
           <button id="startOnboardingBtn" class="btn btn-primary full-width btn-glow" aria-label="Start onboarding game - opens in new tab">
-            <span class="btn-text">Let's Play!</span>
+            <span class="btn-text">Let's Play</span>
             <span class="btn-arrow" aria-hidden="true">→</span>
           </button>
         </div>
@@ -592,14 +545,8 @@ async function handleCompleteVerification() {
       chrome.runtime.sendMessage({ type: 'INIT_TRACKING' }).catch(() => {});
     }
 
-    chrome.runtime.sendMessage({
-      type: 'BROADCAST_USER_LOGIN',
-      token: data.token,
-      user: { email: data.user.email ?? null, name: data.user.name ?? null },
-      source: 'registration',
-      isRegistration: true,
-    }).catch(() => {});
-    chrome.runtime.sendMessage({ type: 'FETCH_ML_PERSONALIZED_PROFILE' }).catch(() => {});
+    // Do NOT broadcast here – broadcast happens only when onboarding game completes (ONBOARDING_COMPLETE)
+    // Other components have no use for the user until the profile is built
 
     showNotification('Email verified! Welcome.', 'success');
     showConsentSection();

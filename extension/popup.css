@@ -30,9 +30,9 @@ body {
   line-height: 1.5;
   color: var(--text-primary);
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-  width: 400px;
-  min-height: 500px;
-  max-height: 600px;
+  width: 440px;
+  min-height: 580px;
+  max-height: 740px;
   overflow-y: auto;
 }
 
@@ -306,8 +306,13 @@ header h1 {
 
 .consent-buttons {
   display: flex;
-  gap: 10px;
-  margin-top: 20px;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.consent-buttons .btn {
+  margin: 0;
 }
 
 /* Status Section */
@@ -758,66 +763,14 @@ footer {
 .onboarding-description {
   color: var(--text-secondary);
   line-height: 1.6;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.75rem;
   font-size: 1rem;
 }
 
-/* Game Cards Grid – matches onboarding game card style */
-.game-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-
-.game-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border: 2px solid var(--border-subtle);
-  border-radius: 1rem;
-  padding: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  transition: all 0.3s ease;
-  cursor: default;
-}
-
-.game-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(139, 197, 63, 0.4);
-  box-shadow: 0 6px 20px var(--primary-glow);
-}
-
-.game-card-icon {
-  font-size: 1.75rem;
-  flex-shrink: 0;
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, rgba(139, 197, 63, 0.12) 0%, rgba(168, 214, 101, 0.08) 100%);
-  border-radius: 0.75rem;
-}
-
-.game-card-content {
-  text-align: left;
-}
-
-.game-card-content h3 {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 0.25rem 0;
-}
-
-.game-card-content p {
+.onboarding-subtext {
   font-size: 0.875rem;
-  color: var(--text-secondary);
-  margin: 0;
-  line-height: 1.4;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
 }
 
 /* Features Row */
@@ -956,7 +909,6 @@ footer {
   }
   
   .btn:hover,
-  .game-card:hover,
   .stat-item:hover,
   .test-card:hover {
     transform: none;
