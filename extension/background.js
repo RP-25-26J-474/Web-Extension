@@ -335,6 +335,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         broadcastToAllTabs({
           type: 'USER_LOGGED_IN',
           token: result.authToken,
+          userId: result.userId,
           user: result.userProfile ? { email: result.userProfile.email, name: result.userProfile.name } : null,
           onboardingComplete: true,
           source: 'registration',
@@ -358,6 +359,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     broadcastToAllTabs({
       type: 'USER_LOGGED_IN',
       token: message.token,
+      userId: message.userId,
       user: message.user,
       source: message.source || 'login',
     });

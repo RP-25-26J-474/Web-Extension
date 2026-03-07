@@ -31,14 +31,21 @@ document.addEventListener('DOMContentLoaded', async function() {
   try {
     const userData = await apiClient.getCurrentUser();
     
-    // CRITICAL: Sync consent and tracking settings from server to local storage
-    // This ensures settings are always in sync, even after logout/login
-    console.log('📥 Syncing user settings from server...');
+    // CRITICAL: Sync user profile and settings from server to local storage
+    // This ensures settings and userId are always in sync, even after a browser restart
+    console.log('📥 Syncing user profile and settings from server...');
     await chrome.storage.local.set({
+      userId: userData.user._id,
       consentGiven: userData.user.consentGiven || false,
-      trackingEnabled: userData.user.trackingEnabled || false
+      trackingEnabled: userData.user.trackingEnabled || false,
+      userProfile: {
+        userId: userData.user._id,
+        email: userData.user.email ?? null,
+        name: userData.user.name ?? null,
+      }
     });
     console.log('✅ Settings synced:', {
+      userId: userData.user._id,
       consentGiven: userData.user.consentGiven,
       trackingEnabled: userData.user.trackingEnabled
     });
@@ -400,12 +407,13 @@ async function handleLogin() {
     // CRITICAL: Sync consent and tracking settings from server to local storage
     // Include userId so aggregator and background have it immediately (avoids race with api-client setToken)
     console.log('📥 Syncing user settings from server...');
+    const activeUserId = data.user._id || data.user.id;
     await chrome.storage.local.set({
-      userId: data.user._id,
+      userId: activeUserId,
       consentGiven: data.user.consentGiven || false,
       trackingEnabled: data.user.trackingEnabled || false,
       userProfile: {
-        userId: data.user._id,
+        userId: activeUserId,
         email: data.user.email ?? null,
         name: data.user.name ?? null,
       },
@@ -430,10 +438,11 @@ async function handleLogin() {
       showConsentSection();
     }
     
-    // Notify other components (tabs with sensecheck, dashboard, etc.) - broadcast token, not userId
+    // Notify other components (tabs with sensecheck, dashboard, etc.) - broadcast token and userId
     chrome.runtime.sendMessage({
       type: 'BROADCAST_USER_LOGIN',
       token: data.token,
+      userId: activeUserId,
       user: {
         email: data.user.email ?? null,
         name: data.user.name ?? null,
