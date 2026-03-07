@@ -43,6 +43,14 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  verificationCompleteCode: {
+    type: String,
+    default: null
+  },
+  verificationCompleteCodeExpires: {
+    type: Date,
+    default: null
+  },
   consentGiven: {
     type: Boolean,
     default: false

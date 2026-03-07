@@ -90,6 +90,17 @@ class APIClient {
     });
   }
 
+  async completeVerification(email, code) {
+    const data = await this.request(API_CONFIG.ENDPOINTS.COMPLETE_VERIFICATION, {
+      method: 'POST',
+      body: JSON.stringify({ email, code })
+    });
+    if (data.token) {
+      await this.setToken(data.token);
+    }
+    return data;
+  }
+
   async login(email, password) {
     const data = await this.request(API_CONFIG.ENDPOINTS.LOGIN, {
       method: 'POST',

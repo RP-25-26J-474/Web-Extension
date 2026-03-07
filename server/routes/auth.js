@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
+const crypto = require('crypto');
 const User = require('../models/User');
 const Stats = require('../models/Stats');
 const authMiddleware = require('../middleware/auth');
@@ -86,21 +87,35 @@ router.get('/verify-email', async (req, res) => {
     user.emailVerified = true;
     user.emailVerificationToken = null;
     user.emailVerificationExpires = null;
+
+    // Generate 6-digit code so extension can complete registration without login
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const codeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+    user.verificationCompleteCode = code;
+    user.verificationCompleteCodeExpires = codeExpires;
     await user.save();
 
-    res.send(renderVerificationPage(true));
+    res.send(renderVerificationPage(true, code));
   } catch (error) {
     console.error('Verify email error:', error);
     res.status(500).send(renderVerificationPage(false, 'Verification failed'));
   }
 });
 
-function renderVerificationPage(success, errorMessage) {
+function renderVerificationPage(success, codeOrError) {
   const title = success ? 'Email Verified!' : 'Verification Failed';
-  const message = success
-    ? 'Your email has been verified. You can now log in to the AURA extension.'
-    : (errorMessage || 'Something went wrong.');
   const isSuccess = success;
+  let bodyContent = '';
+  if (success && codeOrError) {
+    bodyContent = `
+  <p>Return to the AURA extension and enter this code to continue:</p>
+  <p style="font-size:2rem;font-weight:700;letter-spacing:0.5em;color:#16a34a;margin:16px 0">${codeOrError}</p>
+  <p style="font-size:0.875rem;color:#64748b">Code expires in 10 minutes. You can close this tab after entering it.</p>`;
+  } else if (success) {
+    bodyContent = '<p>Return to the AURA extension and click Continue.</p>';
+  } else {
+    bodyContent = `<p>${codeOrError || 'Something went wrong.'}</p>`;
+  }
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>${title}</title>
@@ -108,13 +123,11 @@ function renderVerificationPage(success, errorMessage) {
   body{font-family:system-ui,sans-serif;max-width:480px;margin:60px auto;padding:24px;text-align:center;background:#f8fafc;}
   h1{color:${isSuccess ? '#16a34a' : '#dc2626'};}
   p{color:#475569;line-height:1.6;}
-  a{color:#8BC53F;text-decoration:none;font-weight:600;}
 </style>
 </head>
 <body>
   <h1>${title}</h1>
-  <p>${message}</p>
-  ${success ? '<p><a href="#">Close this tab and log in from the AURA extension.</a></p>' : ''}
+  ${bodyContent}
 </body>
 </html>`;
 }
@@ -165,6 +178,50 @@ router.post('/login', [
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Failed to login' });
+  }
+});
+
+// Complete verification with code (no login – continues registration flow)
+router.post('/complete-verification', [
+  body('email').isEmail().normalizeEmail(),
+  body('code').isLength({ min: 6, max: 6 }).trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email, code } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid email or code' });
+    }
+
+    if (!user.emailVerified) {
+      return res.status(400).json({ error: 'Email not verified yet. Click the link in your email first.' });
+    }
+
+    if (user.verificationCompleteCode !== code || !user.verificationCompleteCodeExpires || user.verificationCompleteCodeExpires < new Date()) {
+      return res.status(400).json({ error: 'Invalid or expired code. Request a new verification email.' });
+    }
+
+    user.verificationCompleteCode = null;
+    user.verificationCompleteCodeExpires = null;
+    user.lastLogin = new Date();
+    await user.save();
+
+    const token = generateToken(user._id);
+
+    res.json({
+      message: 'Verification complete. Welcome!',
+      user: user.toJSON(),
+      token
+    });
+  } catch (error) {
+    console.error('Complete verification error:', error);
+    res.status(500).json({ error: 'Failed to complete verification' });
   }
 });
 

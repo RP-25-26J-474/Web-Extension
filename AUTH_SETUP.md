@@ -1,6 +1,6 @@
 # AURA Authentication Setup
 
-Email verification for the AURA Chrome extension. Users register with email/password and must verify their email before logging in.
+Email verification for the AURA Chrome extension. Users register with email/password and must verify their email before continuing. Verification completes the registration flow (no separate login).
 
 ## Email Verification Setup
 
@@ -26,7 +26,7 @@ SMTP_FROM="AURA Dev" <your-email@gmail.com>
 
 Set `EMAIL_VERIFICATION_BASE_URL=http://localhost:3000` so the verification link points to your local server.
 
-**Option B: Mailtrap** (sandbox – no real emails sent) (sandbox – no real emails sent)
+**Option B: Mailtrap** (sandbox – no real emails sent)
 
 1. Sign up at [mailtrap.io](https://mailtrap.io)
 2. Create an inbox → copy SMTP credentials from the "Integrations" tab
@@ -87,5 +87,6 @@ Or use `BASE_URL` if it matches your API base. The verification link will be:
 ## Flow Summary
 
 1. **Register** → User receives verification email (or link in console for dev)
-2. **Verify** → User clicks link → email marked verified
-3. **Login** → User can log in and proceed to consent → onboarding
+2. **Verify** → User clicks link → success page shows 6-digit code
+3. **Continue** → User enters code in extension, clicks Continue → proceeds to consent → onboarding (no login)
+4. **Login** (returning users) → Use Login tab to sign in

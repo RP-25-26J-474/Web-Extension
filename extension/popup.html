@@ -101,11 +101,16 @@
       <div class="consent-box">
         <h2>Verify Your Email</h2>
         <p id="verifyEmailMessage">We sent a verification link to <strong id="verifyEmailAddress"></strong>.</p>
-        <p class="auth-description">Click the link in the email to verify your account, then return here and log in.</p>
-        <p class="privacy-note">📧 Didn't receive the email? Check your spam folder or resend below.</p>
+        <p class="auth-description">Click the link in the email. On the success page you'll see a 6-digit code. Enter it below and click Continue.</p>
+        <div class="form-group">
+          <label for="verifyCodeInput">Verification code</label>
+          <input type="text" id="verifyCodeInput" placeholder="123456" maxlength="6" pattern="[0-9]*" inputmode="numeric" autocomplete="one-time-code">
+        </div>
+        <div id="verifyCodeError" class="error-message" style="display: none;"></div>
         <div class="consent-buttons">
+          <button id="continueVerifyBtn" class="btn btn-primary full-width">Continue</button>
           <button id="resendVerifyBtn" class="btn btn-secondary full-width">Resend Verification Email</button>
-          <button id="backToLoginFromVerify" class="btn btn-primary full-width">Back to Login</button>
+          <button id="backToLoginFromVerify" class="btn btn-small btn-secondary">Already verified? Log in</button>
         </div>
       </div>
     </div>

@@ -367,6 +367,7 @@ function initializeEventListeners() {
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
   
   // Verify section buttons
+  document.getElementById('continueVerifyBtn')?.addEventListener('click', handleCompleteVerification);
   document.getElementById('resendVerifyBtn')?.addEventListener('click', handleResendVerification);
   document.getElementById('backToLoginFromVerify')?.addEventListener('click', () => {
     showAuthSection();
@@ -547,6 +548,69 @@ async function handleRegister() {
   } finally {
     document.getElementById('registerBtn').disabled = false;
     document.getElementById('registerBtn').textContent = 'Create Account';
+  }
+}
+
+// Handle complete verification (code from email – continues registration, no login)
+async function handleCompleteVerification() {
+  const emailEl = document.getElementById('verifyEmailAddress');
+  const email = emailEl ? emailEl.textContent.trim() : '';
+  const codeInput = document.getElementById('verifyCodeInput');
+  const code = codeInput ? codeInput.value.trim().replace(/\D/g, '').slice(0, 6) : '';
+  const errorEl = document.getElementById('verifyCodeError');
+  const btn = document.getElementById('continueVerifyBtn');
+
+  if (!email) {
+    showNotification('Email not found. Please register again.', 'error');
+    return;
+  }
+  if (code.length !== 6) {
+    if (errorEl) {
+      errorEl.textContent = 'Enter the 6-digit code from the verification page';
+      errorEl.style.display = 'block';
+    }
+    return;
+  }
+
+  try {
+    if (errorEl) errorEl.style.display = 'none';
+    if (btn) { btn.disabled = true; btn.textContent = 'Verifying...'; }
+    const data = await apiClient.completeVerification(email, code);
+
+    await chrome.storage.local.set({
+      userId: data.user._id,
+      consentGiven: data.user.consentGiven || false,
+      trackingEnabled: data.user.trackingEnabled || false,
+      userProfile: {
+        userId: data.user._id,
+        email: data.user.email ?? null,
+        name: data.user.name ?? null,
+      },
+    });
+
+    if (data.user.trackingEnabled) {
+      chrome.runtime.sendMessage({ type: 'INIT_TRACKING' }).catch(() => {});
+    }
+
+    chrome.runtime.sendMessage({
+      type: 'BROADCAST_USER_LOGIN',
+      token: data.token,
+      user: { email: data.user.email ?? null, name: data.user.name ?? null },
+      source: 'registration',
+      isRegistration: true,
+    }).catch(() => {});
+    chrome.runtime.sendMessage({ type: 'FETCH_ML_PERSONALIZED_PROFILE' }).catch(() => {});
+
+    showNotification('Email verified! Welcome.', 'success');
+    showConsentSection();
+  } catch (error) {
+    if (errorEl) {
+      errorEl.textContent = error.message || 'Invalid or expired code. Try resending the verification email.';
+      errorEl.style.display = 'block';
+    }
+    showNotification(error.message || 'Verification failed', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Continue'; }
   }
 }
 
