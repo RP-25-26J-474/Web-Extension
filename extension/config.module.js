@@ -10,6 +10,7 @@ export const API_CONFIG = {
   
   ENDPOINTS: {
     REGISTER: '/auth/register',
+    RESEND_VERIFICATION: '/auth/resend-verification',
     LOGIN: '/auth/login',
     LOGOUT: '/auth/logout',
     ME: '/auth/me',

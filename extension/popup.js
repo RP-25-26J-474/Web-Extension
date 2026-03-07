@@ -91,8 +91,19 @@ document.addEventListener('DOMContentLoaded', async function() {
 function showAuthSection() {
   console.log('📝 Showing auth section');
   document.getElementById('authSection').style.display = 'block';
+  document.getElementById('verifySection').style.display = 'none';
   document.getElementById('consentSection').style.display = 'none';
   document.getElementById('mainContent').style.display = 'none';
+}
+
+// Show verify-email-pending section (after register or when login fails with EMAIL_NOT_VERIFIED)
+function showVerifyPendingSection(email) {
+  console.log('📧 Showing verify pending for:', email);
+  document.getElementById('authSection').style.display = 'none';
+  document.getElementById('verifySection').style.display = 'block';
+  document.getElementById('consentSection').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'none';
+  document.getElementById('verifyEmailAddress').textContent = email;
 }
 
 // Show onboarding prompt
@@ -105,7 +116,9 @@ function showOnboardingPrompt(user) {
     const consentSection = document.getElementById('consentSection');
     const mainContent = document.getElementById('mainContent');
     
+    const verifySection = document.getElementById('verifySection');
     if (authSection) authSection.style.display = 'none';
+    if (verifySection) verifySection.style.display = 'none';
     if (consentSection) consentSection.style.display = 'none';
     if (mainContent) mainContent.style.display = 'none';
     
@@ -283,6 +296,7 @@ async function startOnboardingGame() {
 // Show consent section
 function showConsentSection() {
   document.getElementById('authSection').style.display = 'none';
+  document.getElementById('verifySection').style.display = 'none';
   document.getElementById('consentSection').style.display = 'block';
   document.getElementById('mainContent').style.display = 'none';
 }
@@ -290,6 +304,7 @@ function showConsentSection() {
 // Show main content
 function showMainContent() {
   document.getElementById('authSection').style.display = 'none';
+  document.getElementById('verifySection').style.display = 'none';
   document.getElementById('consentSection').style.display = 'none';
   document.getElementById('mainContent').style.display = 'block';
 }
@@ -351,10 +366,19 @@ function initializeEventListeners() {
   document.getElementById('registerBtn')?.addEventListener('click', handleRegister);
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
   
+  // Verify section buttons
+  document.getElementById('resendVerifyBtn')?.addEventListener('click', handleResendVerification);
+  document.getElementById('backToLoginFromVerify')?.addEventListener('click', () => {
+    showAuthSection();
+    document.getElementById('loginTab').click();
+    const email = document.getElementById('verifyEmailAddress')?.textContent;
+    if (email) {
+      document.getElementById('loginEmail').value = email;
+    }
+  });
+
   // Consent button
   document.getElementById('acceptConsent')?.addEventListener('click', handleAcceptConsent);
-  
-  
 }
 
 // Manual test function (accessible from console)
@@ -448,8 +472,13 @@ async function handleLogin() {
     
   } catch (error) {
     console.error('Login error:', error);
-    errorDiv.textContent = error.message || 'Login failed. Please check your credentials.';
-    errorDiv.style.display = 'block';
+    if (error.code === 'EMAIL_NOT_VERIFIED') {
+      showVerifyPendingSection(email);
+      errorDiv.style.display = 'none';
+    } else {
+      errorDiv.textContent = error.message || 'Login failed. Please check your credentials.';
+      errorDiv.style.display = 'block';
+    }
   } finally {
     document.getElementById('loginBtn').disabled = false;
     document.getElementById('loginBtn').textContent = 'Login';
@@ -490,8 +519,12 @@ async function handleRegister() {
     
     const data = await apiClient.register(email, password, name, age, gender);
     
-    // Sync userProfile and userId to storage so ping-pong and aggregator have them immediately
-    if (data.user) {
+    if (data.requiresVerification) {
+      // Email verification required – no token until user verifies and logs in
+      showVerifyPendingSection(data.email || email);
+      showNotification('Check your email for the verification link.', 'success');
+    } else if (data.user && data.token) {
+      // Legacy path (e.g. OAuth) – sync and show consent
       await chrome.storage.local.set({
         userId: data.user._id,
         userProfile: {
@@ -500,15 +533,12 @@ async function handleRegister() {
           name: data.user.name ?? null,
         },
       });
+      showConsentSection();
+      showNotification('Account created successfully!', 'success');
+    } else {
+      showConsentSection();
+      showNotification('Account created successfully!', 'success');
     }
-    
-    // Do NOT broadcast at registration – broadcast happens when onboarding completes
-    // (ONBOARDING_COMPLETE from sensecheck), so pages get token only when user is fully set up
-    // Do NOT fetch ML profile from daily GET API here – it has no data for new users.
-    // Initial profile comes from ONBOARDING_COMPLETE → impairment POST API.
-    
-    showConsentSection();
-    showNotification('Account created successfully!', 'success');
     
   } catch (error) {
     console.error('Registration error:', error);
@@ -517,6 +547,26 @@ async function handleRegister() {
   } finally {
     document.getElementById('registerBtn').disabled = false;
     document.getElementById('registerBtn').textContent = 'Create Account';
+  }
+}
+
+// Handle resend verification email
+async function handleResendVerification() {
+  const emailEl = document.getElementById('verifyEmailAddress');
+  const email = emailEl ? emailEl.textContent.trim() : '';
+  if (!email) {
+    showNotification('Email not found. Please register again.', 'error');
+    return;
+  }
+  const btn = document.getElementById('resendVerifyBtn');
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+    await apiClient.resendVerificationEmail(email);
+    showNotification('Verification email sent. Check your inbox.', 'success');
+  } catch (error) {
+    showNotification(error.message || 'Failed to resend', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Resend Verification Email'; }
   }
 }
 

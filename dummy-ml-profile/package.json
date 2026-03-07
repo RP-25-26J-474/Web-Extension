@@ -1,0 +1,15 @@
+{
+  "name": "aura-dummy-ml-profile",
+  "version": "1.0.0",
+  "description": "Dummy ML profile API for testing AURA extension integration",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["aura", "ml", "dummy", "testing"],
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  }
+}

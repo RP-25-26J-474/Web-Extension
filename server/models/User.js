@@ -31,6 +31,18 @@ const userSchema = new mongoose.Schema({
     enum: ['male', 'female', 'other', 'prefer-not-to-say'],
     lowercase: true
   },
+  emailVerified: {
+    type: Boolean,
+    default: false
+  },
+  emailVerificationToken: {
+    type: String,
+    default: null
+  },
+  emailVerificationExpires: {
+    type: Date,
+    default: null
+  },
   consentGiven: {
     type: Boolean,
     default: false

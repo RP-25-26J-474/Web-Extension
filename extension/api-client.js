@@ -54,10 +54,13 @@ class APIClient {
         headers
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.error || 'Request failed');
+        const err = new Error(data.error || 'Request failed');
+        err.code = data.code;
+        err.status = response.status;
+        throw err;
       }
 
       return data;
@@ -73,12 +76,18 @@ class APIClient {
       method: 'POST',
       body: JSON.stringify({ email, password, name, age, gender })
     });
-    
+    // Only set token when returned (email/password flow requires verification first)
     if (data.token) {
       await this.setToken(data.token);
     }
-    
     return data;
+  }
+
+  async resendVerificationEmail(email) {
+    return await this.request(API_CONFIG.ENDPOINTS.RESEND_VERIFICATION, {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
   }
 
   async login(email, password) {
