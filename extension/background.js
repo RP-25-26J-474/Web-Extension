@@ -335,6 +335,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         broadcastToAllTabs({
           type: 'USER_LOGGED_IN',
           token: result.authToken,
+          userId: result.userId,
           user: result.userProfile ? { email: result.userProfile.email, name: result.userProfile.name } : null,
           onboardingComplete: true,
           source: 'registration',
@@ -358,6 +359,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     broadcastToAllTabs({
       type: 'USER_LOGGED_IN',
       token: message.token,
+      userId: message.userId,
       user: message.user,
       source: message.source || 'login',
     });
@@ -422,7 +424,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
       chrome.storage.local.set({ AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE: profile })
-        .then(() => sendResponse({ success: true }))
+        .then(() => {
+          // Broadcast to ALL tabs so every open page picks up the updated profile
+          broadcastToAllTabs({
+            type: 'AURA_EXT_PROFILE_CHANGED',
+            profile,
+            source: message.source || 'adaptive-update'
+          });
+          sendResponse({ success: true });
+        })
         .catch((err) => sendResponse({ success: false, error: err?.message || 'Storage failed' }));
     });
     return true;

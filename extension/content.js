@@ -755,6 +755,7 @@ elementClass: safeClassString(target),
         type: 'AURA_USER_UPDATE',
         source: 'aura-extension',
         token: message.token,
+        userId: message.userId || null,
         user: message.user,
         loggedIn: true,
         onboardingComplete: message.onboardingComplete || false,
@@ -769,6 +770,14 @@ elementClass: safeClassString(target),
         token: null,
         user: null,
         loggedIn: false,
+      }, '*');
+      sendResponse({ success: true });
+    } else if (message.type === 'AURA_EXT_PROFILE_CHANGED') {
+      // Relay profile change from background to the web page so NPM package picks it up
+      window.postMessage({
+        type: 'AURA_EXT_PROFILE_CHANGED',
+        source: 'aura-extension',
+        profile: message.profile || null,
       }, '*');
       sendResponse({ success: true });
     }
@@ -797,6 +806,7 @@ elementClass: safeClassString(target),
           source: 'aura-extension',
           extensionPresent: true,
           loggedIn: hasUser,
+          userId: hasUser ? result.userId : null,
           token: hasUser ? result.authToken : null,
           user: hasUser ? {
             email: result.userProfile?.email ?? null,
