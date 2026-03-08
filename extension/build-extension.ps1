@@ -18,6 +18,11 @@ $includeItems = @(
     "popup.html",
     "popup.js",
     "popup.css",
+    "env.js",
+    "config.js",
+    "config.module.js",
+    "api-client.js",
+    "interaction-aggregator.js",
     "icons",
     "LICENSE"
 )
