@@ -15,7 +15,7 @@ const generateToken = (userId) => {
 
 // Register new user (requires email verification before login/onboarding)
 router.post('/register', [
-  body('email').isEmail().normalizeEmail(),
+  body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }),
   body('password').isLength({ min: 6 }),
   body('name').trim().notEmpty(),
   body('age').isInt({ min: 18, max: 120 }),
@@ -151,7 +151,7 @@ function renderVerificationPage(req, success, codeOrError) {
 
 // Login (requires verified email for email/password users)
 router.post('/login', [
-  body('email').isEmail().normalizeEmail(),
+  body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }),
   body('password').notEmpty()
 ], async (req, res) => {
   try {
@@ -200,7 +200,7 @@ router.post('/login', [
 
 // Complete verification with code (no login – continues registration flow)
 router.post('/complete-verification', [
-  body('email').isEmail().normalizeEmail(),
+  body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }),
   body('code').isLength({ min: 6, max: 6 }).trim()
 ], async (req, res) => {
   try {
@@ -244,7 +244,7 @@ router.post('/complete-verification', [
 
 // Resend verification email
 router.post('/resend-verification', [
-  body('email').isEmail().normalizeEmail()
+  body('email').isEmail().normalizeEmail({ gmail_remove_dots: false })
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
