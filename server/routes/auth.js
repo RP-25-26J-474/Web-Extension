@@ -72,7 +72,7 @@ router.get('/verify-email', async (req, res) => {
   try {
     const { token } = req.query;
     if (!token) {
-      return res.status(400).send(renderVerificationPage(false, 'Missing verification token'));
+      return res.status(400).send(renderVerificationPage(req, false, 'Missing verification token'));
     }
 
     const user = await User.findOne({
@@ -81,7 +81,7 @@ router.get('/verify-email', async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).send(renderVerificationPage(false, 'Invalid or expired verification link'));
+      return res.status(400).send(renderVerificationPage(req, false, 'Invalid or expired verification link'));
     }
 
     user.emailVerified = true;
@@ -95,39 +95,56 @@ router.get('/verify-email', async (req, res) => {
     user.verificationCompleteCodeExpires = codeExpires;
     await user.save();
 
-    res.send(renderVerificationPage(true, code));
+    res.send(renderVerificationPage(req, true, code));
   } catch (error) {
     console.error('Verify email error:', error);
-    res.status(500).send(renderVerificationPage(false, 'Verification failed'));
+    res.status(500).send(renderVerificationPage(req, false, 'Verification failed'));
   }
 });
 
-function renderVerificationPage(success, codeOrError) {
+function renderVerificationPage(req, success, codeOrError) {
+  const baseUrl = emailService.getBaseUrl();
+  const logoUrl = `${baseUrl}/logo.png`;
   const title = success ? 'Email Verified!' : 'Verification Failed';
   const isSuccess = success;
   let bodyContent = '';
   if (success && codeOrError) {
     bodyContent = `
-  <p>Return to the AURA extension and enter this code to continue:</p>
-  <p style="font-size:2rem;font-weight:700;letter-spacing:0.5em;color:#16a34a;margin:16px 0">${codeOrError}</p>
-  <p style="font-size:0.875rem;color:#64748b">Code expires in 10 minutes. You can close this tab after entering it.</p>`;
+    <p class="verify-instruction">Return to the AURA extension and enter this code to continue:</p>
+    <p class="verify-code">${codeOrError}</p>
+    <p class="verify-expiry">Code expires in 10 minutes. You can close this tab after entering it.</p>`;
   } else if (success) {
-    bodyContent = '<p>Return to the AURA extension and click Continue.</p>';
+    bodyContent = '<p class="verify-instruction">Return to the AURA extension and click Continue.</p>';
   } else {
-    bodyContent = `<p>${codeOrError || 'Something went wrong.'}</p>`;
+    bodyContent = `<p class="verify-error">${codeOrError || 'Something went wrong.'}</p>`;
   }
   return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>${title}</title>
-<style>
-  body{font-family:system-ui,sans-serif;max-width:480px;margin:60px auto;padding:24px;text-align:center;background:#f8fafc;}
-  h1{color:${isSuccess ? '#16a34a' : '#dc2626'};}
-  p{color:#475569;line-height:1.6;}
-</style>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${title} – AURA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Inter',system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 50%,#f8fafc 100%);padding:24px}
+    .card{max-width:420px;width:100%;background:#fff;border-radius:16px;padding:40px 32px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.08);border:1px solid rgba(139,197,63,0.2)}
+    .logo{margin-bottom:24px;height:56px;width:auto}
+    h1{font-size:1.5rem;font-weight:700;margin-bottom:16px;color:${isSuccess ? '#16a34a' : '#dc2626'}}
+    .verify-instruction{color:#475569;line-height:1.6;margin-bottom:20px;font-size:1rem}
+    .verify-code{font-size:2rem;font-weight:700;letter-spacing:0.4em;color:#16a34a;margin:20px 0;font-variant-numeric:tabular-nums}
+    .verify-expiry{font-size:0.875rem;color:#64748b;margin-top:8px}
+    .verify-error{color:#dc2626;line-height:1.6}
+  </style>
 </head>
 <body>
-  <h1>${title}</h1>
-  ${bodyContent}
+  <div class="card">
+    <img src="${logoUrl}" alt="AURA" class="logo" onerror="this.style.display='none'">
+    <h1>${title}</h1>
+    ${bodyContent}
+  </div>
 </body>
 </html>`;
 }

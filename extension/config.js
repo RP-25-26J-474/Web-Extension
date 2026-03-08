@@ -1,8 +1,9 @@
 // API Configuration (for regular scripts - popup, api-client)
+// For local dev: use http://localhost:3000/api
+// For Vercel: use https://extension-backend-theta.vercel.app/api
 const API_CONFIG = {
-  BASE_URL: 'http://localhost:3000/api',
-  // Change this to your production URL when deploying
-  // BASE_URL: 'https://your-server.com/api',
+  BASE_URL: 'https://extension-backend-theta.vercel.app/api',
+  // Local: 'http://localhost:3000/api',
   
   // Onboarding game URL (sensecheck)
   ONBOARDING_GAME_URL: 'http://localhost:5173',

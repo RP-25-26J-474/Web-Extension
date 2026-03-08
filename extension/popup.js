@@ -149,20 +149,35 @@ function showOnboardingPrompt(user) {
     
     onboardingPrompt.style.display = 'block';
     onboardingPrompt.innerHTML = `
-      <div class="onboarding-prompt">
-        <div class="welcome-badge">
-          <span class="welcome-emoji">✨</span>
-        </div>
-        <h2>Welcome, ${userName}!</h2>
-        <p class="onboarding-description">
-          A short assessment (~5 min) helps us build your personalized AURA profile.
-        </p>
-        <p class="onboarding-subtext">Private • Opens in a new tab</p>
-        <div class="onboarding-actions">
-          <button id="startOnboardingBtn" class="btn btn-primary full-width btn-glow" aria-label="Start onboarding game - opens in new tab">
-            <span class="btn-text">Let's Play</span>
-            <span class="btn-arrow" aria-hidden="true">→</span>
-          </button>
+      <div class="onboarding-prompt onboarding-prompt--enhanced">
+        <div class="onboarding-prompt-card">
+          <div class="welcome-badge welcome-badge--icon">
+            <svg class="icon-sparkle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
+              <path d="M12 9l.75 2.25L15 12l-2.25.75L12 15l-.75-2.25L9 12l2.25-.75L12 9z"/>
+            </svg>
+          </div>
+          <h2 class="onboarding-prompt-title">Welcome, ${userName}!</h2>
+          <p class="onboarding-description">
+            A short assessment (~5 min) helps us build your personalized AURA profile.
+          </p>
+          <div class="onboarding-prompt-meta">
+            <span class="meta-item">
+              <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              Private
+            </span>
+            <span class="meta-item">
+              <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H8a2 2 0 01-2-2v-6"/><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="9" y2="15"/><line x1="9" y1="3" x2="21" y2="15"/></svg>
+              Opens in new tab
+            </span>
+          </div>
+          <div class="onboarding-actions">
+            <button id="startOnboardingBtn" class="btn btn-primary full-width btn-glow" aria-label="Start onboarding game - opens in new tab">
+              <svg class="btn-play-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span class="btn-text">Let's Play</span>
+              <svg class="btn-arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
         </div>
       </div>
     `;

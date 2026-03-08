@@ -1,8 +1,9 @@
 // API Configuration (ES6 module version for service worker)
+// For local dev: use http://localhost:3000/api
+// For Vercel: use https://extension-backend-theta.vercel.app/api
 export const API_CONFIG = {
-  BASE_URL: 'http://localhost:3000/api',
-  // Change this to your production URL when deploying
-  // BASE_URL: 'https://your-server.com/api',
+  BASE_URL: 'https://extension-backend-theta.vercel.app/api',
+  // Local: 'http://localhost:3000/api',
   
   // Onboarding game URL (sensecheck)
   ONBOARDING_GAME_URL: 'http://localhost:5173',
@@ -11,6 +12,7 @@ export const API_CONFIG = {
   ENDPOINTS: {
     REGISTER: '/auth/register',
     RESEND_VERIFICATION: '/auth/resend-verification',
+    COMPLETE_VERIFICATION: '/auth/complete-verification',
     LOGIN: '/auth/login',
     LOGOUT: '/auth/logout',
     ME: '/auth/me',
