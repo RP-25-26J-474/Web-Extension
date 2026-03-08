@@ -424,7 +424,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
       chrome.storage.local.set({ AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE: profile })
-        .then(() => sendResponse({ success: true }))
+        .then(() => {
+          // Broadcast to ALL tabs so every open page picks up the updated profile
+          broadcastToAllTabs({
+            type: 'AURA_EXT_PROFILE_CHANGED',
+            profile,
+            source: message.source || 'adaptive-update'
+          });
+          sendResponse({ success: true });
+        })
         .catch((err) => sendResponse({ success: false, error: err?.message || 'Storage failed' }));
     });
     return true;

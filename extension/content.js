@@ -772,6 +772,14 @@ elementClass: safeClassString(target),
         loggedIn: false,
       }, '*');
       sendResponse({ success: true });
+    } else if (message.type === 'AURA_EXT_PROFILE_CHANGED') {
+      // Relay profile change from background to the web page so NPM package picks it up
+      window.postMessage({
+        type: 'AURA_EXT_PROFILE_CHANGED',
+        source: 'aura-extension',
+        profile: message.profile || null,
+      }, '*');
+      sendResponse({ success: true });
     }
     
     return true; // Keep message channel open for async response
