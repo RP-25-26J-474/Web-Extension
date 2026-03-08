@@ -31,7 +31,10 @@
   function sendBridgePong(event, payload) {
     if (!event.source || typeof event.source.postMessage !== 'function') return;
     if (!isTrustedOrigin(event.origin)) return;
-    event.source.postMessage(payload, event.origin);
+    // Echo requestId back when present so callers can correlate request/response
+    const requestId = event.data?.requestId;
+    const enrichedPayload = requestId !== undefined ? { ...payload, requestId } : payload;
+    event.source.postMessage(enrichedPayload, event.origin);
   }
 
   let isTrackingEnabled = false;
