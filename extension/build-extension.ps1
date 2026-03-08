@@ -3,6 +3,9 @@
 
 Write-Host "🌟 Building AURA Interaction Tracker Extension..." -ForegroundColor Green
 
+# Sync host permissions from env.js before packaging.
+& "$PSScriptRoot\sync-manifest-host-permissions.ps1" -ManifestPath "$PSScriptRoot\manifest.json" -EnvPath "$PSScriptRoot\env.js"
+
 # Create build directory
 $buildDir = "build"
 if (Test-Path $buildDir) {

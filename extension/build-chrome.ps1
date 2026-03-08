@@ -2,6 +2,9 @@
 
 Write-Host "🌟 Building AURA Extension for Chrome/Edge..." -ForegroundColor Green
 
+# Sync host permissions from env.js before packaging.
+& "$PSScriptRoot\sync-manifest-host-permissions.ps1" -ManifestPath "$PSScriptRoot\manifest.json" -EnvPath "$PSScriptRoot\env.js"
+
 $buildDir = "build-chrome"
 if (Test-Path $buildDir) {
     Remove-Item $buildDir -Recurse -Force
