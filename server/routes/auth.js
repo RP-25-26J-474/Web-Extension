@@ -333,6 +333,21 @@ router.put('/settings', authMiddleware, async (req, res) => {
   }
 });
 
+// Validate userId exists (used by Optimization Engine to verify users without exposing personal data)
+router.get('/validate/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ valid: false, error: 'userId is required' });
+    }
+    const user = await User.findById(userId).select('_id');
+    res.json({ valid: !!user });
+  } catch (error) {
+    // Invalid ObjectId format or DB error
+    res.json({ valid: false });
+  }
+});
+
 // Logout (client-side token removal, but we log it)
 router.post('/logout', authMiddleware, async (req, res) => {
   try {
