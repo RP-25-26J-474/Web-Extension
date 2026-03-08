@@ -198,6 +198,25 @@ aggregatedInteractionBatchSchema.statics.getUserBatchesLast24h = async function(
 };
 
 /**
+ * Static method to get distinct active userIds in the last 24 hours
+ * A user is considered active if at least one batch exists in this window.
+ */
+aggregatedInteractionBatchSchema.statics.getActiveUserIdsLast24h = async function() {
+  const now = new Date();
+  const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  const query = {
+    captured_at: {
+      $gte: twentyFourHoursAgo,
+      $lte: now,
+    },
+  };
+
+  const userIds = await this.distinct('userId', query);
+  return userIds.map(id => String(id));
+};
+
+/**
  * Static method to get aggregated statistics for a user
  */
 aggregatedInteractionBatchSchema.statics.getUserAggregatedStats = async function(userId, startDate, endDate) {

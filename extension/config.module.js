@@ -43,15 +43,15 @@ export const API_CONFIG = {
   AGGREGATED_BATCHES_GET: '/interactions/aggregated-batches',
 
   // ===== ML PERSONALIZED PROFILE – Daily fetch from separate component =====
-  // For local testing: use dummy-ml-profile (npm start in dummy-ml-profile, runs on 4000)
-  // Production: replace with actual ML profile API.
-  ML_PROFILE_API_URL: 'http://localhost:4000/api/profile',
+  // Daily profile fetch endpoint (expects user_id query param)
+  // Example call: /data/current-profile?user_id=<mongo_user_id>
+  ML_PROFILE_API_URL: 'http://localhost:8000/data/current-profile',
 
   // ===== IMPAIRMENT → ML PROFILE – Initial fetch on registration =====
   // For local testing: use dummy-ml-profile POST endpoint. Extension POSTs impairment JSON
   // when onboarding completes; receives { profile } in response.
   // Production: replace with actual API.
-  IMPAIRMENT_TO_ML_PROFILE_API_URL: 'http://localhost:4000/api/profile-from-impairment',
+  IMPAIRMENT_TO_ML_PROFILE_API_URL: 'http://localhost:8000/category/generate-profile',
 };
 
 

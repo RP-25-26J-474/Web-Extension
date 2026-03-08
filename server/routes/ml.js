@@ -327,12 +327,13 @@ router.post('/motor-score', authMiddleware, async (req, res) => {
     console.log('ML proxy response:', result);
 
     const motorProfile = result?.motor_profile || {};
+    const delayedReaction = result?.reaction_analysis?.delayed_reaction_ms ?? null;
     const onboardingMetrics = buildOnboardingMetrics({ motorResult, payload });
     const inaccurateClick = onboardingMetrics.hit_rate != null
       ? Number((1 - onboardingMetrics.hit_rate).toFixed(4))
       : null;
     const motorImpairment = {
-      delayed_reaction: motorProfile.latent_score ?? null,
+      delayed_reaction: delayedReaction ?? null,
       inaccurate_click: inaccurateClick,
       motor_impairment: motorProfile.impairment_score ?? null,
     };
