@@ -11,6 +11,43 @@ try {
   console.error('✗ Failed to initialize APIClient:', error);
 }
 
+const PENDING_VERIFICATION_KEY = 'pendingVerification';
+const PENDING_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
+
+async function savePendingVerification(email) {
+  if (!email) return;
+  await chrome.storage.local.set({
+    [PENDING_VERIFICATION_KEY]: {
+      email: String(email).trim(),
+      savedAt: Date.now()
+    }
+  });
+}
+
+async function getPendingVerificationEmail() {
+  const data = await chrome.storage.local.get(PENDING_VERIFICATION_KEY);
+  const pending = data?.[PENDING_VERIFICATION_KEY];
+
+  if (!pending || typeof pending.email !== 'string') {
+    return '';
+  }
+
+  if (
+    pending.savedAt &&
+    Number.isFinite(pending.savedAt) &&
+    Date.now() - pending.savedAt > PENDING_VERIFICATION_TTL_MS
+  ) {
+    await clearPendingVerification();
+    return '';
+  }
+
+  return pending.email.trim();
+}
+
+async function clearPendingVerification() {
+  await chrome.storage.local.remove(PENDING_VERIFICATION_KEY);
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
   console.log('📄 DOMContentLoaded event fired');
   
@@ -23,13 +60,19 @@ document.addEventListener('DOMContentLoaded', async function() {
   console.log('🔑 Token status:', token ? 'Found' : 'Not found');
   
   if (!token) {
-    showAuthSection();
+    const pendingVerificationEmail = await getPendingVerificationEmail();
+    if (pendingVerificationEmail) {
+      showVerifyPendingSection(pendingVerificationEmail);
+    } else {
+      showAuthSection();
+    }
     return;
   }
   
   // Verify token is valid
   try {
     const userData = await apiClient.getCurrentUser();
+    await clearPendingVerification();
     
     // CRITICAL: Sync consent and tracking settings from server to local storage
     // This ensures settings are always in sync, even after logout/login
@@ -83,7 +126,12 @@ document.addEventListener('DOMContentLoaded', async function() {
   } catch (error) {
     console.error('Authentication error:', error);
     await apiClient.clearToken();
-    showAuthSection();
+    const pendingVerificationEmail = await getPendingVerificationEmail();
+    if (pendingVerificationEmail) {
+      showVerifyPendingSection(pendingVerificationEmail);
+    } else {
+      showAuthSection();
+    }
   }
 });
 
@@ -104,6 +152,10 @@ function showVerifyPendingSection(email) {
   document.getElementById('consentSection').style.display = 'none';
   document.getElementById('mainContent').style.display = 'none';
   document.getElementById('verifyEmailAddress').textContent = email;
+  const errorEl = document.getElementById('verifyCodeError');
+  if (errorEl) {
+    errorEl.style.display = 'none';
+  }
 }
 
 // Show onboarding prompt
@@ -337,7 +389,8 @@ function initializeEventListeners() {
   // Verify section buttons
   document.getElementById('continueVerifyBtn')?.addEventListener('click', handleCompleteVerification);
   document.getElementById('resendVerifyBtn')?.addEventListener('click', handleResendVerification);
-  document.getElementById('backToLoginFromVerify')?.addEventListener('click', () => {
+  document.getElementById('backToLoginFromVerify')?.addEventListener('click', async () => {
+    await clearPendingVerification();
     showAuthSection();
     document.getElementById('loginTab').click();
     const email = document.getElementById('verifyEmailAddress')?.textContent;
@@ -403,6 +456,7 @@ async function handleLogin() {
         name: data.user.name ?? null,
       },
     });
+    await clearPendingVerification();
     console.log('✅ Settings synced:', {
       consentGiven: data.user.consentGiven,
       trackingEnabled: data.user.trackingEnabled
@@ -442,6 +496,7 @@ async function handleLogin() {
   } catch (error) {
     console.error('Login error:', error);
     if (error.code === 'EMAIL_NOT_VERIFIED') {
+      await savePendingVerification(email);
       showVerifyPendingSection(email);
       errorDiv.style.display = 'none';
     } else {
@@ -490,7 +545,9 @@ async function handleRegister() {
     
     if (data.requiresVerification) {
       // Email verification required – no token until user verifies and logs in
-      showVerifyPendingSection(data.email || email);
+      const verifyEmail = data.email || email;
+      await savePendingVerification(verifyEmail);
+      showVerifyPendingSection(verifyEmail);
       showNotification('Check your email for the verification link.', 'success');
     } else if (data.user && data.token) {
       // Legacy path (e.g. OAuth) – sync and show consent
@@ -502,9 +559,11 @@ async function handleRegister() {
           name: data.user.name ?? null,
         },
       });
+      await clearPendingVerification();
       showConsentSection();
       showNotification('Account created successfully!', 'success');
     } else {
+      await clearPendingVerification();
       showConsentSection();
       showNotification('Account created successfully!', 'success');
     }
@@ -555,6 +614,7 @@ async function handleCompleteVerification() {
         name: data.user.name ?? null,
       },
     });
+    await clearPendingVerification();
 
     if (data.user.trackingEnabled) {
       chrome.runtime.sendMessage({ type: 'INIT_TRACKING' }).catch(() => {});
