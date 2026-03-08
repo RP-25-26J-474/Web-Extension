@@ -112,6 +112,25 @@ async function initializeAggregator() {
   }
 }
 
+// Sync current extension profile to ML engine before storage is cleared on logout/browser close
+async function syncProfileBeforeLogout(userId, authToken) {
+  try {
+    const stored = await chrome.storage.local.get(['AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE']);
+    const currentProfile = stored.AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE || {};
+    await fetch(`${API_CONFIG.BASE_URL}/rl-feedback/logout-sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ userId, currentProfile }),
+    });
+    console.log('[AURA] ✅ Profile synced to ML engine before logout');
+  } catch (e) {
+    console.debug('[AURA] Could not sync profile to ML engine on logout:', e.message);
+  }
+}
+
 // Listen for authentication changes to initialize aggregator and broadcast to tabs
 chrome.storage.onChanged.addListener(async (changes, namespace) => {
   if (namespace !== 'local' || !changes.authToken) return;
@@ -122,11 +141,32 @@ chrome.storage.onChanged.addListener(async (changes, namespace) => {
     scheduleMlProfileFetch();
   } else if (!newValue && oldValue) {
     console.log('👋 User logged out - broadcasting to tabs');
+    // Read userId before storage is cleared, then sync profile to ML engine
+    const { userId } = await chrome.storage.local.get(['userId']);
+    if (userId) await syncProfileBeforeLogout(userId, oldValue);
     if (interactionAggregator) interactionAggregator.userId = null;
     broadcastToAllTabs({ type: 'USER_LOGGED_OUT' });
     cancelMlProfileFetch();
     await chrome.storage.local.remove(['userId', 'AURA_EXT_ML_PERSONALIZED_PROFILE', 'AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE']);
   }
+});
+
+// Sync profile to ML engine when the browser (or extension) is about to be suspended/closed
+chrome.runtime.onSuspend.addListener(() => {
+  chrome.storage.local.get(['userId', 'authToken', 'AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE'])
+    .then(({ userId, authToken, AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE }) => {
+      if (!userId || !authToken) return;
+      const currentProfile = AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE || {};
+      // Fire-and-forget — service worker may be terminated before this returns
+      fetch(`${API_CONFIG.BASE_URL}/rl-feedback/logout-sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ userId, currentProfile }),
+      }).catch(() => {});
+    });
 });
 
 // ========== ML PERSONALIZED PROFILE – Daily fetch ==========
@@ -380,13 +420,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'BROADCAST_USER_LOGOUT') {
     // Reset aggregator userId immediately so no further batches use stale user
     if (interactionAggregator) interactionAggregator.userId = null;
-    // Explicitly clear auth data and ML profiles so logout is reliable even if popup closes early
-    chrome.storage.local.remove([
-      'authToken',
-      'userId',
-      'AURA_EXT_ML_PERSONALIZED_PROFILE',
-      'AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE',
-    ]).then(() => {
+    // Read auth data before clearing, sync profile to ML engine, then clear storage
+    chrome.storage.local.get(['authToken', 'userId']).then(async ({ authToken, userId }) => {
+      if (userId && authToken) await syncProfileBeforeLogout(userId, authToken);
+      return chrome.storage.local.remove([
+        'authToken',
+        'userId',
+        'AURA_EXT_ML_PERSONALIZED_PROFILE',
+        'AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE',
+      ]);
+    }).then(() => {
       cancelMlProfileFetch();
       broadcastToAllTabs({ type: 'USER_LOGGED_OUT' });
       chrome.tabs.query({}, (tabs) => {
