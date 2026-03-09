@@ -341,16 +341,22 @@ router.post('/aggregated-batches', authMiddleware, async (req, res) => {
  *   Query: user_id=<mongodb_user_id> (preferred for integrations)
  *   Or headers/query token:
  *   Headers: Authorization: Bearer <token>
- *   Response: { batches: [...], count: N }
+ *   Response: { batches: [...] }
  */
 router.get('/aggregated-batches/last-24h', async (req, res) => {
   try {
     const userId = await resolveAggregatedBatchesUserId(req);
     const batches = await AggregatedInteractionBatch.getUserBatchesLast24h(userId);
+    const normalizedBatches = batches.map(batch => ({
+      user_id: String(batch.userId),
+      batch_id: batch.batch_id,
+      captured_at: new Date(batch.captured_at).toISOString(),
+      page_context: batch.page_context,
+      events_agg: batch.events_agg,
+    }));
 
     res.json({
-      batches,
-      count: batches.length,
+      batches: normalizedBatches,
     });
   } catch (error) {
     console.error('Get aggregated batches (last 24h) error:', error);
