@@ -304,6 +304,12 @@ header h1 {
   color: #92400e;
 }
 
+.privacy-note a {
+  color: #1d4ed8;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
 .consent-buttons {
   display: flex;
   gap: 10px;
