@@ -57,33 +57,8 @@ document.addEventListener('DOMContentLoaded', async function() {
       });
     }
     
-    // FIXED: Check consent BEFORE onboarding to prevent stuck users
-    // If no consent given yet, show consent section first
-    if (!userData.user.consentGiven) {
-      console.log('⚠️ Consent not given, showing consent section');
-      showConsentSection();
-      return;
-    }
-    
-    // Check onboarding status (only after consent is given)
-    let onboardingStatus = { completed: false };
-    try {
-      onboardingStatus = await apiClient.getOnboardingStatus() || { completed: false };
-    } catch (err) {
-      console.warn('Could not get onboarding status:', err.message);
-    }
-    console.log('📋 Onboarding status:', onboardingStatus);
-    
-    if (!onboardingStatus.completed) {
-      // Show onboarding prompt
-      showOnboardingPrompt(userData.user);
-      return;
-    }
-
-    // Onboarding complete – enable aggregated/global tracking
-    await chrome.storage.local.set({ onboardingCompleted: true });
-    
-    // Both consent and onboarding complete - show main content
+    // Do not gate popup UI by consent/onboarding after login.
+    // Authenticated users should see main content directly.
     showMainContent();
     displayUserInfo(userData.user);
     await loadData();
@@ -97,9 +72,17 @@ document.addEventListener('DOMContentLoaded', async function() {
 // Show auth section
 function showAuthSection() {
   console.log('📝 Showing auth section');
+  hideOnboardingPrompt();
   document.getElementById('authSection').style.display = 'block';
   document.getElementById('consentSection').style.display = 'none';
   document.getElementById('mainContent').style.display = 'none';
+}
+
+function hideOnboardingPrompt() {
+  const onboardingPrompt = document.getElementById('onboardingPrompt');
+  if (onboardingPrompt) {
+    onboardingPrompt.style.display = 'none';
+  }
 }
 
 // Show onboarding prompt
@@ -289,6 +272,7 @@ async function startOnboardingGame() {
 
 // Show consent section
 function showConsentSection() {
+  hideOnboardingPrompt();
   document.getElementById('authSection').style.display = 'none';
   document.getElementById('consentSection').style.display = 'block';
   document.getElementById('mainContent').style.display = 'none';
@@ -296,6 +280,7 @@ function showConsentSection() {
 
 // Show main content
 function showMainContent() {
+  hideOnboardingPrompt();
   document.getElementById('authSection').style.display = 'none';
   document.getElementById('consentSection').style.display = 'none';
   document.getElementById('mainContent').style.display = 'block';
@@ -430,13 +415,9 @@ async function handleLogin() {
       });
     }
     
-    if (data.user.consentGiven) {
-      showMainContent();
-      displayUserInfo(data.user);
-      await loadData();
-    } else {
-      showConsentSection();
-    }
+    showMainContent();
+    displayUserInfo(data.user);
+    await loadData();
     
     // Notify other components (tabs with sensecheck, dashboard, etc.) - broadcast token and userId
     chrome.runtime.sendMessage({

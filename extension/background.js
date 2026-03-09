@@ -191,12 +191,35 @@ function cancelMlProfileFetch() {
 
 async function fetchMlPersonalizedProfile() {
   try {
-    const result = await chrome.storage.local.get(['userId']);
-    if (!result.userId) return;
+    const result = await chrome.storage.local.get(['userId', 'authToken']);
+    let userId = result.userId;
+
+    // Fallback for sessions where token exists but userId was not persisted yet.
+    if (!userId && result.authToken) {
+      try {
+        const meRes = await fetch(`${API_CONFIG.BASE_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${result.authToken}` },
+        });
+        if (meRes.ok) {
+          const me = await meRes.json();
+          userId = me?.user?._id || me?.user?.id || null;
+          if (userId) {
+            await chrome.storage.local.set({ userId });
+          }
+        }
+      } catch (e) {
+        console.debug('Could not hydrate userId before ML profile fetch:', e.message);
+      }
+    }
+
+    if (!userId) {
+      console.debug('Skipping ML personalized profile fetch: missing userId');
+      return;
+    }
 
     const baseUrl = API_CONFIG.ML_PROFILE_API_URL || 'http://localhost:8000/data/current-profile';
     const separator = baseUrl.includes('?') ? '&' : '?';
-    const url = `${baseUrl}${separator}user_id=${encodeURIComponent(result.userId)}`;
+    const url = `${baseUrl}${separator}user_id=${encodeURIComponent(userId)}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`ML profile API returned ${res.status}`);
     const json = await res.json();
@@ -207,7 +230,7 @@ async function fetchMlPersonalizedProfile() {
       return;
     }
     // Preserve full structure { user_id, metadata, profile, profile_changes } from daily API
-    const toStore = json.profile != null ? json : { user_id: result.userId ?? 'unknown', metadata: {}, profile, profile_changes: null };
+    const toStore = json.profile != null ? json : { user_id: userId ?? 'unknown', metadata: {}, profile, profile_changes: null };
     await chrome.storage.local.set({ AURA_EXT_ML_PERSONALIZED_PROFILE: toStore });
     console.log('ML personalized profile fetched and stored (from daily API)');
   } catch (e) {

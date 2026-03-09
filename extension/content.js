@@ -6,16 +6,22 @@
 
   // Trusted origins for AURA bridge ping-pong – only respond to pages from these origins.
   // Add production domains when deploying ('https://dashboard.aura.com').
-  const BRIDGE_TRUSTED_ORIGINS = [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://localhost:5000',
-    'http://localhost:8080',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:5000',
-    'http://127.0.0.1:8080',
-  ];
+  const BRIDGE_TRUSTED_ORIGINS = (
+    globalThis.EXTENSION_ENV &&
+    Array.isArray(globalThis.EXTENSION_ENV.BRIDGE_TRUSTED_ORIGINS)
+      ? globalThis.EXTENSION_ENV.BRIDGE_TRUSTED_ORIGINS
+      : [
+          'http://localhost:5173',
+          'http://localhost:3000',
+          'http://localhost:5000',
+          'http://localhost:8080',
+          'http://127.0.0.1:5173',
+          'http://127.0.0.1:3000',
+          'http://127.0.0.1:5000',
+          'http://127.0.0.1:8080',
+          'https://onboarding-frontend-psi.vercel.app',
+        ]
+  );
 
   function isTrustedOrigin(origin) {
     if (!origin || typeof origin !== 'string') return false;
@@ -1035,4 +1041,5 @@ elementClass: safeClassString(target),
   window.pageLoadTime = Date.now();
   
 })();
+
 
