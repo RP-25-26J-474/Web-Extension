@@ -56,6 +56,11 @@ export const API_CONFIG = {
   // when onboarding completes; receives { profile } in response.
   // Production: replace with actual API.
   IMPAIRMENT_TO_ML_PROFILE_API_URL: EXTENSION_ENV.IMPAIRMENT_TO_ML_PROFILE_API_URL || 'http://localhost:8000/category/generate-profile',
+
+  // ===== SESSION FEEDBACK – Sends profile diff to ML engine on logout / browser close =====
+  // Compares AURA_EXT_ML_PERSONALIZED_PROFILE (base) vs AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE (current)
+  // and POSTs the changes so the ML engine can learn from user feedback.
+  ML_SESSION_FEEDBACK_URL: EXTENSION_ENV.ML_SESSION_FEEDBACK_URL || 'http://localhost:8000/data/session-feedback',
 };
 
 

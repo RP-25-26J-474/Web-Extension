@@ -112,22 +112,63 @@ async function initializeAggregator() {
   }
 }
 
-// Sync current extension profile to ML engine before storage is cleared on logout/browser close
-async function syncProfileBeforeLogout(userId, authToken) {
+// Sync current extension profile to ML engine before storage is cleared on logout/browser close.
+// Compares AURA_EXT_ML_PERSONALIZED_PROFILE (the ML-generated base) against
+// AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE (what the user customised) and sends only the diffs.
+async function syncProfileBeforeLogout(userId) {
   try {
-    const stored = await chrome.storage.local.get(['AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE']);
-    const currentProfile = stored.AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE || {};
-    await fetch(`${API_CONFIG.BASE_URL}/rl-feedback/logout-sync`, {
+    const stored = await chrome.storage.local.get([
+      'AURA_EXT_ML_PERSONALIZED_PROFILE',
+      'AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE',
+    ]);
+
+    const mlStored   = stored.AURA_EXT_ML_PERSONALIZED_PROFILE;
+    const adaptive   = stored.AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE;
+
+    // Need both profiles to build a meaningful diff
+    if (!mlStored || !adaptive) {
+      console.debug('[AURA] Skipping session-feedback sync — missing one or both profiles');
+      return;
+    }
+
+    // AURA_EXT_ML_PERSONALIZED_PROFILE shape: { user_id, metadata, profile, profile_changes }
+    const baseProfile    = mlStored.profile || {};
+    const baseVersion    = mlStored.metadata?.version ?? 1;
+    const currentProfile = adaptive;
+
+    // Build feedback_overrides: only attributes that actually changed
+    const feedbackOverrides = [];
+    for (const [attr, baseVal] of Object.entries(baseProfile)) {
+      const newVal = currentProfile[attr];
+      if (newVal === undefined || newVal === null) continue;
+      if (String(newVal) === String(baseVal)) continue;
+      feedbackOverrides.push({ attribute: attr, old_value: baseVal, new_value: newVal });
+    }
+
+    if (feedbackOverrides.length === 0) {
+      console.debug('[AURA] No profile changes to sync to ML engine');
+      return;
+    }
+
+    const today   = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const payload = {
+      user_id:              userId,
+      session_id:           `sess_${today}_${userId}`,
+      base_profile_version: baseVersion,
+      sent_at:              new Date().toISOString(),
+      feedback_overrides:   feedbackOverrides,
+    };
+
+    const mlFeedbackUrl = API_CONFIG.ML_SESSION_FEEDBACK_URL || 'https://aura-ml-backend-production-bdd3.up.railway.app/data/session-feedback';
+    await fetch(mlFeedbackUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authToken}`,
-      },
-      body: JSON.stringify({ userId, currentProfile }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     });
-    console.log('[AURA] ✅ Profile synced to ML engine before logout');
+
+    console.log(`[AURA] Sent ${feedbackOverrides.length} profile change(s) to ML engine`);
   } catch (e) {
-    console.debug('[AURA] Could not sync profile to ML engine on logout:', e.message);
+    console.debug('[AURA] Could not sync profile changes to ML engine on logout:', e.message);
   }
 }
 
@@ -141,9 +182,9 @@ chrome.storage.onChanged.addListener(async (changes, namespace) => {
     scheduleMlProfileFetch();
   } else if (!newValue && oldValue) {
     console.log('👋 User logged out - broadcasting to tabs');
-    // Read userId before storage is cleared, then sync profile to ML engine
+    // Read userId before storage is cleared, then sync profile diff to ML engine
     const { userId } = await chrome.storage.local.get(['userId']);
-    if (userId) await syncProfileBeforeLogout(userId, oldValue);
+    if (userId) await syncProfileBeforeLogout(userId);
     if (interactionAggregator) interactionAggregator.userId = null;
     broadcastToAllTabs({ type: 'USER_LOGGED_OUT' });
     cancelMlProfileFetch();
@@ -151,21 +192,13 @@ chrome.storage.onChanged.addListener(async (changes, namespace) => {
   }
 });
 
-// Sync profile to ML engine when the browser (or extension) is about to be suspended/closed
+// Sync profile diff to ML engine when the browser (or extension) is about to be suspended/closed
 chrome.runtime.onSuspend.addListener(() => {
-  chrome.storage.local.get(['userId', 'authToken', 'AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE'])
-    .then(({ userId, authToken, AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE }) => {
+  chrome.storage.local.get(['userId', 'authToken'])
+    .then(({ userId, authToken }) => {
       if (!userId || !authToken) return;
-      const currentProfile = AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE || {};
-      // Fire-and-forget — service worker may be terminated before this returns
-      fetch(`${API_CONFIG.BASE_URL}/rl-feedback/logout-sync`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({ userId, currentProfile }),
-      }).catch(() => {});
+      // Fire-and-forget — service worker may be terminated before this resolves
+      syncProfileBeforeLogout(userId).catch(() => {});
     });
 });
 
@@ -445,7 +478,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (interactionAggregator) interactionAggregator.userId = null;
     // Read auth data before clearing, sync profile to ML engine, then clear storage
     chrome.storage.local.get(['authToken', 'userId']).then(async ({ authToken, userId }) => {
-      if (userId && authToken) await syncProfileBeforeLogout(userId, authToken);
+      if (userId && authToken) await syncProfileBeforeLogout(userId);
       return chrome.storage.local.remove([
         'authToken',
         'userId',
