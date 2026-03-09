@@ -11,6 +11,31 @@ try {
   console.error('✗ Failed to initialize APIClient:', error);
 }
 
+const REGISTRATION_FLOW_STATE_KEY = 'registrationFlowState';
+const REGISTRATION_FLOW_STAGES = {
+  CONSENT_PENDING: 'consent_pending',
+  ONBOARDING_PENDING: 'onboarding_pending',
+};
+
+async function getRegistrationFlowState() {
+  const result = await chrome.storage.local.get([REGISTRATION_FLOW_STATE_KEY]);
+  return result?.[REGISTRATION_FLOW_STATE_KEY] || null;
+}
+
+async function setRegistrationFlowState(stage) {
+  if (!stage) return;
+  await chrome.storage.local.set({
+    [REGISTRATION_FLOW_STATE_KEY]: {
+      stage,
+      updatedAt: Date.now(),
+    },
+  });
+}
+
+async function clearRegistrationFlowState() {
+  await chrome.storage.local.remove([REGISTRATION_FLOW_STATE_KEY]);
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
   console.log('📄 DOMContentLoaded event fired');
   
@@ -23,6 +48,7 @@ document.addEventListener('DOMContentLoaded', async function() {
   console.log('🔑 Token status:', token ? 'Found' : 'Not found');
   
   if (!token) {
+    await clearRegistrationFlowState();
     showAuthSection();
     return;
   }
@@ -57,14 +83,44 @@ document.addEventListener('DOMContentLoaded', async function() {
       });
     }
     
-    // Do not gate popup UI by consent/onboarding after login.
-    // Authenticated users should see main content directly.
+    // Registration flow gating (consent + onboarding) is only enforced for users
+    // currently in registration flow. Login flow always lands on main content.
+    let registrationFlowState = await getRegistrationFlowState();
+
+    if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.CONSENT_PENDING) {
+      if (!userData.user.consentGiven) {
+        showConsentSection();
+        return;
+      }
+
+      await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING);
+      registrationFlowState = { stage: REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING };
+    }
+
+    if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING) {
+      let onboardingStatus = { completed: false };
+      try {
+        onboardingStatus = await apiClient.getOnboardingStatus() || { completed: false };
+      } catch (err) {
+        console.warn('Could not get onboarding status:', err.message);
+      }
+
+      if (!onboardingStatus.completed) {
+        showOnboardingPrompt(userData.user);
+        return;
+      }
+
+      await chrome.storage.local.set({ onboardingCompleted: true });
+      await clearRegistrationFlowState();
+    }
+
     showMainContent();
     displayUserInfo(userData.user);
     await loadData();
   } catch (error) {
     console.error('Authentication error:', error);
     await apiClient.clearToken();
+    await clearRegistrationFlowState();
     showAuthSection();
   }
 });
@@ -415,6 +471,7 @@ async function handleLogin() {
       });
     }
     
+    await clearRegistrationFlowState();
     showMainContent();
     displayUserInfo(data.user);
     await loadData();
@@ -497,6 +554,7 @@ async function handleRegister() {
     // Do NOT fetch ML profile from daily GET API here – it has no data for new users.
     // Initial profile comes from ONBOARDING_COMPLETE → impairment POST API.
     
+    await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.CONSENT_PENDING);
     showConsentSection();
     showNotification('Account created successfully!', 'success');
     
@@ -524,6 +582,7 @@ async function handleLogout() {
     await chrome.runtime.sendMessage({ type: 'BROADCAST_USER_LOGOUT' }).catch(() => {});
     
     // 3. Clear remaining local storage (consent, config, etc.)
+    await clearRegistrationFlowState();
     await chrome.storage.local.clear();
     
     showAuthSection();
@@ -562,10 +621,11 @@ async function handleAcceptConsent() {
     }
     
     // STEP 2: Set in local storage
-    await chrome.storage.local.set({ 
-      trackingEnabled: true, 
-      consentGiven: true 
+    await chrome.storage.local.set({
+      trackingEnabled: true,
+      consentGiven: true
     });
+    await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING);
     console.log('✅ Tracking enabled in local storage');
     
     // STEP 3: Notify background script to initialize aggregator
@@ -604,6 +664,7 @@ async function handleAcceptConsent() {
     // If onboarding complete, show main content
     if (onboardingStatus?.completed) {
       console.log('✅ Onboarding complete, showing main content...');
+      await clearRegistrationFlowState();
       showMainContent();
       if (userData?.user) {
         displayUserInfo(userData.user);
