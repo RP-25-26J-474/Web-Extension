@@ -4,33 +4,8 @@
 (function() {
   'use strict';
 
-  // Trusted origins for AURA bridge ping-pong – only respond to pages from these origins.
-  // Add production domains when deploying ('https://dashboard.aura.com').
-  const BRIDGE_TRUSTED_ORIGINS = (
-    globalThis.EXTENSION_ENV &&
-    Array.isArray(globalThis.EXTENSION_ENV.BRIDGE_TRUSTED_ORIGINS)
-      ? globalThis.EXTENSION_ENV.BRIDGE_TRUSTED_ORIGINS
-      : [
-          'http://localhost:5173',
-          'http://localhost:3000',
-          'http://localhost:5000',
-          'http://localhost:8080',
-          'http://127.0.0.1:5173',
-          'http://127.0.0.1:3000',
-          'http://127.0.0.1:5000',
-          'http://127.0.0.1:8080',
-          'https://onboarding-frontend-psi.vercel.app',
-        ]
-  );
-
-  function isTrustedOrigin(origin) {
-    if (!origin || typeof origin !== 'string') return false;
-    return BRIDGE_TRUSTED_ORIGINS.includes(origin);
-  }
-
   function sendBridgePong(event, payload) {
     if (!event.source || typeof event.source.postMessage !== 'function') return;
-    if (!isTrustedOrigin(event.origin)) return;
     // Echo requestId back when present so callers can correlate request/response
     const requestId = event.data?.requestId;
     const enrichedPayload = requestId !== undefined ? { ...payload, requestId } : payload;
@@ -797,11 +772,9 @@ elementClass: safeClassString(target),
   // ========== AURA PING-PONG: Extension presence detection ==========
   // Web pages (React app, dashboard, etc.) send AURA_EXT_PING to detect if extension is installed.
   // Content script responds with AURA_EXT_PONG including token and user details if logged in.
-  // Only responds to trusted origins (BRIDGE_TRUSTED_ORIGINS).
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data?.type !== 'AURA_EXT_PING') return;
-    if (!isTrustedOrigin(event.origin)) return;
 
     (async () => {
       try {
@@ -842,7 +815,6 @@ elementClass: safeClassString(target),
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data?.type !== 'AURA_ONBOARDING_COMPLETE') return;
-    if (!isTrustedOrigin(event.origin)) return;
     chrome.runtime.sendMessage({ type: 'ONBOARDING_COMPLETE' }).catch(() => {});
   });
 
@@ -852,7 +824,6 @@ elementClass: safeClassString(target),
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data?.type !== 'AURA_EXT_TOKEN_PING') return;
-    if (!isTrustedOrigin(event.origin)) return;
 
     (async () => {
       try {
@@ -881,7 +852,6 @@ elementClass: safeClassString(target),
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data?.type !== 'AURA_EXT_SET_ADAPTIVE_PROFILE') return;
-    if (!isTrustedOrigin(event.origin)) return;
     const profile = event.data?.profile;
     if (!profile || typeof profile !== 'object') return;
 
@@ -912,7 +882,6 @@ elementClass: safeClassString(target),
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data?.type !== 'AURA_EXT_ML_PERSONALIZED_PROFILE_PING') return;
-    if (!isTrustedOrigin(event.origin)) return;
 
     (async () => {
       try {
@@ -944,7 +913,6 @@ elementClass: safeClassString(target),
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data?.type !== 'AURA_EXT_ADAPTIVE_PROFILE_PING') return;
-    if (!isTrustedOrigin(event.origin)) return;
 
     (async () => {
       try {
@@ -976,7 +944,6 @@ elementClass: safeClassString(target),
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data?.type !== 'AURA_EXT_ML_FINAL_PROFILE_PING') return;
-    if (!isTrustedOrigin(event.origin)) return;
 
     (async () => {
       try {
