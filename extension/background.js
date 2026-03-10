@@ -15,7 +15,7 @@ const EXPORT_BATCH_SIZE = 100;
 
 // Initialize extension
 chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log('Interaction Tracker installed:', details.reason);
+  console.log('[AURA Background] Extension installed:', details.reason);
   
   // Set default values on install - ALL tracking enabled by default
   if (details.reason === 'install') {
@@ -63,7 +63,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
 // Initialize aggregator on startup
 chrome.runtime.onStartup.addListener(async () => {
-  console.log('Extension startup - initializing aggregator');
+  console.log('[AURA Background] Extension startup; initializing aggregator');
   await initializeAggregator();
 });
 
@@ -85,7 +85,7 @@ async function initializeAggregator() {
   try {
     const result = await chrome.storage.local.get(['userId', 'authToken']);
     if (result.authToken) {
-      console.log('🔐 User authenticated, initializing aggregator with userId:', result.userId);
+      console.log('[AURA Background] Authenticated session detected; initializing aggregator for userId:', result.userId);
       await interactionAggregator.initialize();
       scheduleMlProfileFetch();
       // Check onboarding status – only fetch from daily GET API when onboarding complete (login/existing user)
@@ -97,18 +97,18 @@ async function initializeAggregator() {
           const data = await res.json();
           if (data.completed) {
             await chrome.storage.local.set({ onboardingCompleted: true });
-            console.log('✅ Onboarding already complete – aggregated/global tracking enabled');
+            console.log('[AURA Background] Onboarding already complete; aggregated tracking enabled');
             fetchMlPersonalizedProfile();
           }
         }
       } catch (e) {
-        console.debug('Could not fetch onboarding status:', e.message);
+        console.debug('[AURA Background] Could not fetch onboarding status:', e.message);
       }
     } else {
-      console.log('ℹ️ No authentication token found - aggregator will initialize after login');
+      console.log('[AURA Background] No auth token found; aggregator will initialize after login');
     }
   } catch (error) {
-    console.error('Failed to initialize aggregator:', error);
+    console.error('[AURA Background] Failed to initialize aggregator:', error);
   }
 }
 
@@ -140,10 +140,10 @@ async function syncProfileBeforeLogout(userId) {
         feedbackOverrides.push({ attribute: attr, old_value: baseVal, new_value: newVal });
       }
       if (feedbackOverrides.length === 0) {
-        console.debug('[AURA] No adaptive profile overrides to send; syncing user/session only');
+        console.debug('[AURA Background] No adaptive profile overrides detected; syncing user/session only');
       }
     } else {
-      console.debug('[AURA] Adaptive profile missing at logout; syncing user/session without overrides');
+      console.debug('[AURA Background] Adaptive profile missing at logout; syncing user/session without overrides');
     }
 
     const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
@@ -159,7 +159,6 @@ async function syncProfileBeforeLogout(userId) {
       payload.feedback_overrides = feedbackOverrides;
     }
 
-    console.log('Feeback url: ', mlFeedbackUrl);
     console.log('[AURA] Syncing profile changes to ML engine on logout:', payload);
     const mlFeedbackRes = await fetch(mlFeedbackUrl, {
       method: 'POST',
@@ -171,9 +170,9 @@ async function syncProfileBeforeLogout(userId) {
       throw new Error(`ML session-feedback API returned ${mlFeedbackRes.status}`);
     }
 
-    console.log(`[AURA] Sent ${feedbackOverrides.length} profile change(s) to ML engine`);
+    console.log(`[AURA Background] Sent ${feedbackOverrides.length} profile change(s) to ML engine`);
   } catch (e) {
-    console.debug(`[AURA] Could not sync profile changes to ML engine on logout (${mlFeedbackUrl}):`, e.message);
+    console.debug(`[AURA Background] Could not sync profile changes to ML engine on logout (${mlFeedbackUrl}):`, e.message);
   }
 }
 
@@ -195,7 +194,7 @@ async function syncProfileBeforeLogoutOnce(userId, source) {
     lastLogoutSync.userId === normalizedUserId &&
     now - lastLogoutSync.at < LOGOUT_SYNC_DEDUP_WINDOW_MS
   ) {
-    console.debug(`[AURA] Skipping duplicate logout sync from ${source} for user ${normalizedUserId}`);
+    console.debug(`[AURA Background] Skipping duplicate logout sync from ${source} for user ${normalizedUserId}`);
     return;
   }
 
@@ -208,11 +207,11 @@ chrome.storage.onChanged.addListener(async (changes, namespace) => {
   if (namespace !== 'local' || !changes.authToken) return;
   const { oldValue, newValue } = changes.authToken;
   if (newValue && !oldValue) {
-    console.log('âœ… User logged in - initializing aggregator');
+    console.log('[AURA Background] User logged in; initializing aggregator');
     await initializeAggregator();
     scheduleMlProfileFetch();
   } else if (!newValue && oldValue) {
-    console.log('ðŸ‘‹ User logged out - broadcasting to tabs');
+    console.log('[AURA Background] User logged out; broadcasting to tabs');
     // Prefer old userId from this storage event in case authToken and userId were
     // removed together by the popup logout path.
     const changedUserId = changes.userId?.oldValue ?? null;
@@ -255,14 +254,12 @@ const ML_PROFILE_ALARM = 'aura-ml-profile-daily';
 function scheduleMlProfileFetch() {
   if (typeof chrome !== 'undefined' && chrome.alarms) {
     chrome.alarms.create(ML_PROFILE_ALARM, { periodInMinutes: 24 * 60 }); // daily
-    console.log('ML profile daily fetch scheduled');
   }
 }
 
 function cancelMlProfileFetch() {
   if (typeof chrome !== 'undefined' && chrome.alarms) {
     chrome.alarms.clear(ML_PROFILE_ALARM).then(() => {
-      console.log('ML profile daily fetch cancelled');
     });
   }
 }
@@ -286,12 +283,12 @@ async function fetchMlPersonalizedProfile() {
           }
         }
       } catch (e) {
-        console.debug('Could not hydrate userId before ML profile fetch:', e.message);
+        console.debug('[AURA Background] Could not hydrate userId before ML profile fetch:', e.message);
       }
     }
 
     if (!userId) {
-      console.debug('Skipping ML personalized profile fetch: missing userId');
+      console.debug('[AURA Background] Skipping ML personalized profile fetch; missing userId');
       return;
     }
 
@@ -304,15 +301,14 @@ async function fetchMlPersonalizedProfile() {
     // Only store if we have a valid profile (daily GET API has no data for new users until ~24h)
     const profile = json?.profile ?? json;
     if (!profile || typeof profile !== 'object') {
-      console.debug('Daily ML profile API did not return valid profile, skipping store');
+      console.debug('[AURA Background] Daily ML profile API did not return valid profile; skipping store');
       return;
     }
     // Preserve full structure { user_id, metadata, profile, profile_changes } from daily API
     const toStore = json.profile != null ? json : { user_id: userId ?? 'unknown', metadata: {}, profile, profile_changes: null };
     await chrome.storage.local.set({ AURA_EXT_ML_PERSONALIZED_PROFILE: toStore });
-    console.log('ML personalized profile fetched and stored (from daily API)');
   } catch (e) {
-    console.debug('Could not fetch ML personalized profile:', e.message);
+    console.debug('[AURA Background] Could not fetch ML personalized profile:', e.message);
   }
 }
 
@@ -337,7 +333,7 @@ async function fetchInitialMlProfileFromImpairment() {
       headers: { Authorization: `Bearer ${result.authToken}` },
     });
     if (!impairmentRes.ok) {
-      console.debug('Could not fetch impairment profile for initial ML:', impairmentRes.status);
+      console.debug('[AURA Background] Could not fetch impairment profile for initial ML:', impairmentRes.status);
       return;
     }
     const impairmentData = await impairmentRes.json();
@@ -356,14 +352,14 @@ async function fetchInitialMlProfileFromImpairment() {
     const mlJson = await mlRes.json();
     const profile = mlJson?.profile;
     if (!profile || typeof profile !== 'object') {
-      console.debug('Impairment-to-ML API did not return profile');
+      console.debug('[AURA Background] Impairment-to-ML API did not return profile');
       return;
     }
     const toStore = { user_id: result.userId, metadata: { origin: 'impairment', created_at: new Date().toISOString() }, profile, profile_changes: null };
     await chrome.storage.local.set({ AURA_EXT_ML_PERSONALIZED_PROFILE: toStore });
-    console.log('Initial ML personalized profile from impairment stored');
+    console.log('[AURA Background] Initial ML personalized profile from impairment stored');
   } catch (e) {
-    console.debug('Could not fetch initial ML profile from impairment:', e.message);
+    console.debug('[AURA Background] Could not fetch initial ML profile from impairment:', e.message);
   }
 }
 
@@ -435,7 +431,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (result.userId && interactionAggregator) {
         interactionAggregator.userId = result.userId;
         interactionAggregator.initialize();
-        console.log('✅ Tracking initialized for user:', result.userId);
+        console.log('[AURA Background] Tracking initialized for user:', result.userId);
         // Sync tracking state to all content scripts so they start capturing
         chrome.tabs.query({}, (tabs) => {
           tabs.forEach((tab) => {
@@ -446,7 +442,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
         sendResponse({ success: true, userId: result.userId });
       } else {
-        console.warn('⚠️ Cannot initialize tracking: missing userId');
+        console.warn('[AURA Background] Cannot initialize tracking; missing userId');
         sendResponse({ success: false, error: 'Missing userId' });
       }
     });
@@ -463,10 +459,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   // Onboarding complete – impairment profile saved; enable tracking and broadcast user registered
   if (message.type === 'ONBOARDING_COMPLETE') {
-    console.log('🎉 Onboarding completed! Impairment profile saved.');
+    console.log('[AURA Background] Onboarding completed; impairment profile saved');
     chrome.storage.local.remove('onboardingTabId');
     chrome.storage.local.set({ onboardingCompleted: true }).then(() => {
-      console.log('✅ Onboarding completed – aggregated tracking now enabled');
+      console.log('[AURA Background] Onboarding completed; aggregated tracking enabled');
     });
     // Fetch initial ML profile from impairment (POST impairment to separate API, save response.profile)
     fetchInitialMlProfileFromImpairment();
@@ -605,7 +601,7 @@ async function handleInteraction(data, tab) {
       // Ensure aggregator has userId
       if (!interactionAggregator.userId && result.userId) {
         interactionAggregator.userId = result.userId;
-        console.log('📋 Set aggregator userId:', result.userId);
+        console.log('[AURA Background] Aggregator userId set:', result.userId);
       }
       
       // Track event in aggregator WITH URL from tab
@@ -617,15 +613,15 @@ async function handleInteraction(data, tab) {
       try {
         interactionAggregator.trackEvent(eventWithUrl);
       } catch (err) {
-        console.error('❌ Aggregator trackEvent failed:', err);
+        console.error('[AURA Background] Aggregator trackEvent failed:', err);
       }
     } else {
-      console.warn('⚠️ InteractionAggregator not available');
+      console.warn('[AURA Background] InteractionAggregator not available');
     }
     // ===========================================================
     // Aggregated batches only – no global interactions/buckets
   } catch (error) {
-    console.error('Failed to handle interaction:', error);
+    console.error('[AURA Background] Failed to handle interaction:', error);
   }
 }
 
@@ -664,7 +660,7 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
     const result = await chrome.storage.local.get(['onboardingTabId']);
     
     if (result.onboardingTabId === tabId) {
-      console.log('🎮 Onboarding tab closed:', tabId);
+      console.log('[AURA Background] Onboarding tab closed:', tabId);
       
       // Clear the stored tab ID
       await chrome.storage.local.remove('onboardingTabId');
@@ -673,7 +669,7 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
       // No need to do anything else here
     }
   } catch (error) {
-    console.error('Error handling tab removal:', error);
+    console.error('[AURA Background] Error handling tab removal:', error);
   }
 });
 
