@@ -4,7 +4,7 @@
   // =========================
   // Edit only these base URLs
   // =========================
-  const API_BASE_URL = 'https://ext-api.auraui.org';
+  const API_BASE_URL = 'https://ext-api.auraui.org/api';
   const ONBOARDING_GAME_BASE_URL = 'https://onboarding-frontend-psi.vercel.app';
   const ML_BASE_URL = 'https://mlpe.auraui.org';
 
