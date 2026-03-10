@@ -13,6 +13,7 @@ const API_CONFIG = {
   // ML profile URLs (also used by background via module config)
   ML_PROFILE_API_URL: EXTENSION_ENV.ML_PROFILE_API_URL || 'http://localhost:8000/data/current-profile',
   IMPAIRMENT_TO_ML_PROFILE_API_URL: EXTENSION_ENV.IMPAIRMENT_TO_ML_PROFILE_API_URL || 'http://localhost:8000/category/generate-profile',
+  ML_SESSION_FEEDBACK_URL: EXTENSION_ENV.ML_SESSION_FEEDBACK_URL || 'http://localhost:8000/user/trigger-update',
   
   ENDPOINTS: {
     REGISTER: '/auth/register',
