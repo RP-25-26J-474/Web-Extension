@@ -3,6 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
 const interactionRoutes = require('./routes/interactions');
 const statsRoutes = require('./routes/stats');
 const onboardingRoutes = require('./routes/onboarding');
@@ -50,6 +51,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/interactions', interactionRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/onboarding', onboardingRoutes);
