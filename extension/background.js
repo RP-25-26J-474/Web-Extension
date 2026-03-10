@@ -235,7 +235,18 @@ chrome.runtime.onSuspend.addListener(() => {
       syncProfileBeforeLogoutOnce(userId, 'runtime.onSuspend').catch(() => {});
     });
 });
-
+// MV3: onSuspend is not guaranteed to fire before the service worker is killed.
+// windows.onRemoved fires reliably when a window closes (including the last window = browser close).
+// When the last window closes, remaining.length === 0, so we sync once.
+chrome.windows.onRemoved.addListener(() => {
+  chrome.windows.getAll().then((remaining) => {
+    if (remaining.length > 0) return; // other windows still open, session not ending
+    chrome.storage.local.get(['userId']).then(({ userId }) => {
+      if (!userId) return;
+      syncProfileBeforeLogoutOnce(userId, 'windows.onRemoved').catch(() => {});
+    });
+  });
+});
 // ========== ML PERSONALIZED PROFILE â€“ Daily fetch ==========
 // For logged-in users, fetch profile from separate ML component daily using user_id.
 // Stored as AURA_EXT_ML_PERSONALIZED_PROFILE (no backend in extension â€“ fetches from external API).
