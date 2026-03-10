@@ -11,11 +11,13 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./
+COPY serving/requirements.txt ./
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
-COPY . .
+# Copy the serving app and model registry into the container
+COPY serving/ ./
+COPY model_registry/ ../model_registry/
 
 EXPOSE 4030
 
