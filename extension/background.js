@@ -1,4 +1,4 @@
-// Background Service Worker - Processes and stores interaction data
+﻿// Background Service Worker - Processes and stores interaction data
 // Handles data from content scripts and manages storage
 
 // Import config and aggregator as ES modules
@@ -113,63 +113,94 @@ async function initializeAggregator() {
 }
 
 // Sync current extension profile to ML engine before storage is cleared on logout/browser close.
-// Compares AURA_EXT_ML_PERSONALIZED_PROFILE (the ML-generated base) against
-// AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE (what the user customised) and sends only the diffs.
+// Sends required user/session fields to /user/trigger-update and includes feedback overrides when available.
 async function syncProfileBeforeLogout(userId) {
+  const mlFeedbackUrl = API_CONFIG.ML_SESSION_FEEDBACK_URL || 'https://mlpe.auraui.org/user/trigger-update';
   try {
     const stored = await chrome.storage.local.get([
       'AURA_EXT_ML_PERSONALIZED_PROFILE',
       'AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE',
     ]);
 
-    const mlStored   = stored.AURA_EXT_ML_PERSONALIZED_PROFILE;
-    const adaptive   = stored.AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE;
+    const mlStored = stored.AURA_EXT_ML_PERSONALIZED_PROFILE;
+    const adaptive = stored.AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE;
 
-    // Need both profiles to build a meaningful diff
-    if (!mlStored || !adaptive) {
-      console.debug('[AURA] Skipping session-feedback sync — missing one or both profiles');
-      return;
-    }
+    // /user/trigger-update requires user_id; feedback fields are optional.
+    const baseProfile = (mlStored && typeof mlStored === 'object' ? mlStored.profile : null) || {};
+    const baseVersion = mlStored?.metadata?.version ?? null;
+    const currentProfile = adaptive && typeof adaptive === 'object' ? adaptive : null;
 
-    // AURA_EXT_ML_PERSONALIZED_PROFILE shape: { user_id, metadata, profile, profile_changes }
-    const baseProfile    = mlStored.profile || {};
-    const baseVersion    = mlStored.metadata?.version ?? 1;
-    const currentProfile = adaptive;
-
-    // Build feedback_overrides: only attributes that actually changed
+    // Build feedback_overrides only when adaptive profile is present.
     const feedbackOverrides = [];
-    for (const [attr, baseVal] of Object.entries(baseProfile)) {
-      const newVal = currentProfile[attr];
-      if (newVal === undefined || newVal === null) continue;
-      if (String(newVal) === String(baseVal)) continue;
-      feedbackOverrides.push({ attribute: attr, old_value: baseVal, new_value: newVal });
+    if (currentProfile) {
+      for (const [attr, baseVal] of Object.entries(baseProfile)) {
+        const newVal = currentProfile[attr];
+        if (newVal === undefined || newVal === null) continue;
+        if (String(newVal) === String(baseVal)) continue;
+        feedbackOverrides.push({ attribute: attr, old_value: baseVal, new_value: newVal });
+      }
+      if (feedbackOverrides.length === 0) {
+        console.debug('[AURA] No adaptive profile overrides to send; syncing user/session only');
+      }
+    } else {
+      console.debug('[AURA] Adaptive profile missing at logout; syncing user/session without overrides');
     }
 
-    if (feedbackOverrides.length === 0) {
-      console.debug('[AURA] No profile changes to sync to ML engine');
-      return;
-    }
-
-    const today   = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
     const payload = {
-      user_id:              userId,
-      session_id:           `sess_${today}_${userId}`,
-      base_profile_version: baseVersion,
-      sent_at:              new Date().toISOString(),
-      feedback_overrides:   feedbackOverrides,
+      user_id: userId,
+      session_id: `sess_${today}_${userId}`,
+      sent_at: new Date().toISOString(),
     };
+    if (baseVersion !== null && baseVersion !== undefined) {
+      payload.base_profile_version = baseVersion;
+    }
+    if (feedbackOverrides.length > 0) {
+      payload.feedback_overrides = feedbackOverrides;
+    }
 
-    const mlFeedbackUrl = API_CONFIG.ML_SESSION_FEEDBACK_URL || 'https://aura-ml-backend-production-bdd3.up.railway.app/data/session-feedback';
-    await fetch(mlFeedbackUrl, {
+    console.log('Feeback url: ', mlFeedbackUrl);
+    console.log('[AURA] Syncing profile changes to ML engine on logout:', payload);
+    const mlFeedbackRes = await fetch(mlFeedbackUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
 
+    if (!mlFeedbackRes.ok) {
+      throw new Error(`ML session-feedback API returned ${mlFeedbackRes.status}`);
+    }
+
     console.log(`[AURA] Sent ${feedbackOverrides.length} profile change(s) to ML engine`);
   } catch (e) {
-    console.debug('[AURA] Could not sync profile changes to ML engine on logout:', e.message);
+    console.debug(`[AURA] Could not sync profile changes to ML engine on logout (${mlFeedbackUrl}):`, e.message);
   }
+}
+
+const LOGOUT_SYNC_DEDUP_WINDOW_MS = 15000;
+let lastLogoutSync = { userId: null, at: 0 };
+
+function normalizeUserId(userId) {
+  if (userId === null || userId === undefined) return null;
+  const normalized = String(userId).trim();
+  return normalized || null;
+}
+
+async function syncProfileBeforeLogoutOnce(userId, source) {
+  const normalizedUserId = normalizeUserId(userId);
+  if (!normalizedUserId) return;
+
+  const now = Date.now();
+  if (
+    lastLogoutSync.userId === normalizedUserId &&
+    now - lastLogoutSync.at < LOGOUT_SYNC_DEDUP_WINDOW_MS
+  ) {
+    console.debug(`[AURA] Skipping duplicate logout sync from ${source} for user ${normalizedUserId}`);
+    return;
+  }
+
+  lastLogoutSync = { userId: normalizedUserId, at: now };
+  await syncProfileBeforeLogout(normalizedUserId);
 }
 
 // Listen for authentication changes to initialize aggregator and broadcast to tabs
@@ -177,14 +208,17 @@ chrome.storage.onChanged.addListener(async (changes, namespace) => {
   if (namespace !== 'local' || !changes.authToken) return;
   const { oldValue, newValue } = changes.authToken;
   if (newValue && !oldValue) {
-    console.log('✅ User logged in - initializing aggregator');
+    console.log('âœ… User logged in - initializing aggregator');
     await initializeAggregator();
     scheduleMlProfileFetch();
   } else if (!newValue && oldValue) {
-    console.log('👋 User logged out - broadcasting to tabs');
-    // Read userId before storage is cleared, then sync profile diff to ML engine
-    const { userId } = await chrome.storage.local.get(['userId']);
-    if (userId) await syncProfileBeforeLogout(userId);
+    console.log('ðŸ‘‹ User logged out - broadcasting to tabs');
+    // Prefer old userId from this storage event in case authToken and userId were
+    // removed together by the popup logout path.
+    const changedUserId = changes.userId?.oldValue ?? null;
+    const { userId: storedUserId } = await chrome.storage.local.get(['userId']);
+    const logoutUserId = storedUserId ?? changedUserId;
+    await syncProfileBeforeLogoutOnce(logoutUserId, 'storage.onChanged');
     if (interactionAggregator) interactionAggregator.userId = null;
     broadcastToAllTabs({ type: 'USER_LOGGED_OUT' });
     cancelMlProfileFetch();
@@ -194,17 +228,17 @@ chrome.storage.onChanged.addListener(async (changes, namespace) => {
 
 // Sync profile diff to ML engine when the browser (or extension) is about to be suspended/closed
 chrome.runtime.onSuspend.addListener(() => {
-  chrome.storage.local.get(['userId', 'authToken'])
-    .then(({ userId, authToken }) => {
-      if (!userId || !authToken) return;
-      // Fire-and-forget — service worker may be terminated before this resolves
-      syncProfileBeforeLogout(userId).catch(() => {});
+  chrome.storage.local.get(['userId'])
+    .then(({ userId }) => {
+      if (!userId) return;
+      // Fire-and-forget â€” service worker may be terminated before this resolves
+      syncProfileBeforeLogoutOnce(userId, 'runtime.onSuspend').catch(() => {});
     });
 });
 
-// ========== ML PERSONALIZED PROFILE – Daily fetch ==========
+// ========== ML PERSONALIZED PROFILE â€“ Daily fetch ==========
 // For logged-in users, fetch profile from separate ML component daily using user_id.
-// Stored as AURA_EXT_ML_PERSONALIZED_PROFILE (no backend in extension – fetches from external API).
+// Stored as AURA_EXT_ML_PERSONALIZED_PROFILE (no backend in extension â€“ fetches from external API).
 const ML_PROFILE_ALARM = 'aura-ml-profile-daily';
 
 function scheduleMlProfileFetch() {
@@ -476,9 +510,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'BROADCAST_USER_LOGOUT') {
     // Reset aggregator userId immediately so no further batches use stale user
     if (interactionAggregator) interactionAggregator.userId = null;
-    // Read auth data before clearing, sync profile to ML engine, then clear storage
-    chrome.storage.local.get(['authToken', 'userId']).then(async ({ authToken, userId }) => {
-      if (userId && authToken) await syncProfileBeforeLogout(userId);
+    // Use storage userId when present; otherwise accept explicit fallback from popup.
+    chrome.storage.local.get(['userId']).then(async ({ userId }) => {
+      const logoutUserId = userId ?? message.userId ?? null;
+      await syncProfileBeforeLogoutOnce(logoutUserId, 'BROADCAST_USER_LOGOUT');
       return chrome.storage.local.remove([
         'authToken',
         'userId',
