@@ -17,6 +17,6 @@ RUN pip install --upgrade pip && \
 
 COPY . .
 
-EXPOSE 8000
+EXPOSE 4030
 
 CMD ["python", "app.py"]
