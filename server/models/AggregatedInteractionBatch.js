@@ -198,6 +198,21 @@ aggregatedInteractionBatchSchema.statics.getUserBatchesLast24h = async function(
 };
 
 /**
+ * Static method to get the most recent N batches for a user.
+ * Returned in chronological order (oldest -> newest) for easier downstream processing.
+ */
+aggregatedInteractionBatchSchema.statics.getUserRecentBatches = async function(userId, limit = 200) {
+  const max = Number.isFinite(limit) ? Math.max(1, Math.min(Math.floor(limit), 1000)) : 200;
+
+  const batches = await this.find({ userId })
+    .sort({ captured_at: -1 })
+    .limit(max)
+    .lean();
+
+  return batches.reverse();
+};
+
+/**
  * Static method to get distinct active userIds in the last 24 hours
  * A user is considered active if at least one batch exists in this window.
  */
