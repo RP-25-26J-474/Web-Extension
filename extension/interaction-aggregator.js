@@ -72,9 +72,9 @@ class InteractionAggregator {
       // Start first window
       this.startNewWindow();
       
-      console.log('✅ InteractionAggregator initialized');
+      console.log('[AURA Aggregator] Initialized');
     } catch (error) {
-      console.error('Failed to initialize aggregator:', error);
+      console.error('[AURA Aggregator] Failed to initialize:', error);
     }
   }
 
@@ -100,8 +100,7 @@ class InteractionAggregator {
     
     // Start new window
     this.windowStartTime = Date.now();
-    
-    console.log(`📊 Started new 10s aggregation window at ${new Date(this.windowStartTime).toISOString()}`);
+    console.log('[AURA Aggregator] Started new 10-second aggregation window at ' + new Date(this.windowStartTime).toISOString());
   }
 
   /**
@@ -114,14 +113,12 @@ class InteractionAggregator {
     
     if (aggregatedData) {
       this.batchQueue.push(aggregatedData);
-      console.log(`📦 Window closed and added to batch queue:`, {
+      console.log('[AURA Aggregator] Closed window and queued batch:', {
         batchId: aggregatedData.batch_id,
         queueSize: this.batchQueue.length,
         clickCount: aggregatedData.events_agg.click_count,
         domain: aggregatedData.page_context.domain,
       });
-    } else {
-      console.log('⏭️ Window closed but no data to aggregate');
     }
     
     this.windowStartTime = null;
@@ -150,7 +147,7 @@ class InteractionAggregator {
           app_type: 'web',
         };
       } catch (e) {
-        console.warn('⚠️ Invalid URL:', interactionData.url, e);
+        console.warn('[AURA Aggregator] Invalid URL in tracked event:', interactionData.url, e);
         // Fallback
         this.currentPageContext = {
           domain: 'unknown',
@@ -221,11 +218,10 @@ class InteractionAggregator {
   calculateAggregates() {
     if (this.clicks.length === 0 && this.mouseMoves.length === 0 && this.scrollEvents.length === 0) {
       // No meaningful data in this window
-      console.log('⏭️ No interactions in this window, skipping aggregation');
+      console.log('[AURA Aggregator] No interactions in current window; skipping aggregation');
       return null;
     }
-    
-    console.log(`🔢 Calculating aggregates for window:`, {
+    console.log('[AURA Aggregator] Calculating aggregates for current window:', {
       clicks: this.clicks.length,
       mouseMoves: this.mouseMoves.length,
       scrolls: this.scrollEvents.length,
@@ -469,7 +465,7 @@ class InteractionAggregator {
    */
   async flushBatches() {
     if (this.batchQueue.length === 0) {
-      console.log('⏭️ No batches to flush');
+      console.log('[AURA Aggregator] No batches to flush');
       return;
     }
     
@@ -483,9 +479,7 @@ class InteractionAggregator {
       
       // Store batches locally
       await chrome.storage.local.set({ aggregatedBatches: storedBatches });
-      
-      console.log(`💾 Flushed ${this.batchQueue.length} batches to storage. Total stored: ${storedBatches.length}`);
-      
+      console.log('[AURA Aggregator] Flushed ' + this.batchQueue.length + ' batches to storage. Total stored: ' + storedBatches.length);
       // Clear current queue
       this.batchQueue = [];
       
@@ -493,11 +487,11 @@ class InteractionAggregator {
       if (result.authToken) {
         await this.syncBatchesToServer();
       } else {
-        console.log('⚠️ Not authenticated, batches stored locally only');
+        console.log('[AURA Aggregator] Not authenticated');
       }
       
     } catch (error) {
-      console.error('❌ Failed to flush batches:', error);
+      console.error('[AURA Aggregator] Failed to flush batches:', error);
     }
   }
 
@@ -513,12 +507,11 @@ class InteractionAggregator {
       const batches = result.aggregatedBatches || [];
       
       if (batches.length === 0) {
-        console.log('⏭️ No aggregated batches to sync');
+        console.log('[AURA Aggregator] No aggregated batches to sync');
         return;
       }
-      
-      console.log(`📤 Syncing ${batches.length} aggregated batches to server...`);
-      console.log('📦 First batch sample:', JSON.stringify(batches[0], null, 2));
+      console.log('[AURA Aggregator] Syncing ' + batches.length + ' aggregated batches to server');
+      console.log('[AURA Aggregator] Full batch payload:', JSON.stringify(batches, null, 2));
       
       const response = await fetch(`${API_CONFIG.BASE_URL}/interactions/aggregated-batches`, {
         method: 'POST',
@@ -531,13 +524,12 @@ class InteractionAggregator {
       
       if (response.ok) {
         const responseData = await response.json();
-        console.log(`✅ Synced ${responseData.count || batches.length} aggregated batches to server`);
-        
+        console.log('[AURA Aggregator] Synced ' + (responseData.count || batches.length) + ' aggregated batches to server');
         // Clear synced batches from storage
         await chrome.storage.local.set({ aggregatedBatches: [] });
       } else {
         const errorText = await response.text();
-        console.error('❌ Server sync failed:', {
+        console.error('[AURA Aggregator] Server sync failed:', {
           status: response.status,
           statusText: response.statusText,
           error: errorText,
@@ -546,15 +538,15 @@ class InteractionAggregator {
         // Try to parse error as JSON for more details
         try {
           const errorJson = JSON.parse(errorText);
-          console.error('❌ Server error details:', errorJson);
+          console.error('[AURA Aggregator] Server error details:', errorJson);
         } catch (e) {
           // Error text is not JSON
         }
       }
       
     } catch (error) {
-      console.error('❌ Failed to sync batches to server:', error);
-      console.error('Error details:', {
+      console.error('[AURA Aggregator] Failed to sync batches to server:', error);
+      console.error('[AURA Aggregator] Sync error details:', {
         message: error.message,
         stack: error.stack,
       });
@@ -581,9 +573,9 @@ class InteractionAggregator {
       
       URL.revokeObjectURL(url);
       
-      console.log('📥 Exported batches to JSON file');
+      console.log('[AURA Aggregator] Exported batches to JSON file');
     } catch (error) {
-      console.error('Failed to export batches:', error);
+      console.error('[AURA Aggregator] Failed to export batches:', error);
     }
   }
 }
@@ -598,4 +590,6 @@ if (typeof chrome !== 'undefined' && chrome.storage) {
 
 // Also export the class for testing
 export { InteractionAggregator };
+
+
 
