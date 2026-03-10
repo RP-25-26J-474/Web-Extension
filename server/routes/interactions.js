@@ -391,64 +391,41 @@ router.get('/active-users/last-24h', async (req, res) => {
 });
 
 /**
- * Get aggregated batches for a user in a time range
- * GET /api/interactions/aggregated-batches?start=2025-01-01&end=2025-12-31
+ * Get aggregated batches for a user
+ * GET /api/interactions/aggregated-batches?user_id=<id>
  *
- * Integration: If an external component needs a custom date range:
- *   GET /api/interactions/aggregated-batches?start=YYYY-MM-DD&end=YYYY-MM-DD
- *   Headers: Authorization: Bearer <token>
- *   Response: { batches: [...], count: N }
+ * Integration:
+ *   Recent: GET /api/interactions/aggregated-batches?user_id=<id>
+ *   Response: { batches: [...] }
  *   For last 24h only, prefer GET /aggregated-batches/last-24h
  */
 router.get('/aggregated-batches', async (req, res) => {
   try {
-    const { start, end } = req.query;
+    const queryUserId = req.query.user_id || req.query.userId;
 
-    // Dedicated integration mode:
-    // GET /api/interactions/aggregated-batches/?user_id=<id>
-    // Returns most recent 50 aggregated batches for that user.
-    if (!start && !end) {
-      const userId = await resolveAggregatedBatchesUserId(req);
-      const batches = await AggregatedInteractionBatch.getUserRecentBatches(userId, 50);
-      const normalizedBatches = batches.map(batch => ({
-        user_id: String(batch.userId),
-        batch_id: batch.batch_id,
-        captured_at: new Date(batch.captured_at).toISOString(),
-        page_context: batch.page_context,
-        events_agg: batch.events_agg,
-      }));
-
-      return res.json({
-        batches: normalizedBatches,
-      });
+    if (!queryUserId) {
+      return res.status(400).json({ error: 'user_id query parameter is required' });
     }
 
-    if (!start || !end) {
-      return res.status(400).json({ error: 'start and end query parameters required' });
+    if (!mongoose.Types.ObjectId.isValid(queryUserId)) {
+      return res.status(400).json({ error: 'Invalid user_id query parameter' });
     }
 
-    // Existing range mode (authenticated user)
-    let userId;
-    try {
-      const token = req.header('Authorization')?.replace('Bearer ', '');
-      if (!token) {
-        return res.status(401).json({ error: 'Authentication required for date-range query' });
-      }
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.userId).select('_id').lean();
-      if (!user) {
-        return res.status(401).json({ error: 'User not found' });
-      }
-      userId = user._id;
-    } catch (verifyError) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
+    if (req.query.start || req.query.end) {
+      return res.status(400).json({ error: 'start/end are not supported on this endpoint' });
     }
 
-    const batches = await AggregatedInteractionBatch.getUserBatches(userId, start, end);
-    
+    const batches = await AggregatedInteractionBatch.getUserRecentBatches(queryUserId, 50);
+    const normalizedBatches = batches.map(batch => ({
+      user_id: String(batch.userId),
+      batch_id: batch.batch_id,
+      captured_at: new Date(batch.captured_at).toISOString(),
+      page_context: batch.page_context,
+      events_agg: batch.events_agg,
+    }));
+
     res.json({
-      batches,
-      count: batches.length,
+      batches: normalizedBatches,
     });
     
   } catch (error) {
