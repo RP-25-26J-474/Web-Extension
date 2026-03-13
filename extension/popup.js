@@ -183,66 +183,71 @@ function showOnboardingPrompt(user) {
     onboardingPrompt.style.display = 'block';
     onboardingPrompt.innerHTML = `
       <div class="onboarding-prompt">
-        <div class="welcome-badge">
-          <span class="welcome-emoji">🔦</span>
-        </div>
-        <h2>Welcome ${userName}!</h2>
-        <p class="onboarding-description">
-          Ready to restore the lighthouse? Four assessment tasks await to help us 
-          personalize your experience and build your AURA profile.
-        </p>
-        
-        <div class="game-cards-grid">
-          <div class="game-card">
-            <div class="game-card-icon">🎨</div>
-            <div class="game-card-content">
-              <h3>Calibrate the Light Colors</h3>
-              <p>Align the prism so signals are not lost</p>
-            </div>
+        <div class="onboarding-hero">
+          <div class="welcome-badge">
+            <span class="welcome-emoji">&#128161;</span>
           </div>
-          <div class="game-card">
-            <div class="game-card-icon">🔍</div>
-            <div class="game-card-content">
-              <h3>Focus the Beam</h3>
-              <p>Sharpen the light to reach distant signals</p>
-            </div>
-          </div>
-          <div class="game-card">
-            <div class="game-card-icon">💨</div>
-            <div class="game-card-content">
-              <h3>Clear the Rising Fog</h3>
-              <p>Remove corrupted data blocking the path</p>
-            </div>
-          </div>
-          <div class="game-card">
-            <div class="game-card-icon">⚙️</div>
-            <div class="game-card-content">
-              <h3>Restore the Control Panel</h3>
-              <p>Make correct operational decisions</p>
-            </div>
+          <div class="onboarding-hero-copy">
+            <h2>Welcome ${userName}!</h2>
+            <p class="onboarding-description">
+              Complete four quick assessments to generate your personalized AURA profile.
+            </p>
           </div>
         </div>
-        
-        <div class="onboarding-features">
-          <div class="feature-item">
-            <span class="feature-icon">⏱️</span>
-            <span>About 5 minutes</span>
+
+        <div class="onboarding-meta">
+          <span class="meta-chip"><strong>4</strong> Challenges</span>
+          <span class="meta-chip"><strong>~5 min</strong> Duration</span>
+        </div>
+
+        <div class="challenge-list">
+          <div class="challenge-item">
+            <div class="challenge-index">01</div>
+            <div class="challenge-body">
+              <div class="challenge-title-row">
+                <h3>Calibrate the Light Colors</h3>
+              </div>
+              <p>Align the prism so signals are not lost.</p>
+            </div>
           </div>
-          <div class="feature-item">
-            <span class="feature-icon">🔒</span>
-            <span>100% Private</span>
+
+          <div class="challenge-item">
+            <div class="challenge-index">02</div>
+            <div class="challenge-body">
+              <div class="challenge-title-row">
+                <h3>Focus the Beam</h3>
+              </div>
+              <p>Sharpen the light to reach distant signals.</p>
+            </div>
           </div>
-          <div class="feature-item">
-            <span class="feature-icon">✨</span>
-            <span>Personalized profile</span>
+
+          <div class="challenge-item">
+            <div class="challenge-index">03</div>
+            <div class="challenge-body">
+              <div class="challenge-title-row">
+                <h3>Clear the Rising Fog</h3>
+              </div>
+              <p>Remove corrupted data blocking the path.</p>
+            </div>
+          </div>
+
+          <div class="challenge-item">
+            <div class="challenge-index">04</div>
+            <div class="challenge-body">
+              <div class="challenge-title-row">
+                <h3>Restore the Control Panel</h3>
+              </div>
+              <p>Make correct operational decisions.</p>
+            </div>
           </div>
         </div>
-        
+
         <div class="onboarding-actions">
           <button id="startOnboardingBtn" class="btn btn-primary full-width btn-glow" aria-label="Start onboarding game - opens in new tab">
-            <span class="btn-text">Let's Play!</span>
-            <span class="btn-arrow" aria-hidden="true">→</span>
+            <span class="btn-text">Start Lighthouse Mission</span>
+            <span class="btn-arrow" aria-hidden="true">&rarr;</span>
           </button>
+          <p class="onboarding-footnote">Opens in a new tab. You can return here anytime.</p>
         </div>
       </div>
     `;
@@ -751,4 +756,5 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
 
