@@ -188,6 +188,14 @@ class APIClient {
     }
   }
 
+  async deleteAccount() {
+    const data = await this.request(API_CONFIG.ENDPOINTS.DELETE_ACCOUNT, {
+      method: 'DELETE'
+    });
+    await this.clearToken();
+    return data;
+  }
+
   async getCurrentUser() {
     return await this.request(API_CONFIG.ENDPOINTS.ME);
   }

@@ -481,6 +481,16 @@ header h1 {
   color: #92400e;
 }
 
+.danger-note {
+  background: #fef2f2;
+  border-left: 4px solid #dc2626;
+  padding: 0.875rem;
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #991b1b;
+}
+
 .privacy-note a {
   color: #1d4ed8;
   font-weight: 600;

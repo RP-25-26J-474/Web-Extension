@@ -34,6 +34,7 @@ export const API_CONFIG = {
     COMPLETE_VERIFICATION: '/auth/complete-verification',
     LOGIN: '/auth/login',
     LOGOUT: '/auth/logout',
+    DELETE_ACCOUNT: '/auth/account',
     ME: '/auth/me',
     UPDATE_SETTINGS: '/auth/settings',
     GET_STATS: '/stats',

@@ -63,6 +63,13 @@ async function getStoredUserProfileSummary() {
   };
 }
 
+async function clearClientSessionState(userId) {
+  await chrome.runtime.sendMessage({ type: 'BROADCAST_USER_LOGOUT', userId: userId || null }).catch(() => {});
+  await clearRegistrationFlowState();
+  await chrome.storage.local.clear();
+  showAuthSection();
+}
+
 const REGISTRATION_FLOW_STATE_KEY = 'registrationFlowState';
 const ONBOARDING_COMPLETED_KEY = 'onboardingCompleted';
 const REGISTRATION_FLOW_STAGES = {
@@ -579,6 +586,7 @@ function initializeEventListeners() {
   document.getElementById('loginBtn')?.addEventListener('click', handleLogin);
   document.getElementById('registerBtn')?.addEventListener('click', handleRegister);
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
+  document.getElementById('deleteAccountBtn')?.addEventListener('click', handleDeleteAccount);
   
   // Verify section buttons
   document.getElementById('continueVerifyBtn')?.addEventListener('click', handleCompleteVerification);
@@ -886,20 +894,53 @@ async function handleLogout() {
     const { userId } = await chrome.storage.local.get(['userId']);
     // 1. Clear token + userId (triggers storage.onChanged → background cleanup)
     await apiClient.logout();
-    
-    // 2. Explicitly broadcast logout so background clears auth + ML profiles (belt-and-suspenders)
-    await chrome.runtime.sendMessage({ type: 'BROADCAST_USER_LOGOUT', userId: userId || null }).catch(() => {});
-    
-    // 3. Clear remaining local storage (consent, config, etc.)
-    await clearRegistrationFlowState();
-    await chrome.storage.local.clear();
-    
-    showAuthSection();
+    await clearClientSessionState(userId);
     showNotification('Logged out successfully', 'success');
     
   } catch (error) {
     console.error('Logout error:', error);
     showNotification('Logout failed', 'error');
+  }
+}
+
+async function handleDeleteAccount() {
+  if (!confirm('This will permanently delete your AURA account and all related data. Continue?')) {
+    return;
+  }
+
+  const confirmation = window.prompt('Type DELETE to permanently remove your account.');
+  if (confirmation !== 'DELETE') {
+    showNotification('Account deletion cancelled', 'info');
+    return;
+  }
+
+  const deleteBtn = document.getElementById('deleteAccountBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+
+  try {
+    if (deleteBtn) {
+      deleteBtn.disabled = true;
+      deleteBtn.textContent = 'Deleting account...';
+    }
+    if (logoutBtn) {
+      logoutBtn.disabled = true;
+    }
+
+    const { userId } = await chrome.storage.local.get(['userId']);
+    await apiClient.deleteAccount();
+    await clearClientSessionState(userId);
+    showNotification('Account deleted permanently', 'success');
+  } catch (error) {
+    console.error('Delete account error:', error);
+    showNotification(error.message || 'Failed to delete account', 'error');
+  } finally {
+    if (deleteBtn) {
+      deleteBtn.disabled = false;
+      deleteBtn.textContent = 'Delete Account';
+    }
+    if (logoutBtn) {
+      logoutBtn.disabled = false;
+    }
   }
 }
 

@@ -5,6 +5,16 @@ const { body, validationResult } = require('express-validator');
 const crypto = require('crypto');
 const User = require('../models/User');
 const Stats = require('../models/Stats');
+const Interaction = require('../models/Interaction');
+const AggregatedInteractionBatch = require('../models/AggregatedInteractionBatch');
+const ImpairmentProfile = require('../models/ImpairmentProfile');
+const OnboardingSession = require('../models/OnboardingSession');
+const OnboardingVisionResult = require('../models/OnboardingVisionResult');
+const OnboardingLiteracyResult = require('../models/OnboardingLiteracyResult');
+const OnboardingMotorResult = require('../models/OnboardingMotorResult');
+const MotorAttemptBucket = require('../models/MotorAttemptBucket');
+const MotorPointerTraceBucket = require('../models/MotorPointerTraceBucket');
+const { MotorRoundSummary, MotorSessionSummary } = require('../models/MotorSummary');
 const authMiddleware = require('../middleware/auth');
 const emailService = require('../services/emailService');
 const EMAIL_NORMALIZATION_OPTIONS = { gmail_remove_dots: false };
@@ -14,6 +24,35 @@ const REQUIRE_EMAIL_VERIFICATION = String(process.env.REQUIRE_EMAIL_VERIFICATION
 const generateToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '30d' });
 };
+
+async function deleteUserAccountData(userId) {
+  const operations = {
+    stats: Stats.deleteOne({ userId }),
+    interactions: Interaction.deleteMany({ userId }),
+    aggregatedInteractionBatches: AggregatedInteractionBatch.deleteMany({ userId }),
+    impairmentProfiles: ImpairmentProfile.deleteMany({ userId }),
+    onboardingSessions: OnboardingSession.deleteMany({ userId }),
+    onboardingVisionResults: OnboardingVisionResult.deleteMany({ userId }),
+    onboardingLiteracyResults: OnboardingLiteracyResult.deleteMany({ userId }),
+    onboardingMotorResults: OnboardingMotorResult.deleteMany({ userId }),
+    motorAttemptBuckets: MotorAttemptBucket.deleteMany({ userId }),
+    motorPointerTraceBuckets: MotorPointerTraceBucket.deleteMany({ userId }),
+    motorRoundSummaries: MotorRoundSummary.deleteMany({ userId }),
+    motorSessionSummaries: MotorSessionSummary.deleteMany({ userId }),
+  };
+
+  const results = await Promise.all(
+    Object.entries(operations).map(async ([key, operation]) => {
+      const result = await operation;
+      if (typeof result?.deletedCount === 'number') {
+        return [key, result.deletedCount];
+      }
+      return [key, result ? 1 : 0];
+    })
+  );
+
+  return Object.fromEntries(results);
+}
 
 // Register new user (requires email verification before login/onboarding)
 router.post('/register', [
@@ -384,6 +423,30 @@ router.post('/logout', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Logout error:', error);
     res.status(500).json({ error: 'Failed to logout' });
+  }
+});
+
+// Delete account and all linked onboarding / tracking data
+router.delete('/account', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const deleted = await deleteUserAccountData(userId);
+    const deletedUser = await User.findByIdAndDelete(userId);
+
+    if (!deletedUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      message: 'Account deleted successfully',
+      deleted: {
+        ...deleted,
+        user: 1,
+      },
+    });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({ error: 'Failed to delete account' });
   }
 });
 
