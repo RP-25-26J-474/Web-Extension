@@ -345,10 +345,21 @@ class AuraIntegration {
   // Complete onboarding
   async completeOnboarding() {
     if (!this.isEnabled()) return null;
+
+    const completionKey = `aura_onboarding_completed_${this.userId || 'anonymous'}`;
+    if (window.sessionStorage?.getItem(completionKey) === 'true') {
+      console.log('✅ AURA onboarding already completed in this tab; skipping duplicate completion');
+      return { alreadyCompleted: true };
+    }
     
     console.log('✅ Completing AURA onboarding');
     
     const result = await this.callAuraAPI('complete', {});
+    try {
+      window.sessionStorage?.setItem(completionKey, 'true');
+    } catch (_) {
+      // Ignore sessionStorage failures; completion already succeeded server-side.
+    }
     
     // Notify extension (if opened from extension)
     if (window.opener) {

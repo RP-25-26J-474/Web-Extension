@@ -7,7 +7,7 @@ import pandas as pd
 
 app = FastAPI()
 
-MODEL_DIR = os.getenv("AURA_MOTOR_MODEL_DIR", r"..\model_registry\motor\1.0.0")
+MODEL_DIR = os.getenv("AURA_MOTOR_MODEL_DIR", os.path.join("..", "model_registry", "motor", "1.0.0"))
 
 # Load report for feature lists
 report_path = os.path.join(MODEL_DIR, "reports", "training_report.json")

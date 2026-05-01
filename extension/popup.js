@@ -48,6 +48,47 @@ async function clearPendingVerification() {
   await chrome.storage.local.remove(PENDING_VERIFICATION_KEY);
 }
 
+const REGISTRATION_FLOW_STATE_KEY = 'registrationFlowState';
+const ONBOARDING_COMPLETED_KEY = 'onboardingCompleted';
+const REGISTRATION_FLOW_STAGES = {
+  CONSENT_PENDING: 'consent_pending',
+  ONBOARDING_PENDING: 'onboarding_pending',
+};
+
+async function getRegistrationFlowState() {
+  const result = await chrome.storage.local.get([REGISTRATION_FLOW_STATE_KEY]);
+  return result?.[REGISTRATION_FLOW_STATE_KEY] || null;
+}
+
+async function setRegistrationFlowState(stage) {
+  if (!stage) return;
+  await chrome.storage.local.set({
+    [REGISTRATION_FLOW_STATE_KEY]: {
+      stage,
+      updatedAt: Date.now(),
+    },
+  });
+}
+
+async function clearRegistrationFlowState() {
+  await chrome.storage.local.remove([REGISTRATION_FLOW_STATE_KEY]);
+}
+
+async function isOnboardingCompletedLocally() {
+  const result = await chrome.storage.local.get([ONBOARDING_COMPLETED_KEY]);
+  return result?.[ONBOARDING_COMPLETED_KEY] === true;
+}
+
+async function finalizeOnboardingFlow(user) {
+  await chrome.storage.local.set({ [ONBOARDING_COMPLETED_KEY]: true });
+  await clearRegistrationFlowState();
+  showMainContent();
+  if (user) {
+    displayUserInfo(user);
+  }
+  await loadData();
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
   console.log('📄 DOMContentLoaded event fired');
   
@@ -64,7 +105,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (pendingVerificationEmail) {
       showVerifyPendingSection(pendingVerificationEmail);
     } else {
-      showAuthSection();
+      await clearRegistrationFlowState();
+    showAuthSection();
     }
     return;
   }
@@ -100,33 +142,42 @@ document.addEventListener('DOMContentLoaded', async function() {
       });
     }
     
-    // FIXED: Check consent BEFORE onboarding to prevent stuck users
-    // If no consent given yet, show consent section first
-    if (!userData.user.consentGiven) {
-      console.log('⚠️ Consent not given, showing consent section');
-      showConsentSection();
-      return;
+    // Registration flow gating (consent + onboarding) is only enforced for users
+    // currently in registration flow. Login flow always lands on main content.
+    let registrationFlowState = await getRegistrationFlowState();
+
+    if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.CONSENT_PENDING) {
+      if (!userData.user.consentGiven) {
+        showConsentSection();
+        return;
+      }
+
+      await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING);
+      registrationFlowState = { stage: REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING };
     }
-    
-    // Check onboarding status (only after consent is given)
-    let onboardingStatus = { completed: false };
-    try {
-      onboardingStatus = await apiClient.getOnboardingStatus() || { completed: false };
-    } catch (err) {
-      console.warn('Could not get onboarding status:', err.message);
-    }
-    console.log('📋 Onboarding status:', onboardingStatus);
-    
-    if (!onboardingStatus.completed) {
-      // Show onboarding prompt
-      showOnboardingPrompt(userData.user);
+
+    if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING) {
+      if (await isOnboardingCompletedLocally()) {
+        await finalizeOnboardingFlow(userData.user);
+        return;
+      }
+
+      let onboardingStatus = { completed: false };
+      try {
+        onboardingStatus = await apiClient.getOnboardingStatus() || { completed: false };
+      } catch (err) {
+        console.warn('Could not get onboarding status:', err.message);
+      }
+
+      if (!onboardingStatus.completed) {
+        showOnboardingPrompt(userData.user);
+        return;
+      }
+
+      await finalizeOnboardingFlow(userData.user);
       return;
     }
 
-    // Onboarding complete – enable aggregated/global tracking
-    await chrome.storage.local.set({ onboardingCompleted: true });
-    
-    // Both consent and onboarding complete - show main content
     showMainContent();
     displayUserInfo(userData.user);
     await loadData();
@@ -137,7 +188,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (pendingVerificationEmail) {
       showVerifyPendingSection(pendingVerificationEmail);
     } else {
-      showAuthSection();
+      await clearRegistrationFlowState();
+    showAuthSection();
     }
   }
 });
@@ -145,6 +197,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 // Show auth section
 function showAuthSection() {
   console.log('📝 Showing auth section');
+  hideOnboardingPrompt();
   document.getElementById('authSection').style.display = 'block';
   document.getElementById('verifySection').style.display = 'none';
   document.getElementById('consentSection').style.display = 'none';
@@ -162,6 +215,30 @@ function showVerifyPendingSection(email) {
   const errorEl = document.getElementById('verifyCodeError');
   if (errorEl) {
     errorEl.style.display = 'none';
+  }
+}
+
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace !== 'local') return;
+  if (changes[ONBOARDING_COMPLETED_KEY]?.newValue !== true) return;
+
+  (async () => {
+    try {
+      const token = await apiClient?.getToken?.();
+      if (!token) return;
+
+      const userData = await apiClient.getCurrentUser().catch(() => null);
+      await finalizeOnboardingFlow(userData?.user || null);
+    } catch (error) {
+      console.warn('Could not refresh popup after onboarding completion:', error?.message || error);
+    }
+  })();
+});
+
+function hideOnboardingPrompt() {
+  const onboardingPrompt = document.getElementById('onboardingPrompt');
+  if (onboardingPrompt) {
+    onboardingPrompt.style.display = 'none';
   }
 }
 
@@ -322,6 +399,7 @@ async function startOnboardingGame() {
 
 // Show consent section
 function showConsentSection() {
+  hideOnboardingPrompt();
   document.getElementById('authSection').style.display = 'none';
   document.getElementById('verifySection').style.display = 'none';
   document.getElementById('consentSection').style.display = 'block';
@@ -330,6 +408,7 @@ function showConsentSection() {
 
 // Show main content
 function showMainContent() {
+  hideOnboardingPrompt();
   document.getElementById('authSection').style.display = 'none';
   document.getElementById('verifySection').style.display = 'none';
   document.getElementById('consentSection').style.display = 'none';
@@ -477,13 +556,10 @@ async function handleLogin() {
       });
     }
     
-    if (data.user.consentGiven) {
-      showMainContent();
-      displayUserInfo(data.user);
-      await loadData();
-    } else {
-      showConsentSection();
-    }
+    await clearRegistrationFlowState();
+    showMainContent();
+    displayUserInfo(data.user);
+    await loadData();
     
     // Notify other components (tabs with sensecheck, dashboard, etc.) - broadcast token and userId
     chrome.runtime.sendMessage({
@@ -573,7 +649,8 @@ async function handleRegister() {
       showNotification('Account created successfully!', 'success');
     } else {
       await clearPendingVerification();
-      showConsentSection();
+      await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.CONSENT_PENDING);
+    showConsentSection();
       showNotification('Account created successfully!', 'success');
     }
     
@@ -672,13 +749,15 @@ async function handleLogout() {
   }
   
   try {
+    const { userId } = await chrome.storage.local.get(['userId']);
     // 1. Clear token + userId (triggers storage.onChanged → background cleanup)
     await apiClient.logout();
     
     // 2. Explicitly broadcast logout so background clears auth + ML profiles (belt-and-suspenders)
-    await chrome.runtime.sendMessage({ type: 'BROADCAST_USER_LOGOUT' }).catch(() => {});
+    await chrome.runtime.sendMessage({ type: 'BROADCAST_USER_LOGOUT', userId: userId || null }).catch(() => {});
     
     // 3. Clear remaining local storage (consent, config, etc.)
+    await clearRegistrationFlowState();
     await chrome.storage.local.clear();
     
     showAuthSection();
@@ -717,10 +796,11 @@ async function handleAcceptConsent() {
     }
     
     // STEP 2: Set in local storage
-    await chrome.storage.local.set({ 
-      trackingEnabled: true, 
-      consentGiven: true 
+    await chrome.storage.local.set({
+      trackingEnabled: true,
+      consentGiven: true
     });
+    await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING);
     console.log('✅ Tracking enabled in local storage');
     
     // STEP 3: Notify background script to initialize aggregator
@@ -759,6 +839,7 @@ async function handleAcceptConsent() {
     // If onboarding complete, show main content
     if (onboardingStatus?.completed) {
       console.log('✅ Onboarding complete, showing main content...');
+      await clearRegistrationFlowState();
       showMainContent();
       if (userData?.user) {
         displayUserInfo(userData.user);
@@ -844,4 +925,5 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
 

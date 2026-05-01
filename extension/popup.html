@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="popup.css">
+  <script src="env.js"></script>
   <script src="config.js"></script>
   <script src="api-client.js"></script>
 </head>
@@ -119,15 +120,21 @@
     <div id="consentSection" class="section consent-section" style="display: none;">
       <div class="consent-box">
         <h2>Privacy & Consent</h2>
-        <p>This extension tracks your interactions to help improve UI/UX experiences. Data is securely synced to our servers.</p>
-        <h3>What we track:</h3>
-        <ul>
-          <li>Mouse clicks and movements</li>
-          <li>Keyboard interactions (keys masked for privacy)</li>
-          <li>Page views and scroll behavior</li>
-          <li>Touch and zoom interactions</li>
-        </ul>
-        <p class="privacy-note">🔒 Your data is processed securely and used only to improve user experiences.</p>
+        <p>
+          AURA Interaction Tracker requires interaction-data processing to provide its accessibility features.
+        </p>
+        <p>
+          If you continue, while logged in we will collect page and interaction metadata
+          (such as URL/title, click/scroll/zoom/touch, and limited keyboard metadata where character content is not collected).
+        </p>
+        <p>
+          We use this data only to provide and improve extension features.
+          We do not sell data or use it for advertising.
+        </p>
+        <p class="privacy-note">
+          Read our
+          <a href="https://sandalidias.github.io/extension-privacy/" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+        </p>
         <div class="consent-buttons">
           <button id="acceptConsent" class="btn btn-primary full-width">I Understand, Continue</button>
         </div>
@@ -164,7 +171,7 @@
       <div class="footer-logo">
         <img src="icons/logo.png" alt="AURA" class="footer-logo-img">
       </div>
-      <p class="footer-text">Powered by AURA • Made with privacy in mind 🔒</p>
+      <p class="footer-text">Powered by AURA</p>
     </footer>
   </div>
 

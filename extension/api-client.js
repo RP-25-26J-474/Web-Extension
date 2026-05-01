@@ -5,6 +5,47 @@ class APIClient {
     this.token = null;
   }
 
+  formatErrorMessage(data, response) {
+    if (Array.isArray(data?.errors) && data.errors.length > 0) {
+      return data.errors
+        .map((entry) => {
+          const field = entry?.path || entry?.param || 'field';
+          const message = entry?.msg || 'Invalid value';
+          return `${field}: ${message}`;
+        })
+        .join(', ');
+    }
+
+    if (typeof data?.error === 'string' && data.error.trim()) {
+      return data.error.trim();
+    }
+
+    if (data?.error && typeof data.error === 'object') {
+      if (typeof data.error.message === 'string' && data.error.message.trim()) {
+        return data.error.message.trim();
+      }
+      return JSON.stringify(data.error);
+    }
+
+    if (typeof data?.message === 'string' && data.message.trim()) {
+      return data.message.trim();
+    }
+
+    if (data?.message && typeof data.message === 'object') {
+      return JSON.stringify(data.message);
+    }
+
+    if (typeof data?.raw === 'string' && data.raw.trim()) {
+      return data.raw.trim().slice(0, 200);
+    }
+
+    if (data && typeof data === 'object') {
+      return JSON.stringify(data).slice(0, 200);
+    }
+
+    return `Request failed with status ${response.status}`;
+  }
+
   async setToken(token) {
     this.token = token;
     let userId = null;
@@ -40,6 +81,7 @@ class APIClient {
     const token = await this.getToken();
     
     const headers = {
+      'Accept': 'application/json',
       'Content-Type': 'application/json',
       ...options.headers
     };
@@ -49,18 +91,40 @@ class APIClient {
     }
 
     try {
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
+      const requestUrl = `${this.baseURL}${endpoint}`;
+      const response = await fetch(requestUrl, {
         ...options,
         headers
       });
 
-      const data = await response.json().catch(() => ({}));
+      const contentType = response.headers.get('content-type') || '';
+      const rawBody = await response.text();
+      let data = null;
+
+      if (rawBody) {
+        if (contentType.includes('application/json')) {
+          try {
+            data = JSON.parse(rawBody);
+          } catch (parseError) {
+            throw new Error(`Invalid JSON response (${response.status} ${response.statusText}): ${rawBody.slice(0, 160)}`);
+          }
+        } else {
+          data = { raw: rawBody };
+        }
+      }
 
       if (!response.ok) {
-        const err = new Error(data.error || 'Request failed');
-        err.code = data.code;
-        err.status = response.status;
-        throw err;
+        const message = this.formatErrorMessage(data, response);
+        const error = new Error(String(message).slice(0, 300));
+        error.status = response.status;
+        error.endpoint = endpoint;
+        error.url = requestUrl;
+        error.responseBody = data;
+        throw error;
+      }
+
+      if (data == null) {
+        return {};
       }
 
       return data;
