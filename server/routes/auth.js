@@ -7,6 +7,8 @@ const User = require('../models/User');
 const Stats = require('../models/Stats');
 const authMiddleware = require('../middleware/auth');
 const emailService = require('../services/emailService');
+const EMAIL_NORMALIZATION_OPTIONS = { gmail_remove_dots: false };
+const REQUIRE_EMAIL_VERIFICATION = String(process.env.REQUIRE_EMAIL_VERIFICATION ?? 'false').toLowerCase() === 'true';
 
 // Generate JWT token
 const generateToken = (userId) => {
@@ -15,7 +17,7 @@ const generateToken = (userId) => {
 
 // Register new user (requires email verification before login/onboarding)
 router.post('/register', [
-  body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }),
+  body('email').isEmail().normalizeEmail(EMAIL_NORMALIZATION_OPTIONS),
   body('password').isLength({ min: 6 }),
   body('name').trim().notEmpty(),
   body('age').isInt({ min: 18, max: 120 }),
@@ -32,6 +34,33 @@ router.post('/register', [
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ error: 'Email already registered' });
+    }
+
+    if (!REQUIRE_EMAIL_VERIFICATION) {
+      const user = new User({
+        email,
+        password,
+        name,
+        age,
+        gender,
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpires: null,
+        verificationCompleteCode: null,
+        verificationCompleteCodeExpires: null
+      });
+
+      await user.save();
+
+      const stats = new Stats({ userId: user._id });
+      await stats.save();
+
+      const token = generateToken(user._id);
+      return res.status(201).json({
+        message: 'User registered successfully',
+        user: user.toJSON(),
+        token
+      });
     }
 
     const token = emailService.generateVerificationToken();
@@ -151,7 +180,7 @@ function renderVerificationPage(req, success, codeOrError) {
 
 // Login (requires verified email for email/password users)
 router.post('/login', [
-  body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }),
+  body('email').isEmail().normalizeEmail(EMAIL_NORMALIZATION_OPTIONS),
   body('password').notEmpty()
 ], async (req, res) => {
   try {
@@ -175,7 +204,7 @@ router.post('/login', [
     // Require verification for users who went through email registration (have token/expiry set)
     // Legacy users (no verification token) are treated as pre-verified
     const isLegacyUser = !user.emailVerificationToken && !user.emailVerificationExpires;
-    if (!user.emailVerified && !isLegacyUser) {
+    if (REQUIRE_EMAIL_VERIFICATION && !user.emailVerified && !isLegacyUser) {
       return res.status(403).json({
         error: 'Please verify your email before logging in. Check your inbox for the verification link.',
         code: 'EMAIL_NOT_VERIFIED'
@@ -200,7 +229,7 @@ router.post('/login', [
 
 // Complete verification with code (no login – continues registration flow)
 router.post('/complete-verification', [
-  body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }),
+  body('email').isEmail().normalizeEmail(EMAIL_NORMALIZATION_OPTIONS),
   body('code').isLength({ min: 6, max: 6 }).trim()
 ], async (req, res) => {
   try {
@@ -244,7 +273,7 @@ router.post('/complete-verification', [
 
 // Resend verification email
 router.post('/resend-verification', [
-  body('email').isEmail().normalizeEmail({ gmail_remove_dots: false })
+  body('email').isEmail().normalizeEmail(EMAIL_NORMALIZATION_OPTIONS)
 ], async (req, res) => {
   try {
     const errors = validationResult(req);

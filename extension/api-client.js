@@ -116,10 +116,12 @@ class APIClient {
       if (!response.ok) {
         const message = this.formatErrorMessage(data, response);
         const error = new Error(String(message).slice(0, 300));
+        error.code = data?.code || data?.error?.code || null;
         error.status = response.status;
         error.endpoint = endpoint;
         error.url = requestUrl;
         error.responseBody = data;
+        error.validationErrors = Array.isArray(data?.errors) ? data.errors : [];
         throw error;
       }
 

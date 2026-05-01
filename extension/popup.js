@@ -51,6 +51,7 @@ async function clearPendingVerification() {
 const REGISTRATION_FLOW_STATE_KEY = 'registrationFlowState';
 const ONBOARDING_COMPLETED_KEY = 'onboardingCompleted';
 const REGISTRATION_FLOW_STAGES = {
+  VERIFICATION_PENDING: 'verification_pending',
   CONSENT_PENDING: 'consent_pending',
   ONBOARDING_PENDING: 'onboarding_pending',
 };
@@ -89,6 +90,51 @@ async function finalizeOnboardingFlow(user) {
   await loadData();
 }
 
+async function continueRegistrationFlowIfNeeded(user) {
+  if (!user) return false;
+
+  let registrationFlowState = await getRegistrationFlowState();
+
+  if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.VERIFICATION_PENDING) {
+    await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.CONSENT_PENDING);
+    registrationFlowState = { stage: REGISTRATION_FLOW_STAGES.CONSENT_PENDING };
+  }
+
+  if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.CONSENT_PENDING) {
+    if (!user.consentGiven) {
+      showConsentSection();
+      return true;
+    }
+
+    await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING);
+    registrationFlowState = { stage: REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING };
+  }
+
+  if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING) {
+    if (await isOnboardingCompletedLocally()) {
+      await finalizeOnboardingFlow(user);
+      return true;
+    }
+
+    let onboardingStatus = { completed: false };
+    try {
+      onboardingStatus = await apiClient.getOnboardingStatus() || { completed: false };
+    } catch (err) {
+      console.warn('Could not get onboarding status:', err.message);
+    }
+
+    if (!onboardingStatus.completed) {
+      showOnboardingPrompt(user);
+      return true;
+    }
+
+    await finalizeOnboardingFlow(user);
+    return true;
+  }
+
+  return false;
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
   console.log('📄 DOMContentLoaded event fired');
   
@@ -106,7 +152,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       showVerifyPendingSection(pendingVerificationEmail);
     } else {
       await clearRegistrationFlowState();
-    showAuthSection();
+      showAuthSection();
     }
     return;
   }
@@ -142,39 +188,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       });
     }
     
-    // Registration flow gating (consent + onboarding) is only enforced for users
-    // currently in registration flow. Login flow always lands on main content.
-    let registrationFlowState = await getRegistrationFlowState();
-
-    if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.CONSENT_PENDING) {
-      if (!userData.user.consentGiven) {
-        showConsentSection();
-        return;
-      }
-
-      await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING);
-      registrationFlowState = { stage: REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING };
-    }
-
-    if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING) {
-      if (await isOnboardingCompletedLocally()) {
-        await finalizeOnboardingFlow(userData.user);
-        return;
-      }
-
-      let onboardingStatus = { completed: false };
-      try {
-        onboardingStatus = await apiClient.getOnboardingStatus() || { completed: false };
-      } catch (err) {
-        console.warn('Could not get onboarding status:', err.message);
-      }
-
-      if (!onboardingStatus.completed) {
-        showOnboardingPrompt(userData.user);
-        return;
-      }
-
-      await finalizeOnboardingFlow(userData.user);
+    if (await continueRegistrationFlowIfNeeded(userData.user)) {
       return;
     }
 
@@ -207,15 +221,39 @@ function showAuthSection() {
 // Show verify-email-pending section (after register or when login fails with EMAIL_NOT_VERIFIED)
 function showVerifyPendingSection(email) {
   console.log('📧 Showing verify pending for:', email);
+  hideOnboardingPrompt();
   document.getElementById('authSection').style.display = 'none';
   document.getElementById('verifySection').style.display = 'block';
   document.getElementById('consentSection').style.display = 'none';
   document.getElementById('mainContent').style.display = 'none';
-  document.getElementById('verifyEmailAddress').textContent = email;
+
+  const emailEl = document.getElementById('verifyEmailAddress');
+  const messageEl = document.getElementById('verifyEmailMessage');
+  const inputEl = document.getElementById('verifyCodeInput');
+  const continueBtn = document.getElementById('continueVerifyBtn');
+  const resendBtn = document.getElementById('resendVerifyBtn');
+
+  if (emailEl) {
+    emailEl.textContent = email;
+  }
+  if (messageEl) {
+    messageEl.textContent = 'Open the link we sent, copy the 6-digit code from the success page, and continue setup here.';
+  }
+  if (inputEl) {
+    inputEl.value = '';
+  }
+  if (continueBtn) {
+    continueBtn.textContent = 'Continue Setup';
+  }
+  if (resendBtn) {
+    resendBtn.textContent = 'Send New Link';
+  }
+
   const errorEl = document.getElementById('verifyCodeError');
   if (errorEl) {
     errorEl.style.display = 'none';
   }
+  window.setTimeout(() => inputEl?.focus(), 0);
 }
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
@@ -285,35 +323,86 @@ function showOnboardingPrompt(user) {
     
     onboardingPrompt.style.display = 'block';
     onboardingPrompt.innerHTML = `
-      <div class="onboarding-prompt onboarding-prompt--enhanced">
+      <div class="onboarding-prompt">
         <div class="onboarding-prompt-card">
-          <div class="welcome-badge welcome-badge--icon">
-            <svg class="icon-sparkle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
-              <path d="M12 9l.75 2.25L15 12l-2.25.75L12 15l-.75-2.25L9 12l2.25-.75L12 9z"/>
-            </svg>
+          <div class="onboarding-hero">
+            <div class="welcome-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 21h4"/>
+                <path d="M12 17v4"/>
+                <path d="M8 21h8"/>
+                <path d="M9 17h6l-1-11h-4l-1 11z"/>
+                <path d="M12 3a2 2 0 0 1 2 2v1h-4V5a2 2 0 0 1 2-2z"/>
+                <path d="M4 13a8 8 0 0 1 3-6"/>
+                <path d="M20 13a8 8 0 0 0-3-6"/>
+              </svg>
+            </div>
+            <div class="onboarding-hero-copy">
+              <span class="onboarding-kicker">Lighthouse mission</span>
+              <h2>Finish setup, ${userName}</h2>
+              <p class="onboarding-description">
+                Four short signal checks tune AURA to your accessibility profile before the extension fully unlocks.
+              </p>
+            </div>
           </div>
-          <h2 class="onboarding-prompt-title">Welcome, ${userName}!</h2>
-          <p class="onboarding-description">
-            A short assessment (~5 min) helps us build your personalized AURA profile.
-          </p>
-          <div class="onboarding-prompt-meta">
-            <span class="meta-item">
-              <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-              Private
-            </span>
-            <span class="meta-item">
-              <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H8a2 2 0 01-2-2v-6"/><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="9" y2="15"/><line x1="9" y1="3" x2="21" y2="15"/></svg>
-              Opens in new tab
-            </span>
+          <div class="onboarding-meta">
+            <span class="meta-chip"><strong>4</strong> signal checks</span>
+            <span class="meta-chip"><strong>~5 min</strong> total</span>
+            <span class="meta-chip"><strong>1</strong> secure tab</span>
+          </div>
+          <div class="challenge-list">
+            <div class="challenge-item">
+              <div class="challenge-index">01</div>
+              <div class="challenge-body">
+                <div class="challenge-title-row">
+                  <h3>Calibrate color signals</h3>
+                </div>
+                <p>Tune how AURA reads light, contrast, and color response.</p>
+              </div>
+            </div>
+            <div class="challenge-item">
+              <div class="challenge-index">02</div>
+              <div class="challenge-body">
+                <div class="challenge-title-row">
+                  <h3>Focus the beam</h3>
+                </div>
+                <p>Measure clarity and accuracy so the UI can stay readable.</p>
+              </div>
+            </div>
+            <div class="challenge-item">
+              <div class="challenge-index">03</div>
+              <div class="challenge-body">
+                <div class="challenge-title-row">
+                  <h3>Clear the signal noise</h3>
+                </div>
+                <p>Capture motor patterns that affect pointing and control.</p>
+              </div>
+            </div>
+            <div class="challenge-item">
+              <div class="challenge-index">04</div>
+              <div class="challenge-body">
+                <div class="challenge-title-row">
+                  <h3>Lock the control panel</h3>
+                </div>
+                <p>Finish the profile so the extension can adapt around you.</p>
+              </div>
+            </div>
+          </div>
+          <div class="onboarding-features">
+            <div class="feature-item">Color response</div>
+            <div class="feature-item">Reading clarity</div>
+            <div class="feature-item">Motor comfort</div>
+          </div>
+          <div class="onboarding-note">
+            Launch the mission in a new tab, finish the checkpoints, and come back here. The popup will move forward automatically when your profile is ready.
           </div>
           <div class="onboarding-actions">
             <button id="startOnboardingBtn" class="btn btn-primary full-width btn-glow" aria-label="Start onboarding game - opens in new tab">
-              <svg class="btn-play-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              <span class="btn-text">Let's Play</span>
-              <svg class="btn-arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              <span class="btn-label">Start Lighthouse Mission</span>
+              <span class="btn-arrow" aria-hidden="true">&rarr;</span>
             </button>
           </div>
+          <p class="onboarding-footnote">Opens in a new tab and keeps this popup ready for your return.</p>
         </div>
       </div>
     `;
@@ -334,12 +423,19 @@ function showOnboardingPrompt(user) {
 // Start onboarding game in new tab
 async function startOnboardingGame() {
   const startBtn = document.getElementById('startOnboardingBtn');
+  const startBtnLabel = startBtn?.querySelector('.btn-label');
+  const startBtnArrow = startBtn?.querySelector('.btn-arrow');
   
   try {
     // Disable button during processing
     if (startBtn) {
       startBtn.disabled = true;
-      startBtn.textContent = 'Opening...';
+      if (startBtnLabel) {
+        startBtnLabel.textContent = 'Opening mission...';
+      }
+      if (startBtnArrow) {
+        startBtnArrow.style.opacity = '0.35';
+      }
     }
     
     const token = await apiClient.getToken();
@@ -392,7 +488,12 @@ async function startOnboardingGame() {
     // Re-enable button
     if (startBtn) {
       startBtn.disabled = false;
-      startBtn.textContent = 'Start Onboarding Game';
+      if (startBtnLabel) {
+        startBtnLabel.textContent = 'Start Lighthouse Mission';
+      }
+      if (startBtnArrow) {
+        startBtnArrow.style.opacity = '1';
+      }
     }
   }
 }
@@ -475,8 +576,22 @@ function initializeEventListeners() {
   // Verify section buttons
   document.getElementById('continueVerifyBtn')?.addEventListener('click', handleCompleteVerification);
   document.getElementById('resendVerifyBtn')?.addEventListener('click', handleResendVerification);
+  document.getElementById('verifyCodeInput')?.addEventListener('input', (event) => {
+    const input = event.target;
+    input.value = input.value.replace(/\D/g, '').slice(0, 6);
+    const errorEl = document.getElementById('verifyCodeError');
+    if (errorEl) {
+      errorEl.style.display = 'none';
+    }
+  });
+  document.getElementById('verifyCodeInput')?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    handleCompleteVerification();
+  });
   document.getElementById('backToLoginFromVerify')?.addEventListener('click', async () => {
     await clearPendingVerification();
+    await clearRegistrationFlowState();
     showAuthSection();
     document.getElementById('loginTab').click();
     const email = document.getElementById('verifyEmailAddress')?.textContent;
@@ -555,7 +670,12 @@ async function handleLogin() {
         console.warn('⚠️ Could not initialize tracking:', err.message);
       });
     }
-    
+
+    if (await continueRegistrationFlowIfNeeded(data.user)) {
+      showNotification('Login successful!', 'success');
+      return;
+    }
+
     await clearRegistrationFlowState();
     showMainContent();
     displayUserInfo(data.user);
@@ -581,6 +701,7 @@ async function handleLogin() {
   } catch (error) {
     console.error('Login error:', error);
     if (error.code === 'EMAIL_NOT_VERIFIED') {
+      await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.VERIFICATION_PENDING);
       await savePendingVerification(email);
       showVerifyPendingSection(email);
       errorDiv.style.display = 'none';
@@ -631,9 +752,10 @@ async function handleRegister() {
     if (data.requiresVerification) {
       // Email verification required – no token until user verifies and logs in
       const verifyEmail = data.email || email;
+      await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.VERIFICATION_PENDING);
       await savePendingVerification(verifyEmail);
       showVerifyPendingSection(verifyEmail);
-      showNotification('Check your email for the verification link.', 'success');
+      showNotification('Check your email for the verification link and code.', 'success');
     } else if (data.user && data.token) {
       // Legacy path (e.g. OAuth) – sync and show consent
       await chrome.storage.local.set({
@@ -645,12 +767,13 @@ async function handleRegister() {
         },
       });
       await clearPendingVerification();
+      await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.CONSENT_PENDING);
       showConsentSection();
       showNotification('Account created successfully!', 'success');
     } else {
       await clearPendingVerification();
       await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.CONSENT_PENDING);
-    showConsentSection();
+      showConsentSection();
       showNotification('Account created successfully!', 'success');
     }
     
@@ -700,6 +823,7 @@ async function handleCompleteVerification() {
         name: data.user.name ?? null,
       },
     });
+    await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.CONSENT_PENDING);
     await clearPendingVerification();
 
     if (data.user.trackingEnabled) {
@@ -709,7 +833,10 @@ async function handleCompleteVerification() {
     // Do NOT broadcast here – broadcast happens only when onboarding game completes (ONBOARDING_COMPLETE)
     // Other components have no use for the user until the profile is built
 
-    showNotification('Email verified! Welcome.', 'success');
+    showNotification('Email verified. Continue setup.', 'success');
+    if (await continueRegistrationFlowIfNeeded(data.user)) {
+      return;
+    }
     showConsentSection();
   } catch (error) {
     if (errorEl) {
@@ -718,7 +845,7 @@ async function handleCompleteVerification() {
     }
     showNotification(error.message || 'Verification failed', 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Continue'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Continue Setup'; }
   }
 }
 
@@ -738,7 +865,7 @@ async function handleResendVerification() {
   } catch (error) {
     showNotification(error.message || 'Failed to resend', 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Resend Verification Email'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Send New Link'; }
   }
 }
 
