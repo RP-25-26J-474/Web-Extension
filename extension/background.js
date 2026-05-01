@@ -12,6 +12,8 @@ if (typeof globalThis !== 'undefined') {
 
 const MAX_INTERACTIONS_STORED = 1000; // Limit stored interactions
 const EXPORT_BATCH_SIZE = 100;
+const REGISTRATION_FLOW_STATE_KEY = 'registrationFlowState';
+const ONBOARDING_COMPLETED_KEY = 'onboardingCompleted';
 
 // Initialize extension
 chrome.runtime.onInstalled.addListener(async (details) => {
@@ -96,7 +98,7 @@ async function initializeAggregator() {
         if (res.ok) {
           const data = await res.json();
           if (data.completed) {
-            await chrome.storage.local.set({ onboardingCompleted: true });
+            await chrome.storage.local.set({ [ONBOARDING_COMPLETED_KEY]: true });
             console.log('[AURA Background] Onboarding already complete; aggregated tracking enabled');
             fetchMlPersonalizedProfile();
           }
@@ -459,29 +461,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   // Onboarding complete – impairment profile saved; enable tracking and broadcast user registered
   if (message.type === 'ONBOARDING_COMPLETE') {
-    console.log('[AURA Background] Onboarding completed; impairment profile saved');
-    chrome.storage.local.remove('onboardingTabId');
-    chrome.storage.local.set({ onboardingCompleted: true }).then(() => {
-      console.log('[AURA Background] Onboarding completed; aggregated tracking enabled');
-    });
-    // Fetch initial ML profile from impairment (POST impairment to separate API, save response.profile)
-    fetchInitialMlProfileFromImpairment();
-    // Broadcast user registered (impairment profile created) so tabs can refresh ML profile, etc.
-    chrome.storage.local.get(['authToken', 'userId', 'userProfile']).then((result) => {
-      if (result.authToken && result.userId) {
-        broadcastToAllTabs({
-          type: 'USER_LOGGED_IN',
-          token: result.authToken,
-          userId: result.userId,
-          user: result.userProfile ? { email: result.userProfile.email, name: result.userProfile.name } : null,
-          onboardingComplete: true,
-          source: 'registration',
-        });
+    (async () => {
+      try {
+        console.log('[AURA Background] Onboarding completed; impairment profile saved');
+        await chrome.storage.local.remove(['onboardingTabId', REGISTRATION_FLOW_STATE_KEY]);
+        await chrome.storage.local.set({ [ONBOARDING_COMPLETED_KEY]: true });
+        console.log('[AURA Background] Onboarding completed; aggregated tracking enabled');
+
+        // Fetch initial ML profile from impairment (POST impairment to separate API, save response.profile)
+        await fetchInitialMlProfileFromImpairment();
+
+        // Broadcast user registered (impairment profile created) so tabs can refresh ML profile, etc.
+        const result = await chrome.storage.local.get(['authToken', 'userId', 'userProfile']);
+        if (result.authToken && result.userId) {
+          broadcastToAllTabs({
+            type: 'USER_LOGGED_IN',
+            token: result.authToken,
+            userId: result.userId,
+            user: result.userProfile ? { email: result.userProfile.email, name: result.userProfile.name } : null,
+            onboardingComplete: true,
+            source: 'registration',
+          });
+        }
+
+        sendResponse({ success: true });
+      } catch (error) {
+        console.error('[AURA Background] Failed to finalize onboarding:', error);
+        sendResponse({ success: false, error: error?.message || 'Failed to finalize onboarding' });
       }
-    });
-    // Do not auto-close tab – user closes it manually
-    sendResponse({ success: true });
-    return false;
+    })();
+    return true;
   }
   
   // Page unload sync (removed – global interactions deprecated)

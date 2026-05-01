@@ -1,8 +1,22 @@
 // API Configuration (for regular scripts - popup, api-client)
 const EXTENSION_ENV = (typeof globalThis !== 'undefined' && globalThis.EXTENSION_ENV) ? globalThis.EXTENSION_ENV : {};
 
+function normalizeApiBaseUrl(url) {
+  const fallback = 'http://localhost:3000/api';
+  if (!url) return fallback;
+
+  const trimmed = String(url).trim().replace(/\/+$/, '');
+  if (!trimmed) return fallback;
+
+  if (/\/api$/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `${trimmed}/api`;
+}
+
 const API_CONFIG = {
-  BASE_URL: EXTENSION_ENV.API_BASE_URL || 'http://localhost:3000/api',
+  BASE_URL: normalizeApiBaseUrl(EXTENSION_ENV.API_BASE_URL),
   // Change this to your production URL when deploying
   // BASE_URL: 'https://your-server.com/api',
   
