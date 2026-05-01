@@ -48,6 +48,21 @@ async function clearPendingVerification() {
   await chrome.storage.local.remove(PENDING_VERIFICATION_KEY);
 }
 
+async function getStoredUserProfileSummary() {
+  const result = await chrome.storage.local.get(['userProfile', 'userId']);
+  const storedProfile = result?.userProfile;
+
+  if (!storedProfile && !result?.userId) {
+    return null;
+  }
+
+  return {
+    _id: storedProfile?.userId || result?.userId || null,
+    email: storedProfile?.email || null,
+    name: storedProfile?.name || 'User',
+  };
+}
+
 const REGISTRATION_FLOW_STATE_KEY = 'registrationFlowState';
 const ONBOARDING_COMPLETED_KEY = 'onboardingCompleted';
 const REGISTRATION_FLOW_STAGES = {
@@ -387,14 +402,6 @@ function showOnboardingPrompt(user) {
                 <p>Finish the profile so the extension can adapt around you.</p>
               </div>
             </div>
-          </div>
-          <div class="onboarding-features">
-            <div class="feature-item">Color response</div>
-            <div class="feature-item">Reading clarity</div>
-            <div class="feature-item">Motor comfort</div>
-          </div>
-          <div class="onboarding-note">
-            Launch the mission in a new tab, finish the checkpoints, and come back here. The popup will move forward automatically when your profile is ready.
           </div>
           <div class="onboarding-actions">
             <button id="startOnboardingBtn" class="btn btn-primary full-width btn-glow" aria-label="Start onboarding game - opens in new tab">
@@ -936,48 +943,39 @@ async function handleAcceptConsent() {
     }).catch(err => {
       console.warn('⚠️ Could not notify background script:', err.message);
     });
-    
-    // Check onboarding status
-    console.log('🔍 Checking onboarding status...');
-    let onboardingStatus = { completed: false };
-    let userData = null;
-    
+
+    let user = null;
     try {
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), 3000)
-      );
-      const [status, user] = await Promise.race([
-        Promise.all([
-          apiClient.getOnboardingStatus(),
-          apiClient.getCurrentUser()
-        ]),
-        timeoutPromise
-      ]);
-      onboardingStatus = status || { completed: false };
-      userData = user;
-      console.log('📋 Onboarding status:', onboardingStatus);
-    } catch (err) {
-      console.warn('⚠️ Could not get status:', err.message);
-      try {
-        userData = await apiClient.getCurrentUser();
-      } catch (userErr) {}
-    }
-    
-    // If onboarding complete, show main content
-    if (onboardingStatus?.completed) {
-      console.log('✅ Onboarding complete, showing main content...');
-      await clearRegistrationFlowState();
-      showMainContent();
-      if (userData?.user) {
-        displayUserInfo(userData.user);
+      const userData = await apiClient.getCurrentUser();
+      user = userData?.user || null;
+      if (user?._id) {
+        await chrome.storage.local.set({
+          userId: user._id,
+          userProfile: {
+            userId: user._id,
+            email: user.email ?? null,
+            name: user.name ?? null,
+          },
+        });
       }
-      showNotification('Tracking enabled!', 'success');
-    } else {
-      // Show onboarding prompt
-      console.log('🎮 Showing onboarding prompt...');
-      const userName = userData?.user?.name || 'User';
-      showOnboardingPrompt({ name: userName, _id: userData?.user?._id });
+    } catch (err) {
+      console.debug('Could not refresh current user after consent:', err.message);
     }
+
+    if (!user) {
+      user = await getStoredUserProfileSummary();
+    }
+
+    if (await isOnboardingCompletedLocally()) {
+      console.log('✅ Onboarding already complete locally, showing main content...');
+      await finalizeOnboardingFlow(user);
+      showNotification('Tracking enabled!', 'success');
+      return;
+    }
+
+    console.log('🎮 Showing onboarding prompt...');
+    showOnboardingPrompt(user || { name: 'User' });
+    showNotification('Tracking enabled!', 'success');
     
   } catch (error) {
     console.error('❌ Consent handling failed:', error);
