@@ -12,6 +12,7 @@ try {
 }
 
 const REGISTRATION_FLOW_STATE_KEY = 'registrationFlowState';
+const ONBOARDING_COMPLETED_KEY = 'onboardingCompleted';
 const REGISTRATION_FLOW_STAGES = {
   CONSENT_PENDING: 'consent_pending',
   ONBOARDING_PENDING: 'onboarding_pending',
@@ -34,6 +35,21 @@ async function setRegistrationFlowState(stage) {
 
 async function clearRegistrationFlowState() {
   await chrome.storage.local.remove([REGISTRATION_FLOW_STATE_KEY]);
+}
+
+async function isOnboardingCompletedLocally() {
+  const result = await chrome.storage.local.get([ONBOARDING_COMPLETED_KEY]);
+  return result?.[ONBOARDING_COMPLETED_KEY] === true;
+}
+
+async function finalizeOnboardingFlow(user) {
+  await chrome.storage.local.set({ [ONBOARDING_COMPLETED_KEY]: true });
+  await clearRegistrationFlowState();
+  showMainContent();
+  if (user) {
+    displayUserInfo(user);
+  }
+  await loadData();
 }
 
 document.addEventListener('DOMContentLoaded', async function() {
@@ -98,6 +114,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING) {
+      if (await isOnboardingCompletedLocally()) {
+        await finalizeOnboardingFlow(userData.user);
+        return;
+      }
+
       let onboardingStatus = { completed: false };
       try {
         onboardingStatus = await apiClient.getOnboardingStatus() || { completed: false };
@@ -110,8 +131,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         return;
       }
 
-      await chrome.storage.local.set({ onboardingCompleted: true });
-      await clearRegistrationFlowState();
+      await finalizeOnboardingFlow(userData.user);
+      return;
     }
 
     showMainContent();
@@ -133,6 +154,23 @@ function showAuthSection() {
   document.getElementById('consentSection').style.display = 'none';
   document.getElementById('mainContent').style.display = 'none';
 }
+
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace !== 'local') return;
+  if (changes[ONBOARDING_COMPLETED_KEY]?.newValue !== true) return;
+
+  (async () => {
+    try {
+      const token = await apiClient?.getToken?.();
+      if (!token) return;
+
+      const userData = await apiClient.getCurrentUser().catch(() => null);
+      await finalizeOnboardingFlow(userData?.user || null);
+    } catch (error) {
+      console.warn('Could not refresh popup after onboarding completion:', error?.message || error);
+    }
+  })();
+});
 
 function hideOnboardingPrompt() {
   const onboardingPrompt = document.getElementById('onboardingPrompt');

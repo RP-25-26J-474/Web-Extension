@@ -5,7 +5,7 @@ import ThemeToggle from '../ThemeToggle';
 import useDeviceInfo from '../../hooks/useDeviceInfo';
 import auraIntegration from '../../utils/auraIntegration';
 import { buildAndSaveImpairmentProfile } from '../../utils/impairmentProfile';
-import { Flame, Clock, Palette, Focus, CloudFog, Zap, Sparkles, RotateCcw, Award, Check } from 'lucide-react';
+import { Flame, Clock, Palette, Focus, CloudFog, Zap, Sparkles, Award, Check } from 'lucide-react';
 import logo from '../../resources/logo.png';
 
 // Map trait IDs to Lucide icons
@@ -25,12 +25,11 @@ const getTraitIcon = (traitId) => {
 };
 
 const FinalProfile = () => {
-  const { state, elapsedTime, resetGame } = useGame();
+  const { state, elapsedTime } = useGame();
   const { isDark } = useTheme();
   const deviceInfo = useDeviceInfo();
   const [showContent, setShowContent] = useState(false);
   const [celebratePhase, setCelebratePhase] = useState(0);
-  const [profileSaved, setProfileSaved] = useState(false);
   const saveAttemptedRef = useRef(false);
   
   useEffect(() => {
@@ -61,12 +60,7 @@ const FinalProfile = () => {
             devicePixelRatio: deviceInfo.screen?.dpr || window.devicePixelRatio || 1,
           },
         });
-        
-        if (auraIntegration.isEnabled()) {
-          await auraIntegration.completeOnboarding();
-        }
-        
-        setProfileSaved(true);
+
       } catch (error) {
         console.error('Failed to save profile:', error);
       }
@@ -100,10 +94,6 @@ const FinalProfile = () => {
   };
   
   const playerTitle = getPlayerTitle();
-  
-  const handlePlayAgain = () => {
-    resetGame();
-  };
   
   return (
     <div 
