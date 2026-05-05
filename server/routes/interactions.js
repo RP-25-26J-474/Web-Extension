@@ -218,6 +218,16 @@ async function resolveAggregatedBatchesUserId(req) {
   return user._id;
 }
 
+function normalizeAggregatedBatches(batches) {
+  return batches.map(batch => ({
+    user_id: String(batch.userId),
+    batch_id: batch.batch_id,
+    captured_at: new Date(batch.captured_at).toISOString(),
+    page_context: batch.page_context,
+    events_agg: batch.events_agg,
+  }));
+}
+
 /**
  * Save aggregated interaction batches (10-second windows)
  * POST /api/interactions/aggregated-batches
@@ -347,16 +357,9 @@ router.get('/aggregated-batches/last-24h', async (req, res) => {
   try {
     const userId = await resolveAggregatedBatchesUserId(req);
     const batches = await AggregatedInteractionBatch.getUserBatchesLast24h(userId);
-    const normalizedBatches = batches.map(batch => ({
-      user_id: String(batch.userId),
-      batch_id: batch.batch_id,
-      captured_at: new Date(batch.captured_at).toISOString(),
-      page_context: batch.page_context,
-      events_agg: batch.events_agg,
-    }));
 
     res.json({
-      batches: normalizedBatches,
+      batches: normalizeAggregatedBatches(batches),
     });
   } catch (error) {
     console.error('Get aggregated batches (last 24h) error:', error);
@@ -400,7 +403,7 @@ router.get('/active-users/last-24h', async (req, res) => {
  *   GET /api/interactions/aggregated-batches?user_id=<mongodb_user_id>&start=YYYY-MM-DD&end=YYYY-MM-DD
  *   Or headers/query token:
  *   Headers: Authorization: Bearer <token>
- *   Response: { batches: [...], count: N }
+ *   Response: { batches: [...] }
  *   For last 24h only, prefer GET /aggregated-batches/last-24h
  */
 router.get('/aggregated-batches', async (req, res) => {
@@ -421,8 +424,7 @@ router.get('/aggregated-batches', async (req, res) => {
     }
     
     res.json({
-      batches,
-      count: batches.length,
+      batches: normalizeAggregatedBatches(batches),
     });
     
   } catch (error) {
