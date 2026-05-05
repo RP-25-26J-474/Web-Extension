@@ -391,16 +391,17 @@ router.get('/active-users/last-24h', async (req, res) => {
 });
 
 /**
- * Get aggregated batches for a user in a time range
- * GET /api/interactions/aggregated-batches?start=2025-01-01&end=2025-12-31
+ * Get aggregated batches for a user in a time range by user_id or token
+ * GET /api/interactions/aggregated-batches?user_id=<mongodb_user_id>&start=2025-01-01&end=2025-12-31
  *
  * Integration: If an external component needs a custom date range:
- *   GET /api/interactions/aggregated-batches?start=YYYY-MM-DD&end=YYYY-MM-DD
+ *   GET /api/interactions/aggregated-batches?user_id=<mongodb_user_id>&start=YYYY-MM-DD&end=YYYY-MM-DD
+ *   Or headers/query token:
  *   Headers: Authorization: Bearer <token>
  *   Response: { batches: [...], count: N }
  *   For last 24h only, prefer GET /aggregated-batches/last-24h
  */
-router.get('/aggregated-batches', authMiddleware, async (req, res) => {
+router.get('/aggregated-batches', async (req, res) => {
   try {
     const { start, end } = req.query;
     
@@ -408,7 +409,8 @@ router.get('/aggregated-batches', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'start and end query parameters required' });
     }
     
-    const batches = await AggregatedInteractionBatch.getUserBatches(req.userId, start, end);
+    const userId = await resolveAggregatedBatchesUserId(req);
+    const batches = await AggregatedInteractionBatch.getUserBatches(userId, start, end);
     
     res.json({
       batches,
@@ -417,7 +419,7 @@ router.get('/aggregated-batches', authMiddleware, async (req, res) => {
     
   } catch (error) {
     console.error('Get aggregated batches error:', error);
-    res.status(500).json({ error: 'Failed to get aggregated batches' });
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get aggregated batches' });
   }
 });
 
