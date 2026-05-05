@@ -97,6 +97,73 @@
       </div>
     </div>
 
+    <!-- Verify Email Pending Section -->
+    <div id="verifySection" class="section verify-section" style="display: none;">
+      <div class="verify-panel">
+        <div class="verify-panel-header">
+          <div class="verify-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 7.5l-10 5.5-10-5.5"></path>
+              <path d="M2 7.5l10 5.5 10-5.5"></path>
+              <path d="M2 7.5V16.5L12 22l10-5.5V7.5"></path>
+              <path d="M9 13l2 2 4-4"></path>
+            </svg>
+          </div>
+          <div class="verify-panel-copy">
+            <span class="verify-kicker">Registration step 2 of 4</span>
+            <h2>Verify your email</h2>
+            <p id="verifyEmailMessage" class="verify-description">
+              Open the link we sent, copy the 6-digit code from the success page, and continue setup here.
+            </p>
+          </div>
+        </div>
+
+        <div class="verify-email-pill">
+          <span class="verify-email-label">Verification email</span>
+          <strong id="verifyEmailAddress"></strong>
+        </div>
+
+        <div class="verify-steps" aria-label="Verification steps">
+          <div class="verify-step">
+            <span class="verify-step-index">1</span>
+            <div class="verify-step-copy">
+              <h3>Open the latest AURA email</h3>
+              <p>Check your inbox first. If it is missing, look in spam and resend the link below.</p>
+            </div>
+          </div>
+          <div class="verify-step">
+            <span class="verify-step-index">2</span>
+            <div class="verify-step-copy">
+              <h3>Copy the 6-digit code</h3>
+              <p>The confirmation page shows a one-time code after the email is verified.</p>
+            </div>
+          </div>
+          <div class="verify-step">
+            <span class="verify-step-index">3</span>
+            <div class="verify-step-copy">
+              <h3>Return here and continue</h3>
+              <p>We will move you straight into consent and the onboarding mission.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group verify-code-group">
+          <label for="verifyCodeInput">6-digit verification code</label>
+          <input type="text" id="verifyCodeInput" placeholder="123456" maxlength="6" pattern="[0-9]*" inputmode="numeric" autocomplete="one-time-code">
+          <small class="verify-helper">Numbers only. Newer codes replace older ones.</small>
+        </div>
+
+        <div id="verifyCodeError" class="error-message" style="display: none;"></div>
+
+        <div class="verify-actions">
+          <button id="continueVerifyBtn" class="btn btn-primary full-width">Continue Setup</button>
+          <button id="resendVerifyBtn" class="btn btn-secondary full-width">Send New Link</button>
+        </div>
+
+        <button id="backToLoginFromVerify" class="verify-back-link" type="button">Use a different account</button>
+      </div>
+    </div>
+
     <!-- Consent Section -->
     <div id="consentSection" class="section consent-section" style="display: none;">
       <div class="consent-box">
@@ -145,6 +212,14 @@
           Your interactions are being tracked to improve your experience. 
           Data is automatically synced to the server and processed securely.
         </p>
+      </div>
+
+      <div class="section">
+        <h2>Account</h2>
+        <p class="danger-note">
+          Permanently remove your AURA account and all linked onboarding and tracking data.
+        </p>
+        <button id="deleteAccountBtn" class="btn btn-danger full-width">Delete Account</button>
       </div>
     </div>
 

@@ -10,7 +10,7 @@ class AuraIntegration {
     this.token = null;
     this.isAuraMode = false;
     this.extensionPresent = false;
-    this.auraAPI = 'http://localhost:3000/api/onboarding';
+    this.auraAPI = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding`;
     
     // Request queue to prevent ERR_INSUFFICIENT_RESOURCES
     this.requestQueue = [];
