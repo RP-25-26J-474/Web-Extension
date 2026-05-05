@@ -7,28 +7,28 @@
 export const ISHIHARA_PLATES = [
   {
     plateId: 1,
-    imageName: 'ishihara_1.jpg',
+    imageName: 'Ishihara_1.jpg',
     normalAnswer: '12',
     colorBlindAnswer: '12',
     description: 'Control plate - both normal and color blind can see 12',
   },
   {
     plateId: 2,
-    imageName: 'ishihara_3.jpg',
+    imageName: 'Ishihara_3.jpg',
     normalAnswer: '6',
     colorBlindAnswer: '5',
     description: 'Normal sees 6, red/green deficiency sees 5',
   },
   {
     plateId: 3,
-    imageName: 'ishihara_11.jpg',
+    imageName: 'Ishihara_11.jpg',
     normalAnswer: '6',
     colorBlindAnswer: 'nothing',
     description: 'Normal sees 6, red/green deficiency sees nothing',
   },
   {
     plateId: 4,
-    imageName: 'ishihara_19.jpg',
+    imageName: 'Ishihara_19.jpg',
     normalAnswer: 'nothing',
     colorBlindAnswer: '2',
     description: 'Normal sees nothing, red/green deficiency sees 2',

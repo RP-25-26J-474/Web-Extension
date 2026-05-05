@@ -9,17 +9,17 @@ import { saveVisionResults } from '../../utils/api';
 import auraIntegration from '../../utils/auraIntegration';
 
 // Import Ishihara plate images
-import ishihara1 from '../../resources/ishihara_1.jpg';
-import ishihara3 from '../../resources/ishihara_3.jpg';
-import ishihara11 from '../../resources/ishihara_11.jpg';
-import ishihara19 from '../../resources/ishihara_19.jpg';
+import ishihara1 from '../../resources/Ishihara_1.jpg';
+import ishihara3 from '../../resources/Ishihara_3.jpg';
+import ishihara11 from '../../resources/Ishihara_11.jpg';
+import ishihara19 from '../../resources/Ishihara_19.jpg';
 
 // Map image names to imports
 const imageMap = {
-  'ishihara_1.jpg': ishihara1,
-  'ishihara_3.jpg': ishihara3,
-  'ishihara_11.jpg': ishihara11,
-  'ishihara_19.jpg': ishihara19,
+  'Ishihara_1.jpg': ishihara1,
+  'Ishihara_3.jpg': ishihara3,
+  'Ishihara_11.jpg': ishihara11,
+  'Ishihara_19.jpg': ishihara19,
 };
 
 const ColorBlindnessTest = () => {
@@ -28,7 +28,7 @@ const ColorBlindnessTest = () => {
   const isModuleCompleted = useStore((state) => state.isModuleCompleted);
   const { recordColorBlindnessResponse, completeColorBlindnessTest } = useStore();
   const { trackEvent, trackClick, trackFocus } = useInteractionTracking('colorBlindness', true);
-  
+
   // Redirect if perception module is already completed
   useEffect(() => {
     if (isModuleCompleted('perception')) {
@@ -131,7 +131,7 @@ const ColorBlindnessTest = () => {
       sessionStorage.setItem('sensecheck_colorblindness_results', JSON.stringify(analysis));
       // Clear plate progress since test is complete
       sessionStorage.removeItem('sensecheck_colorblindness_plate');
-      
+
       setIsComplete(true);
     } else {
       const nextPlate = currentPlateIndex + 1;
@@ -156,9 +156,9 @@ const ColorBlindnessTest = () => {
 
             {/* Checkmark */}
             <div className="relative mb-6">
-              <div 
+              <div
                 className="w-20 h-20 mx-auto rounded-full flex items-center justify-center shadow-lg"
-                style={{ 
+                style={{
                   background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-dark) 100%)',
                   boxShadow: '0 10px 40px var(--primary-color-glow)'
                 }}
@@ -175,7 +175,7 @@ const ColorBlindnessTest = () => {
             <button
               onClick={handleContinue}
               className="relative w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 shadow-lg flex items-center justify-center gap-2"
-              style={{ 
+              style={{
                 background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%)',
                 boxShadow: '0 4px 20px var(--primary-color-glow)'
               }}
@@ -203,9 +203,9 @@ const ColorBlindnessTest = () => {
         <div className="rounded-2xl bg-gray-900/70 backdrop-blur-xl border border-gray-800 p-6 sm:p-8 shadow-xl">
           {/* Header */}
           <div className="text-center mb-6">
-            <div 
+            <div
               className="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-3"
-              style={{ 
+              style={{
                 backgroundColor: 'rgba(var(--primary-color-rgb), 0.1)',
                 border: '1px solid rgba(var(--primary-color-rgb), 0.2)'
               }}
@@ -281,7 +281,7 @@ const ColorBlindnessTest = () => {
                 onClick={handleSubmit}
                 disabled={!userAnswer.trim()}
                 className="flex-1 py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
-                style={{ 
+                style={{
                   background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-light) 100%)',
                   boxShadow: '0 4px 20px var(--primary-color-glow)'
                 }}
@@ -295,9 +295,9 @@ const ColorBlindnessTest = () => {
         {/* Instructions */}
         <div className="mt-6 rounded-2xl bg-gray-900/50 border border-gray-800 p-5">
           <div className="flex items-start gap-3">
-            <div 
+            <div
               className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ 
+              style={{
                 backgroundColor: 'rgba(var(--primary-color-rgb), 0.1)',
                 border: '1px solid rgba(var(--primary-color-rgb), 0.2)'
               }}

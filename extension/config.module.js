@@ -2,9 +2,23 @@ import './env.js';
 
 const EXTENSION_ENV = (typeof globalThis !== 'undefined' && globalThis.EXTENSION_ENV) ? globalThis.EXTENSION_ENV : {};
 
+function normalizeApiBaseUrl(url) {
+  const fallback = 'http://localhost:3000/api';
+  if (!url) return fallback;
+
+  const trimmed = String(url).trim().replace(/\/+$/, '');
+  if (!trimmed) return fallback;
+
+  if (/\/api$/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `${trimmed}/api`;
+}
+
 // API Configuration (ES6 module version for service worker)
 export const API_CONFIG = {
-  BASE_URL: EXTENSION_ENV.API_BASE_URL || 'http://localhost:3000/api',
+  BASE_URL: normalizeApiBaseUrl(EXTENSION_ENV.API_BASE_URL),
   // Change this to your production URL when deploying
   // BASE_URL: 'https://your-server.com/api',
   
@@ -56,6 +70,11 @@ export const API_CONFIG = {
   // when onboarding completes; receives { profile } in response.
   // Production: replace with actual API.
   IMPAIRMENT_TO_ML_PROFILE_API_URL: EXTENSION_ENV.IMPAIRMENT_TO_ML_PROFILE_API_URL || 'http://localhost:8000/category/generate-profile',
+
+  // ===== SESSION FEEDBACK – Sends profile diff to ML engine on logout / browser close =====
+  // Compares AURA_EXT_ML_PERSONALIZED_PROFILE (base) vs AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE (current)
+  // and POSTs the changes so the ML engine can learn from user feedback.
+  ML_SESSION_FEEDBACK_URL: EXTENSION_ENV.ML_SESSION_FEEDBACK_URL || 'http://localhost:8000/user/trigger-update',
 };
 
 

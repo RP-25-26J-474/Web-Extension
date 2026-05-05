@@ -26,19 +26,6 @@
     zoomEvents: true
   };
   
-  // Safely get string for structured clone (SVG elements use SVGAnimatedString, not string)
-  function safeClassString(el) {
-    if (!el || !el.className) return null;
-    const c = el.className;
-    return typeof c === 'string' ? c : (c.baseVal || null);
-  }
-  function safeTextString(el, maxLen) {
-    if (!el) return null;
-    const t = el.innerText ?? el.textContent ?? '';
-    const s = typeof t === 'string' ? t : String(t);
-    return s.substring(0, maxLen || 100) || null;
-  }
-
   // Throttle function for mouse movements to avoid excessive data
   function throttle(func, limit) {
     let inThrottle;
@@ -71,7 +58,7 @@
     }
   }
   
-  // Send interaction data to background script
+  // Send interaction data to background script (GDPR: no pageTitle – can reveal sensitive content)
   function sendInteraction(data) {
     if (!isTrackingEnabled) return;
     try {
@@ -80,8 +67,7 @@
         data: {
           ...data,
           url: window.location.href,
-          timestamp: Date.now(),
-          pageTitle: document.title
+          timestamp: Date.now()
         }
       };
       chrome.runtime.sendMessage(payload).catch(err => {
@@ -94,7 +80,7 @@
     }
   }
   
-  // Track mouse clicks
+  // Track mouse clicks (GDPR: only elementTag, x, y – no elementText/id/class)
   function trackClick(event) {
     if (!trackingConfig.clicks) return;
     
@@ -102,9 +88,6 @@
     const data = {
       type: 'click',
       elementTag: target.tagName,
-      elementId: target.id || null,
-elementClass: safeClassString(target),
-        elementText: safeTextString(target, 100),
       x: event.clientX,
       y: event.clientY,
       button: event.button
@@ -113,15 +96,16 @@ elementClass: safeClassString(target),
     sendInteraction(data);
   }
   
-  // Track keystrokes (with privacy in mind - not capturing actual keys)
+  // Track keystrokes (GDPR: mask character keys and code – event.code would reveal KeyA, Digit1, etc.)
   function trackKeypress(event) {
     if (!trackingConfig.keystrokes) return;
     
     const target = event.target;
+    const isChar = event.key.length === 1;
     const data = {
       type: 'keypress',
-      key: event.key.length === 1 ? '[CHAR]' : event.key, // Mask character keys for privacy
-      code: event.code,
+      key: isChar ? '[CHAR]' : event.key,
+      code: isChar ? null : event.code,
       elementTag: target.tagName,
       elementType: target.type || null,
       isInput: target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
@@ -145,15 +129,13 @@ elementClass: safeClassString(target),
     sendInteraction(data);
   }, 500);
   
-  // Track page views
+  // Track page views (GDPR: url only for context – title/referrer can reveal sensitive browsing)
   function trackPageView() {
     if (!trackingConfig.pageViews) return;
     
     const data = {
       type: 'page_view',
       url: window.location.href,
-      title: document.title,
-      referrer: document.referrer || null,
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight
     };
@@ -176,7 +158,7 @@ elementClass: safeClassString(target),
     sendInteraction(data);
   }, 1000);
   
-  // Track double clicks
+  // Track double clicks (GDPR: only elementTag, x, y)
   function trackDoubleClick(event) {
     if (!trackingConfig.doubleClicks) return;
     
@@ -184,9 +166,6 @@ elementClass: safeClassString(target),
     const data = {
       type: 'double_click',
       elementTag: target.tagName,
-      elementId: target.id || null,
-elementClass: safeClassString(target),
-        elementText: safeTextString(target, 100),
       x: event.clientX,
       y: event.clientY
     };
@@ -194,7 +173,7 @@ elementClass: safeClassString(target),
     sendInteraction(data);
   }
   
-  // Track right clicks (context menu)
+  // Track right clicks (GDPR: only elementTag, x, y)
   function trackRightClick(event) {
     if (!trackingConfig.rightClicks) return;
     
@@ -202,9 +181,6 @@ elementClass: safeClassString(target),
     const data = {
       type: 'right_click',
       elementTag: target.tagName,
-      elementId: target.id || null,
-elementClass: safeClassString(target),
-        elementText: safeTextString(target, 100),
       x: event.clientX,
       y: event.clientY
     };
@@ -237,7 +213,6 @@ elementClass: safeClassString(target),
     const data = {
       type: 'mouse_up',
       elementTag: target.tagName,
-      elementId: target.id || null,
       button: event.button,
       x: event.clientX,
       y: event.clientY
@@ -246,16 +221,14 @@ elementClass: safeClassString(target),
     sendInteraction(data);
   }
   
-  // Track mouse enter/leave (throttled for hovers)
+  // Track mouse enter/leave (GDPR: only elementTag)
   const trackMouseEnter = throttle(function(event) {
     if (!trackingConfig.mouseHovers) return;
     
     const target = event.target;
     const data = {
       type: 'mouse_enter',
-      elementTag: target.tagName,
-      elementId: target.id || null,
-      elementClass: target.className || null
+      elementTag: target.tagName
     };
     
     sendInteraction(data);
@@ -267,14 +240,13 @@ elementClass: safeClassString(target),
     const target = event.target;
     const data = {
       type: 'mouse_leave',
-      elementTag: target.tagName,
-      elementId: target.id || null
+      elementTag: target.tagName
     };
     
     sendInteraction(data);
   }, 200);
   
-  // Track drag and drop events
+  // Track drag and drop events (GDPR: no elementId/class)
   function trackDragStart(event) {
     if (!trackingConfig.dragAndDrop) return;
     
@@ -282,8 +254,6 @@ elementClass: safeClassString(target),
     const data = {
       type: 'drag_start',
       elementTag: target.tagName,
-      elementId: target.id || null,
-      elementClass: safeClassString(target),
       x: event.clientX,
       y: event.clientY
     };
@@ -298,7 +268,6 @@ elementClass: safeClassString(target),
     const data = {
       type: 'drag_end',
       elementTag: target.tagName,
-      elementId: target.id || null,
       x: event.clientX,
       y: event.clientY
     };
@@ -329,16 +298,14 @@ elementClass: safeClassString(target),
     const data = {
       type: 'drop',
       elementTag: target.tagName,
-      elementId: target.id || null,
       x: event.clientX,
-      y: event.clientY,
-      dataTransferTypes: Array.from(event.dataTransfer?.types || [])
+      y: event.clientY
     };
     
     sendInteraction(data);
   }
   
-  // Track touch events
+  // Track touch events (GDPR: no elementId/class)
   function trackTouchStart(event) {
     if (!trackingConfig.touchEvents) return;
     
@@ -347,8 +314,6 @@ elementClass: safeClassString(target),
     const data = {
       type: 'touch_start',
       elementTag: target.tagName,
-      elementId: target.id || null,
-      elementClass: safeClassString(target),
       touchCount: event.touches.length,
       x: touch.clientX,
       y: touch.clientY
@@ -378,7 +343,6 @@ elementClass: safeClassString(target),
     const data = {
       type: 'touch_end',
       elementTag: target.tagName,
-      elementId: target.id || null,
       touchCount: event.changedTouches.length
     };
     

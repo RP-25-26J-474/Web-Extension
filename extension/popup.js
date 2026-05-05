@@ -12,6 +12,7 @@ try {
 }
 
 const REGISTRATION_FLOW_STATE_KEY = 'registrationFlowState';
+const ONBOARDING_COMPLETED_KEY = 'onboardingCompleted';
 const REGISTRATION_FLOW_STAGES = {
   CONSENT_PENDING: 'consent_pending',
   ONBOARDING_PENDING: 'onboarding_pending',
@@ -34,6 +35,21 @@ async function setRegistrationFlowState(stage) {
 
 async function clearRegistrationFlowState() {
   await chrome.storage.local.remove([REGISTRATION_FLOW_STATE_KEY]);
+}
+
+async function isOnboardingCompletedLocally() {
+  const result = await chrome.storage.local.get([ONBOARDING_COMPLETED_KEY]);
+  return result?.[ONBOARDING_COMPLETED_KEY] === true;
+}
+
+async function finalizeOnboardingFlow(user) {
+  await chrome.storage.local.set({ [ONBOARDING_COMPLETED_KEY]: true });
+  await clearRegistrationFlowState();
+  showMainContent();
+  if (user) {
+    displayUserInfo(user);
+  }
+  await loadData();
 }
 
 document.addEventListener('DOMContentLoaded', async function() {
@@ -98,6 +114,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING) {
+      if (await isOnboardingCompletedLocally()) {
+        await finalizeOnboardingFlow(userData.user);
+        return;
+      }
+
       let onboardingStatus = { completed: false };
       try {
         onboardingStatus = await apiClient.getOnboardingStatus() || { completed: false };
@@ -110,8 +131,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         return;
       }
 
-      await chrome.storage.local.set({ onboardingCompleted: true });
-      await clearRegistrationFlowState();
+      await finalizeOnboardingFlow(userData.user);
+      return;
     }
 
     showMainContent();
@@ -133,6 +154,23 @@ function showAuthSection() {
   document.getElementById('consentSection').style.display = 'none';
   document.getElementById('mainContent').style.display = 'none';
 }
+
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace !== 'local') return;
+  if (changes[ONBOARDING_COMPLETED_KEY]?.newValue !== true) return;
+
+  (async () => {
+    try {
+      const token = await apiClient?.getToken?.();
+      if (!token) return;
+
+      const userData = await apiClient.getCurrentUser().catch(() => null);
+      await finalizeOnboardingFlow(userData?.user || null);
+    } catch (error) {
+      console.warn('Could not refresh popup after onboarding completion:', error?.message || error);
+    }
+  })();
+});
 
 function hideOnboardingPrompt() {
   const onboardingPrompt = document.getElementById('onboardingPrompt');
@@ -183,66 +221,71 @@ function showOnboardingPrompt(user) {
     onboardingPrompt.style.display = 'block';
     onboardingPrompt.innerHTML = `
       <div class="onboarding-prompt">
-        <div class="welcome-badge">
-          <span class="welcome-emoji">🔦</span>
-        </div>
-        <h2>Welcome ${userName}!</h2>
-        <p class="onboarding-description">
-          Ready to restore the lighthouse? Four assessment tasks await to help us 
-          personalize your experience and build your AURA profile.
-        </p>
-        
-        <div class="game-cards-grid">
-          <div class="game-card">
-            <div class="game-card-icon">🎨</div>
-            <div class="game-card-content">
-              <h3>Calibrate the Light Colors</h3>
-              <p>Align the prism so signals are not lost</p>
-            </div>
+        <div class="onboarding-hero">
+          <div class="welcome-badge">
+            <span class="welcome-emoji">&#128161;</span>
           </div>
-          <div class="game-card">
-            <div class="game-card-icon">🔍</div>
-            <div class="game-card-content">
-              <h3>Focus the Beam</h3>
-              <p>Sharpen the light to reach distant signals</p>
-            </div>
-          </div>
-          <div class="game-card">
-            <div class="game-card-icon">💨</div>
-            <div class="game-card-content">
-              <h3>Clear the Rising Fog</h3>
-              <p>Remove corrupted data blocking the path</p>
-            </div>
-          </div>
-          <div class="game-card">
-            <div class="game-card-icon">⚙️</div>
-            <div class="game-card-content">
-              <h3>Restore the Control Panel</h3>
-              <p>Make correct operational decisions</p>
-            </div>
+          <div class="onboarding-hero-copy">
+            <h2>Welcome ${userName}!</h2>
+            <p class="onboarding-description">
+              Complete four quick assessments to generate your personalized AURA profile.
+            </p>
           </div>
         </div>
-        
-        <div class="onboarding-features">
-          <div class="feature-item">
-            <span class="feature-icon">⏱️</span>
-            <span>About 5 minutes</span>
+
+        <div class="onboarding-meta">
+          <span class="meta-chip"><strong>4</strong> Challenges</span>
+          <span class="meta-chip"><strong>~5 min</strong> Duration</span>
+        </div>
+
+        <div class="challenge-list">
+          <div class="challenge-item">
+            <div class="challenge-index">01</div>
+            <div class="challenge-body">
+              <div class="challenge-title-row">
+                <h3>Calibrate the Light Colors</h3>
+              </div>
+              <p>Align the prism so signals are not lost.</p>
+            </div>
           </div>
-          <div class="feature-item">
-            <span class="feature-icon">🔒</span>
-            <span>100% Private</span>
+
+          <div class="challenge-item">
+            <div class="challenge-index">02</div>
+            <div class="challenge-body">
+              <div class="challenge-title-row">
+                <h3>Focus the Beam</h3>
+              </div>
+              <p>Sharpen the light to reach distant signals.</p>
+            </div>
           </div>
-          <div class="feature-item">
-            <span class="feature-icon">✨</span>
-            <span>Personalized profile</span>
+
+          <div class="challenge-item">
+            <div class="challenge-index">03</div>
+            <div class="challenge-body">
+              <div class="challenge-title-row">
+                <h3>Clear the Rising Fog</h3>
+              </div>
+              <p>Remove corrupted data blocking the path.</p>
+            </div>
+          </div>
+
+          <div class="challenge-item">
+            <div class="challenge-index">04</div>
+            <div class="challenge-body">
+              <div class="challenge-title-row">
+                <h3>Restore the Control Panel</h3>
+              </div>
+              <p>Make correct operational decisions.</p>
+            </div>
           </div>
         </div>
-        
+
         <div class="onboarding-actions">
           <button id="startOnboardingBtn" class="btn btn-primary full-width btn-glow" aria-label="Start onboarding game - opens in new tab">
-            <span class="btn-text">Let's Play!</span>
-            <span class="btn-arrow" aria-hidden="true">→</span>
+            <span class="btn-text">Start Lighthouse Mission</span>
+            <span class="btn-arrow" aria-hidden="true">&rarr;</span>
           </button>
+          <p class="onboarding-footnote">Opens in a new tab. You can return here anytime.</p>
         </div>
       </div>
     `;
@@ -575,11 +618,12 @@ async function handleLogout() {
   }
   
   try {
+    const { userId } = await chrome.storage.local.get(['userId']);
     // 1. Clear token + userId (triggers storage.onChanged → background cleanup)
     await apiClient.logout();
     
     // 2. Explicitly broadcast logout so background clears auth + ML profiles (belt-and-suspenders)
-    await chrome.runtime.sendMessage({ type: 'BROADCAST_USER_LOGOUT' }).catch(() => {});
+    await chrome.runtime.sendMessage({ type: 'BROADCAST_USER_LOGOUT', userId: userId || null }).catch(() => {});
     
     // 3. Clear remaining local storage (consent, config, etc.)
     await clearRegistrationFlowState();
@@ -750,4 +794,5 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
 

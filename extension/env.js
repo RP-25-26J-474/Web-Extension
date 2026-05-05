@@ -46,6 +46,7 @@
     ONBOARDING_GAME_URL: ONBOARDING_GAME_BASE_URL,
     ML_PROFILE_API_URL: `${ML_BASE_URL}/data/current-profile`,
     IMPAIRMENT_TO_ML_PROFILE_API_URL: `${ML_BASE_URL}/category/generate-profile`,
+    ML_SESSION_FEEDBACK_URL: `${ML_BASE_URL}/user/trigger-update`,
     HOST_PERMISSIONS,
     BRIDGE_TRUSTED_ORIGINS,
   };
