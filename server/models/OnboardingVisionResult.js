@@ -55,6 +55,7 @@ const onboardingVisionResultSchema = new mongoose.Schema({
   colorBlindness: {
     plates: [colorBlindnessPlateSchema],
     colorVisionScore: Number,
+    colorBlindnessScore: Number,
     diagnosis: {
       type: String,
       enum: ['Normal', 'Suspected Red-Green Deficiency', 'Inconclusive'],
@@ -67,6 +68,8 @@ const onboardingVisionResultSchema = new mongoose.Schema({
     attempts: [visualAcuityAttemptSchema],
     finalLevel: Number, // 1-7, needed for severe-impairment detection (failed level 1)
     finalResolvedSize: Number, // in pixels
+    visualAcuityDecimal: Number,
+    visionLoss: Number,
     visualAngle: Number, // in degrees
     mar: Number, // Minimum Angle of Resolution
     snellenDenominator: Number,

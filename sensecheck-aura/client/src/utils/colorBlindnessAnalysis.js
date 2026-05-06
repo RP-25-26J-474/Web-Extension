@@ -35,6 +35,78 @@ export const ISHIHARA_PLATES = [
   },
 ];
 
+const CONTROL_PLATE_ID = 1;
+const MIN_COLOR_BLIND_MATCHES = 2;
+const COLOR_BLIND_RATIO_THRESHOLD = 0.75;
+
+const normalizeAnswer = (answer) => String(answer ?? '').toLowerCase().trim();
+
+const getPlateDefinition = (plate, index) => {
+  if (plate?.plateId != null) {
+    const byId = ISHIHARA_PLATES.find(candidate => candidate.plateId === Number(plate.plateId));
+    if (byId) {
+      return byId;
+    }
+  }
+
+  return ISHIHARA_PLATES[index] || null;
+};
+
+export const summarizeColorBlindnessResponses = (plates) => {
+  const summary = {
+    controlPlateCorrect: false,
+    normalVisionCount: 0,
+    colorBlindCount: 0,
+    anomalyCount: 0,
+    diagnosticPlateCount: 0,
+    totalResponseTime: 0,
+  };
+
+  if (!Array.isArray(plates) || plates.length === 0) {
+    return summary;
+  }
+
+  plates.forEach((plate, index) => {
+    const definition = getPlateDefinition(plate, index);
+    if (!definition) return;
+
+    const userAnswer = normalizeAnswer(plate.userAnswer);
+    const normalAnswer = normalizeAnswer(definition.normalAnswer);
+    const colorBlindAnswer = normalizeAnswer(definition.colorBlindAnswer);
+    const isControlPlate = definition.plateId === CONTROL_PLATE_ID;
+
+    if (isControlPlate) {
+      summary.controlPlateCorrect = userAnswer === normalAnswer;
+    } else {
+      summary.diagnosticPlateCount += 1;
+
+      if (userAnswer === normalAnswer) {
+        summary.normalVisionCount += 1;
+      } else if (userAnswer === colorBlindAnswer) {
+        summary.colorBlindCount += 1;
+      } else {
+        summary.anomalyCount += 1;
+      }
+    }
+
+    summary.totalResponseTime += plate.responseTime || 0;
+  });
+
+  return summary;
+};
+
+export const getBinaryColorBlindnessScore = (summary) => {
+  if (!summary?.controlPlateCorrect || !summary?.diagnosticPlateCount) {
+    return 0;
+  }
+
+  const colorBlindRatio = summary.colorBlindCount / summary.diagnosticPlateCount;
+  return (
+    summary.colorBlindCount >= MIN_COLOR_BLIND_MATCHES
+    || colorBlindRatio > COLOR_BLIND_RATIO_THRESHOLD
+  ) ? 1 : 0;
+};
+
 /**
  * Analyze color blindness test results
  * @param {Array} plates - Array of plate response objects
@@ -44,51 +116,35 @@ export const analyzeColorBlindness = (plates) => {
   if (!plates || plates.length === 0) {
     return {
       colorVisionScore: 0,
+      colorBlindnessScore: 0,
       diagnosis: 'Inconclusive',
       details: 'No test data available',
     };
   }
 
-  let normalVisionCount = 0;
-  let colorBlindCount = 0;
-  let totalResponseTime = 0;
+  const summary = summarizeColorBlindnessResponses(plates);
+  const {
+    controlPlateCorrect,
+    normalVisionCount,
+    colorBlindCount,
+    anomalyCount,
+    diagnosticPlateCount,
+    totalResponseTime,
+  } = summary;
 
-  plates.forEach((plate, index) => {
-    const definition = ISHIHARA_PLATES[index];
-    if (!definition) return;
-
-    const userAnswer = String(plate.userAnswer).toLowerCase().trim();
-    const normalAnswer = String(definition.normalAnswer).toLowerCase();
-    const colorBlindAnswer = String(definition.colorBlindAnswer).toLowerCase();
-
-    // Check which pattern the answer matches
-    if (userAnswer === normalAnswer) {
-      normalVisionCount++;
-    } else if (userAnswer === colorBlindAnswer) {
-      colorBlindCount++;
-    }
-
-    totalResponseTime += plate.responseTime || 0;
-  });
-
-  const totalPlates = plates.length;
-
-  // Color vision score (0-100) - proportion of correct normal-vision answers
-  const colorVisionScore = Math.round((normalVisionCount / totalPlates) * 100);
-
-  // Color blindness score (0-1) - proportion of plates where user gave the color-blind pattern answer
-  // This is the impairment level: 0 = no color blindness, 1 = all answers matched color-blind pattern
-  // NOT 1 - colorVisionScore, because random wrong answers do not indicate color blindness
-  const colorBlindnessScore = totalPlates > 0
-    ? parseFloat((colorBlindCount / totalPlates).toFixed(2))
+  const colorVisionScore = diagnosticPlateCount > 0
+    ? Math.round((normalVisionCount / diagnosticPlateCount) * 100)
     : 0;
+  const colorBlindnessScore = getBinaryColorBlindnessScore(summary);
 
   // Determine diagnosis
   let diagnosis = 'Inconclusive';
-  if (colorVisionScore >= 75) {
-    diagnosis = 'Normal';
-  } else if (colorBlindCount >= 2) {
+  if (!controlPlateCorrect) {
+    diagnosis = 'Inconclusive';
+  } else if (colorBlindnessScore === 1) {
     diagnosis = 'Suspected Red-Green Deficiency';
+  } else if (anomalyCount === 0) {
+    diagnosis = 'Normal';
   }
 
   return {
@@ -97,9 +153,14 @@ export const analyzeColorBlindness = (plates) => {
     diagnosis,
     normalVisionCount,
     colorBlindCount,
-    totalPlates,
-    averageResponseTime: Math.round(totalResponseTime / totalPlates),
-    details: `Answered ${normalVisionCount} plates correctly as normal vision, ${colorBlindCount} as color blind pattern.`,
+    anomalyCount,
+    controlPlateCorrect,
+    totalPlates: plates.length,
+    diagnosticPlateCount,
+    averageResponseTime: plates.length > 0 ? Math.round(totalResponseTime / plates.length) : 0,
+    details: controlPlateCorrect
+      ? `Control plate passed. Diagnostic plates: ${normalVisionCount} normal, ${colorBlindCount} color-blind pattern, ${anomalyCount} anomalous. Binary score: ${colorBlindnessScore}.`
+      : `Control plate failed. Diagnostic plates: ${normalVisionCount} normal, ${colorBlindCount} color-blind pattern, ${anomalyCount} anomalous. Binary score forced to 0.`,
   };
 };
 

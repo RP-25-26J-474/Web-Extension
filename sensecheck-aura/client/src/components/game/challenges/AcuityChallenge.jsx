@@ -5,6 +5,7 @@ import useStore from '../../../state/store';
 import { calculateVisualAcuityFromThreshold, getVisionCategory } from '../../../utils/visualAcuityCalculations';
 import { saveVisionResults } from '../../../utils/api';
 import auraIntegration from '../../../utils/auraIntegration';
+import { runBackgroundTasks } from '../../../utils/backgroundTasks';
 import { Focus, Ruler, Glasses, MoveHorizontal, Target, Send, AlertTriangle } from 'lucide-react';
 
 const calculateAdaptiveSizes = () => {
@@ -163,21 +164,24 @@ const AcuityChallenge = () => {
       visionCategory: visionCategory.category,
       visionCategoryName: visionCategory.name,
     };
-    
-    try {
-      const userId = state.userId || auraIntegration.getUserId();
-      await saveVisionResults({ userId, visualAcuity: resultsData });
-      
-      if (auraIntegration.isEnabled()) {
-        await auraIntegration.saveVisionResults(null, resultsData, {
+
+    const userId = state.userId || auraIntegration.getUserId();
+    runBackgroundTasks('visual-acuity completion', [
+      {
+        label: 'save vision results',
+        run: () => saveVisionResults({ userId, visualAcuity: resultsData }),
+      },
+      auraIntegration.isEnabled() ? {
+        label: 'save AURA vision results',
+        run: () => auraIntegration.saveVisionResults(null, resultsData, {
           device: navigator.userAgent,
-        });
-      }
-      
-      await completeModule('perception');
-    } catch (error) {
-      console.error('Failed to save results:', error);
-    }
+        }),
+      } : null,
+      {
+        label: 'mark perception module complete',
+        run: () => completeModule('perception'),
+      },
+    ]);
     
     updateChallengeProgress('visualAcuity', { 
       currentLevel: 1, 

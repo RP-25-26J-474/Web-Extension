@@ -565,23 +565,6 @@ function initializeEventListeners() {
   
   console.log('✓ Auth tab listeners attached');
   
-  // Debug: Test if elements are actually in DOM
-  setTimeout(() => {
-    const authSection = document.getElementById('authSection');
-    const loginTab = document.getElementById('loginTab');
-    const registerTab = document.getElementById('registerTab');
-    
-    console.log('🔍 DOM Check (after timeout):');
-    console.log('  authSection display:', authSection?.style.display);
-    console.log('  loginTab:', loginTab ? 'EXISTS' : 'NULL');
-    console.log('  registerTab:', registerTab ? 'EXISTS' : 'NULL');
-    
-    if (registerTab) {
-      console.log('  registerTab is clickable:', registerTab.disabled ? 'NO (disabled)' : 'YES');
-      console.log('  registerTab parent visible:', registerTab.parentElement ? 'YES' : 'NO');
-    }
-  }, 100);
-  
   // Auth buttons
   document.getElementById('loginBtn')?.addEventListener('click', handleLogin);
   document.getElementById('registerBtn')?.addEventListener('click', handleRegister);
@@ -618,27 +601,6 @@ function initializeEventListeners() {
   // Consent button
   document.getElementById('acceptConsent')?.addEventListener('click', handleAcceptConsent);
 }
-
-// Manual test function (accessible from console)
-window.testRegisterTab = function() {
-  console.log('🧪 Manual test: Clicking register tab...');
-  const registerTab = document.getElementById('registerTab');
-  const registerForm = document.getElementById('registerForm');
-  const loginForm = document.getElementById('loginForm');
-  
-  console.log('registerTab:', registerTab);
-  console.log('registerForm:', registerForm);
-  console.log('loginForm:', loginForm);
-  
-  if (registerTab) {
-    registerTab.click();
-    console.log('✓ Click triggered');
-  } else {
-    console.log('✗ Register tab not found');
-  }
-};
-
-console.log('💡 Tip: Run window.testRegisterTab() in console to manually test');
 
 // Handle login
 async function handleLogin() {

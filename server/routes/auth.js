@@ -26,11 +26,17 @@ const generateToken = (userId) => {
 };
 
 async function deleteUserAccountData(userId) {
+  const normalizedUserId = String(userId);
   const operations = {
     stats: Stats.deleteOne({ userId }),
     interactions: Interaction.deleteMany({ userId }),
     aggregatedInteractionBatches: AggregatedInteractionBatch.deleteMany({ userId }),
-    impairmentProfiles: ImpairmentProfile.deleteMany({ userId }),
+    impairmentProfiles: ImpairmentProfile.deleteMany({
+      $or: [
+        { user_id: normalizedUserId },
+        { userId },
+      ],
+    }),
     onboardingSessions: OnboardingSession.deleteMany({ userId }),
     onboardingVisionResults: OnboardingVisionResult.deleteMany({ userId }),
     onboardingLiteracyResults: OnboardingLiteracyResult.deleteMany({ userId }),
