@@ -69,6 +69,82 @@ function isSevereVisionImpairment(visionResult) {
   return failedAllIshihara && failedFirstAcuity;
 }
 
+function clampImpairmentProbability(value) {
+  const finite = toFiniteNumber(value);
+  if (finite == null) return null;
+  return Number(Math.max(0, Math.min(1, finite)).toFixed(4));
+}
+
+function getIshiharaPlateDefinition(plate, index) {
+  if (plate?.plateId != null) {
+    const byId = ISHIHARA_PLATES.find(def => def.plateId === Number(plate.plateId));
+    if (byId) return byId;
+  }
+  return ISHIHARA_PLATES[index] || null;
+}
+
+function deriveColorBlindnessProbability(visionResult) {
+  const persistedScore = clampImpairmentProbability(visionResult?.colorBlindness?.colorBlindnessScore);
+  if (persistedScore != null) {
+    return persistedScore;
+  }
+
+  const plates = Array.isArray(visionResult?.colorBlindness?.plates)
+    ? visionResult.colorBlindness.plates
+    : [];
+  if (plates.length === 0) {
+    return null;
+  }
+
+  let scoredPlates = 0;
+  let colorBlindCount = 0;
+  plates.forEach((plate, index) => {
+    const definition = getIshiharaPlateDefinition(plate, index);
+    if (!definition) return;
+
+    scoredPlates += 1;
+    const userAnswer = String(plate.userAnswer || '').toLowerCase().trim();
+    const colorBlindAnswer = String(definition.colorBlindAnswer || '').toLowerCase().trim();
+    if (userAnswer === colorBlindAnswer) {
+      colorBlindCount += 1;
+    }
+  });
+
+  if (scoredPlates === 0) {
+    return null;
+  }
+
+  return clampImpairmentProbability(colorBlindCount / scoredPlates);
+}
+
+function deriveVisionLossProbability(visionResult) {
+  if (isSevereVisionImpairment(visionResult)) {
+    return 1;
+  }
+
+  const persistedLoss = clampImpairmentProbability(visionResult?.visualAcuity?.visionLoss);
+  if (persistedLoss != null) {
+    return persistedLoss;
+  }
+
+  const acuityDecimal = getFirstFinite(
+    visionResult?.visualAcuity?.visualAcuityDecimal,
+    visionResult?.visualAcuity?.snellenDenominator
+      ? 20 / Number(visionResult.visualAcuity.snellenDenominator)
+      : null
+  );
+
+  if (acuityDecimal == null) {
+    return null;
+  }
+
+  if (acuityDecimal >= 1) {
+    return 0;
+  }
+
+  return clampImpairmentProbability(1 - acuityDecimal);
+}
+
 function parseOS(userAgent) {
   if (!userAgent) return null;
 
@@ -775,9 +851,8 @@ router.get('/impairment-profile', authMiddleware, async (req, res) => {
       OnboardingVisionResult.findOne({ userId: req.userId }),
     ]);
 
-    const severeImpairment = isSevereVisionImpairment(visionResult);
-    const visionLossScore = severeImpairment ? 100 : visionResult?.overallScore;
-    const colorBlindnessScore = visionResult?.colorBlindness?.colorVisionScore;
+    const visionLoss = deriveVisionLossProbability(visionResult);
+    const colorBlindness = deriveColorBlindnessProbability(visionResult);
     const literacyScore = literacyResult?.score?.computerLiteracyScore;
     const existingHitRate = toFiniteNumber(profile?.onboarding_metrics?.hit_rate);
     const overallHitRate = toFiniteNumber(motorResult?.overallMetrics?.overallHitRate);
@@ -797,8 +872,8 @@ router.get('/impairment-profile', authMiddleware, async (req, res) => {
     );
     const impairment_probs = {
       vision: {
-        vision_loss: Number.isFinite(visionLossScore) ? visionLossScore / 100 : null,
-        color_blindness: Number.isFinite(colorBlindnessScore) ? colorBlindnessScore / 100 : null,
+        vision_loss: visionLoss,
+        color_blindness: colorBlindness,
       },
       motor: {
         delayed_reaction: motorExisting.delayed_reaction ?? null,

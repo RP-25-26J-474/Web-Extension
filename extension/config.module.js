@@ -17,6 +17,8 @@ function normalizeApiBaseUrl(url) {
 }
 
 // API Configuration (ES6 module version for service worker)
+// For local dev: use http://localhost:3000/api
+// For Vercel: use https://extension-backend-theta.vercel.app/api
 export const API_CONFIG = {
   BASE_URL: normalizeApiBaseUrl(EXTENSION_ENV.API_BASE_URL),
   // Change this to your production URL when deploying
@@ -28,8 +30,11 @@ export const API_CONFIG = {
   
   ENDPOINTS: {
     REGISTER: '/auth/register',
+    RESEND_VERIFICATION: '/auth/resend-verification',
+    COMPLETE_VERIFICATION: '/auth/complete-verification',
     LOGIN: '/auth/login',
     LOGOUT: '/auth/logout',
+    DELETE_ACCOUNT: '/auth/account',
     ME: '/auth/me',
     UPDATE_SETTINGS: '/auth/settings',
     GET_STATS: '/stats',

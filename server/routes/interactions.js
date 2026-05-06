@@ -403,13 +403,12 @@ router.get('/active-users/last-24h', async (req, res) => {
  *   GET /api/interactions/aggregated-batches?user_id=<mongodb_user_id>&start=YYYY-MM-DD&end=YYYY-MM-DD
  *   Or headers/query token:
  *   Headers: Authorization: Bearer <token>
- *   Response: { batches: [...] }
+ *   Response: { batches: [...], count: N }
  *   For last 24h only, prefer GET /aggregated-batches/last-24h
  */
 router.get('/aggregated-batches', async (req, res) => {
   try {
     const { start, end } = req.query;
-    
     const userId = await resolveAggregatedBatchesUserId(req);
     let batches;
 
@@ -422,11 +421,11 @@ router.get('/aggregated-batches', async (req, res) => {
     } else {
       batches = await AggregatedInteractionBatch.find({ userId }).sort({ captured_at: 1 }).lean();
     }
-    
+
     res.json({
       batches: normalizeAggregatedBatches(batches),
+      count: batches.length,
     });
-    
   } catch (error) {
     console.error('Get aggregated batches error:', error);
     res.status(error.status || 500).json({ error: error.message || 'Failed to get aggregated batches' });

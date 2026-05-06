@@ -82,14 +82,164 @@ function broadcastToAllTabs(message) {
   });
 }
 
+async function hydrateAuthenticatedUserState(storedSession = null) {
+  const session = storedSession || await chrome.storage.local.get(['authToken', 'userId', 'userProfile']);
+  const authToken = session.authToken || null;
+  const storedUserId = session.userId || null;
+  const storedUserProfile = session.userProfile || null;
+
+  if (!authToken) {
+    return { authToken: null, userId: null, userProfile: null };
+  }
+
+  const hasUsableProfile =
+    storedUserId &&
+    storedUserProfile &&
+    storedUserProfile.userId === storedUserId &&
+    (storedUserProfile.email != null || storedUserProfile.name != null);
+
+  if (hasUsableProfile) {
+    return {
+      authToken,
+      userId: storedUserId,
+      userProfile: storedUserProfile,
+    };
+  }
+
+  try {
+    const meRes = await fetch(`${API_CONFIG.BASE_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!meRes.ok) {
+      throw new Error(`/auth/me returned ${meRes.status}`);
+    }
+
+    const me = await meRes.json();
+    const activeUser = me?.user || null;
+    const userId = activeUser?._id || activeUser?.id || storedUserId || null;
+    const userProfile = userId
+      ? {
+          userId,
+          email: activeUser?.email ?? null,
+          name: activeUser?.name ?? null,
+        }
+      : storedUserProfile || null;
+
+    const storageUpdate = {};
+    if (userId && userId !== storedUserId) {
+      storageUpdate.userId = userId;
+    }
+    if (userProfile) {
+      storageUpdate.userProfile = userProfile;
+    }
+    if (Object.keys(storageUpdate).length > 0) {
+      await chrome.storage.local.set(storageUpdate);
+    }
+
+    return { authToken, userId, userProfile };
+  } catch (error) {
+    console.debug('[AURA Background] Could not hydrate authenticated user state:', error.message);
+    return {
+      authToken,
+      userId: storedUserId,
+      userProfile: storedUserProfile,
+    };
+  }
+}
+
+async function broadcastAuthenticatedSessionToTab(tabId, options = {}) {
+  if (!tabId) return false;
+
+  const {
+    source = 'startup',
+    onboardingComplete = false,
+  } = options;
+
+  const session = await hydrateAuthenticatedUserState();
+  if (!session.authToken || !session.userId) {
+    return false;
+  }
+
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      type: 'USER_LOGGED_IN',
+      token: session.authToken,
+      userId: session.userId,
+      user: session.userProfile ? {
+        email: session.userProfile.email ?? null,
+        name: session.userProfile.name ?? null,
+      } : null,
+      onboardingComplete,
+      source,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function broadcastAuthenticatedSession(options = {}) {
+  const {
+    source = 'startup',
+    onboardingComplete = false,
+  } = options;
+
+  const session = await hydrateAuthenticatedUserState();
+  if (!session.authToken || !session.userId) {
+    return false;
+  }
+
+  broadcastToAllTabs({
+    type: 'USER_LOGGED_IN',
+    token: session.authToken,
+    userId: session.userId,
+    user: session.userProfile ? {
+      email: session.userProfile.email ?? null,
+      name: session.userProfile.name ?? null,
+    } : null,
+    onboardingComplete,
+    source,
+  });
+  return true;
+}
+
+async function syncTrackingStateToAllTabs(enabled) {
+  broadcastToAllTabs({ type: 'TOGGLE_TRACKING', enabled });
+}
+
 // Initialize aggregator with userId; also sync onboardingCompleted from API if logged in
 async function initializeAggregator() {
   try {
-    const result = await chrome.storage.local.get(['userId', 'authToken']);
+    const result = await chrome.storage.local.get([
+      'userId',
+      'authToken',
+      'userProfile',
+      'onboardingCompleted',
+      'trackingEnabled',
+      'consentGiven',
+    ]);
     if (result.authToken) {
-      console.log('[AURA Background] Authenticated session detected; initializing aggregator for userId:', result.userId);
+      const session = await hydrateAuthenticatedUserState(result);
+      console.log('[AURA Background] Authenticated session detected; initializing aggregator for userId:', session.userId || result.userId);
       await interactionAggregator.initialize();
       scheduleMlProfileFetch();
+
+      let onboardingCompleted = result.onboardingCompleted === true;
+      let mlProfileRefreshRequested = false;
+      const requestMlProfileRefresh = () => {
+        if (mlProfileRefreshRequested) return;
+        mlProfileRefreshRequested = true;
+        fetchMlPersonalizedProfile().catch((error) => {
+          console.debug('[AURA Background] Could not refresh ML profile during startup:', error?.message || error);
+        });
+      };
+
+      // If the user already completed onboarding in a previous session, do not wait on a
+      // fresh status call before hydrating the cached ML profile again.
+      if (onboardingCompleted) {
+        requestMlProfileRefresh();
+      }
+
       // Check onboarding status – only fetch from daily GET API when onboarding complete (login/existing user)
       try {
         const res = await fetch(`${API_CONFIG.BASE_URL}/onboarding/status`, {
@@ -100,11 +250,21 @@ async function initializeAggregator() {
           if (data.completed) {
             await chrome.storage.local.set({ [ONBOARDING_COMPLETED_KEY]: true });
             console.log('[AURA Background] Onboarding already complete; aggregated tracking enabled');
-            fetchMlPersonalizedProfile();
+            onboardingCompleted = true;
+            requestMlProfileRefresh();
           }
         }
       } catch (e) {
         console.debug('[AURA Background] Could not fetch onboarding status:', e.message);
+      }
+
+      await broadcastAuthenticatedSession({
+        source: 'startup',
+        onboardingComplete: onboardingCompleted,
+      });
+
+      if (result.trackingEnabled && result.consentGiven) {
+        await syncTrackingStateToAllTabs(true);
       }
     } else {
       console.log('[AURA Background] No auth token found; aggregator will initialize after login');
@@ -117,7 +277,7 @@ async function initializeAggregator() {
 // Sync current extension profile to ML engine before storage is cleared on logout/browser close.
 // Sends required user/session fields to /user/trigger-update and includes feedback overrides when available.
 async function syncProfileBeforeLogout(userId) {
-  const mlFeedbackUrl = API_CONFIG.ML_SESSION_FEEDBACK_URL || 'https://mlpe.auraui.org/user/trigger-update';
+  const mlFeedbackUrl = API_CONFIG.ML_SESSION_FEEDBACK_URL || 'https://mlengine.auraui.org/user/trigger-update';
   try {
     const stored = await chrome.storage.local.get([
       'AURA_EXT_ML_PERSONALIZED_PROFILE',
@@ -247,6 +407,27 @@ chrome.windows.onRemoved.addListener(() => {
       syncProfileBeforeLogoutOnce(userId, 'windows.onRemoved').catch(() => {});
     });
   });
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status !== 'complete') return;
+
+  (async () => {
+    const { trackingEnabled, consentGiven, onboardingCompleted } = await chrome.storage.local.get([
+      'trackingEnabled',
+      'consentGiven',
+      'onboardingCompleted',
+    ]);
+
+    await broadcastAuthenticatedSessionToTab(tabId, {
+      source: 'startup',
+      onboardingComplete: onboardingCompleted === true,
+    });
+
+    if (trackingEnabled && consentGiven) {
+      chrome.tabs.sendMessage(tabId, { type: 'TOGGLE_TRACKING', enabled: true }).catch(() => {});
+    }
+  })().catch(() => {});
 });
 // ========== ML PERSONALIZED PROFILE â€“ Daily fetch ==========
 // For logged-in users, fetch profile from separate ML component daily using user_id.

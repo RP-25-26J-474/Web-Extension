@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
-import { useGame, PROFILE_TRAITS } from '../../context/GameContext';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useGame, GAME_TRANSITION_SHOW_MS } from '../../context/GameContext';
 import { Palette, Focus, CloudFog, Zap, ChevronRight, Sparkles } from 'lucide-react';
 
 // Lighthouse systems with icons
@@ -9,6 +9,9 @@ const LIGHTHOUSE_SYSTEMS = [
   { id: 'motor-skills', name: 'Clear Fog', Icon: CloudFog, shortName: 'Pathway' },
   { id: 'knowledge-quiz', name: 'Restore Control', Icon: Zap, shortName: 'Control' },
 ];
+
+const TRANSITION_ENTER_DELAY_MS = 60;
+const OVERLAY_PARTICLE_COUNT = 12;
 
 // Map trait IDs to icons
 const getTraitIcon = (traitId) => {
@@ -29,13 +32,31 @@ const getTraitIcon = (traitId) => {
 const TransitionOverlay = () => {
   const { state } = useGame();
   const [animationPhase, setAnimationPhase] = useState('entering');
+  const timerRefs = useRef([]);
+  const particles = useMemo(
+    () => Array.from({ length: OVERLAY_PARTICLE_COUNT }, () => ({
+      left: `${Math.random() * 100}%`,
+      top: `${Math.random() * 100}%`,
+      delay: `${Math.random()}s`,
+      duration: `${1 + Math.random() * 0.6}s`,
+    })),
+    [state.showingTransition]
+  );
   
   useEffect(() => {
     if (state.showingTransition) {
       setAnimationPhase('entering');
-      setTimeout(() => setAnimationPhase('showing'), 100);
-      setTimeout(() => setAnimationPhase('exiting'), 2200);
+      timerRefs.current.forEach(clearTimeout);
+      timerRefs.current = [
+        setTimeout(() => setAnimationPhase('showing'), TRANSITION_ENTER_DELAY_MS),
+        setTimeout(() => setAnimationPhase('exiting'), GAME_TRANSITION_SHOW_MS),
+      ];
     }
+
+    return () => {
+      timerRefs.current.forEach(clearTimeout);
+      timerRefs.current = [];
+    };
   }, [state.showingTransition]);
 
   const handleKeyDown = useCallback((e) => {
@@ -70,17 +91,17 @@ const TransitionOverlay = () => {
     >
       {/* Animated background particles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(20)].map((_, i) => (
+        {particles.map((particle, i) => (
           <div
             key={i}
             className="absolute w-2 h-2 rounded-full animate-ping"
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
+              left: particle.left,
+              top: particle.top,
               backgroundColor: 'var(--primary-color)',
               opacity: 0.3,
-              animationDelay: `${Math.random() * 1}s`,
-              animationDuration: '1.5s'
+              animationDelay: particle.delay,
+              animationDuration: particle.duration,
             }}
           />
         ))}

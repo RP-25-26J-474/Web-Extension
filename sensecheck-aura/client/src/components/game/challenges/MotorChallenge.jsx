@@ -6,6 +6,7 @@ import useStore from '../../../state/store';
 import MotorSkillsTracker from '../../../utils/motorSkillsTracking';
 import usePerformanceMetrics from '../../../hooks/usePerformanceMetrics';
 import auraIntegration from '../../../utils/auraIntegration';
+import { runBackgroundTasks } from '../../../utils/backgroundTasks';
 import { CloudFog, Flame, Play, Target } from 'lucide-react';
 
 const MAX_WAVES = 3;
@@ -282,22 +283,23 @@ const MotorChallenge = () => {
       totalCorrect: stats.hits,
       totalAttempts: stats.hits + stats.misses,
     });
-    
-    if (motorTrackerRef.current) {
-      await motorTrackerRef.current.complete({
-        perf: finalPerfMetrics,
-        viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
-        highContrastMode: window.matchMedia?.('(prefers-contrast: high)')?.matches ?? false,
-        reducedMotionPreference: window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false,
-      });
-    }
-    
-    try {
-      await completeModule('reaction');
-    } catch (error) {
-      console.error('Failed to save results:', error);
-    }
+
+    runBackgroundTasks('motor-skills completion', [
+      motorTrackerRef.current ? {
+        label: 'flush motor tracker',
+        run: () => motorTrackerRef.current.complete({
+          perf: finalPerfMetrics,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          highContrastMode: window.matchMedia?.('(prefers-contrast: high)')?.matches ?? false,
+          reducedMotionPreference: window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false,
+        }),
+      } : null,
+      {
+        label: 'mark reaction module complete',
+        run: () => completeModule('reaction'),
+      },
+    ]);
     
     updateChallengeProgress('motorSkills', { 
       currentRound: 1, 

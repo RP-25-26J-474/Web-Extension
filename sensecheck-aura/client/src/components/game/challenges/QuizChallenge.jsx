@@ -5,6 +5,7 @@ import useStore from '../../../state/store';
 import { LITERACY_QUESTIONS, calculateLiteracyScore, calculateCategoryScores } from '../../../utils/literacyQuestions';
 import { saveLiteracyResults } from '../../../utils/api';
 import auraIntegration from '../../../utils/auraIntegration';
+import { runBackgroundTasks } from '../../../utils/backgroundTasks';
 import { Zap, Settings, BookOpen, MousePointer, ChevronRight, CheckCircle, Circle } from 'lucide-react';
 
 const QuizChallenge = () => {
@@ -135,23 +136,26 @@ const QuizChallenge = () => {
       totalQuestions: scoreData.totalQuestions,
       categoryScores,
     };
-    
-    try {
-      await saveLiteracyResults(resultsData);
-      
-      if (auraIntegration.isEnabled()) {
-        await auraIntegration.saveLiteracyResults(
+
+    runBackgroundTasks('knowledge-quiz completion', [
+      {
+        label: 'save literacy results',
+        run: () => saveLiteracyResults(resultsData),
+      },
+      auraIntegration.isEnabled() ? {
+        label: 'save AURA literacy results',
+        run: () => auraIntegration.saveLiteracyResults(
           allResponses,
           scoreData.score,
           { correctAnswers: scoreData.correctAnswers, totalQuestions: scoreData.totalQuestions },
           categoryScores
-        );
-      }
-      
-      await completeModule('knowledge');
-    } catch (error) {
-      console.error('Failed to save results:', error);
-    }
+        ),
+      } : null,
+      {
+        label: 'mark knowledge module complete',
+        run: () => completeModule('knowledge'),
+      },
+    ]);
     
     updateChallengeProgress('knowledgeQuiz', { currentQuestion: 0, responses: [] });
     await completeChallenge('knowledge-quiz', resultsData);

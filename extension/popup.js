@@ -11,9 +11,69 @@ try {
   console.error('✗ Failed to initialize APIClient:', error);
 }
 
+const PENDING_VERIFICATION_KEY = 'pendingVerification';
+const PENDING_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
+
+async function savePendingVerification(email) {
+  if (!email) return;
+  await chrome.storage.local.set({
+    [PENDING_VERIFICATION_KEY]: {
+      email: String(email).trim(),
+      savedAt: Date.now()
+    }
+  });
+}
+
+async function getPendingVerificationEmail() {
+  const data = await chrome.storage.local.get(PENDING_VERIFICATION_KEY);
+  const pending = data?.[PENDING_VERIFICATION_KEY];
+
+  if (!pending || typeof pending.email !== 'string') {
+    return '';
+  }
+
+  if (
+    pending.savedAt &&
+    Number.isFinite(pending.savedAt) &&
+    Date.now() - pending.savedAt > PENDING_VERIFICATION_TTL_MS
+  ) {
+    await clearPendingVerification();
+    return '';
+  }
+
+  return pending.email.trim();
+}
+
+async function clearPendingVerification() {
+  await chrome.storage.local.remove(PENDING_VERIFICATION_KEY);
+}
+
+async function getStoredUserProfileSummary() {
+  const result = await chrome.storage.local.get(['userProfile', 'userId']);
+  const storedProfile = result?.userProfile;
+
+  if (!storedProfile && !result?.userId) {
+    return null;
+  }
+
+  return {
+    _id: storedProfile?.userId || result?.userId || null,
+    email: storedProfile?.email || null,
+    name: storedProfile?.name || 'User',
+  };
+}
+
+async function clearClientSessionState(userId) {
+  await chrome.runtime.sendMessage({ type: 'BROADCAST_USER_LOGOUT', userId: userId || null }).catch(() => {});
+  await clearRegistrationFlowState();
+  await chrome.storage.local.clear();
+  showAuthSection();
+}
+
 const REGISTRATION_FLOW_STATE_KEY = 'registrationFlowState';
 const ONBOARDING_COMPLETED_KEY = 'onboardingCompleted';
 const REGISTRATION_FLOW_STAGES = {
+  VERIFICATION_PENDING: 'verification_pending',
   CONSENT_PENDING: 'consent_pending',
   ONBOARDING_PENDING: 'onboarding_pending',
 };
@@ -52,6 +112,51 @@ async function finalizeOnboardingFlow(user) {
   await loadData();
 }
 
+async function continueRegistrationFlowIfNeeded(user) {
+  if (!user) return false;
+
+  let registrationFlowState = await getRegistrationFlowState();
+
+  if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.VERIFICATION_PENDING) {
+    await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.CONSENT_PENDING);
+    registrationFlowState = { stage: REGISTRATION_FLOW_STAGES.CONSENT_PENDING };
+  }
+
+  if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.CONSENT_PENDING) {
+    if (!user.consentGiven) {
+      showConsentSection();
+      return true;
+    }
+
+    await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING);
+    registrationFlowState = { stage: REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING };
+  }
+
+  if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING) {
+    if (await isOnboardingCompletedLocally()) {
+      await finalizeOnboardingFlow(user);
+      return true;
+    }
+
+    let onboardingStatus = { completed: false };
+    try {
+      onboardingStatus = await apiClient.getOnboardingStatus() || { completed: false };
+    } catch (err) {
+      console.warn('Could not get onboarding status:', err.message);
+    }
+
+    if (!onboardingStatus.completed) {
+      showOnboardingPrompt(user);
+      return true;
+    }
+
+    await finalizeOnboardingFlow(user);
+    return true;
+  }
+
+  return false;
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
   console.log('📄 DOMContentLoaded event fired');
   
@@ -64,14 +169,20 @@ document.addEventListener('DOMContentLoaded', async function() {
   console.log('🔑 Token status:', token ? 'Found' : 'Not found');
   
   if (!token) {
-    await clearRegistrationFlowState();
-    showAuthSection();
+    const pendingVerificationEmail = await getPendingVerificationEmail();
+    if (pendingVerificationEmail) {
+      showVerifyPendingSection(pendingVerificationEmail);
+    } else {
+      await clearRegistrationFlowState();
+      showAuthSection();
+    }
     return;
   }
   
   // Verify token is valid
   try {
     const userData = await apiClient.getCurrentUser();
+    await clearPendingVerification();
     
     // CRITICAL: Sync user profile and settings from server to local storage
     // This ensures settings and userId are always in sync, even after a browser restart
@@ -99,39 +210,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       });
     }
     
-    // Registration flow gating (consent + onboarding) is only enforced for users
-    // currently in registration flow. Login flow always lands on main content.
-    let registrationFlowState = await getRegistrationFlowState();
-
-    if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.CONSENT_PENDING) {
-      if (!userData.user.consentGiven) {
-        showConsentSection();
-        return;
-      }
-
-      await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING);
-      registrationFlowState = { stage: REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING };
-    }
-
-    if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING) {
-      if (await isOnboardingCompletedLocally()) {
-        await finalizeOnboardingFlow(userData.user);
-        return;
-      }
-
-      let onboardingStatus = { completed: false };
-      try {
-        onboardingStatus = await apiClient.getOnboardingStatus() || { completed: false };
-      } catch (err) {
-        console.warn('Could not get onboarding status:', err.message);
-      }
-
-      if (!onboardingStatus.completed) {
-        showOnboardingPrompt(userData.user);
-        return;
-      }
-
-      await finalizeOnboardingFlow(userData.user);
+    if (await continueRegistrationFlowIfNeeded(userData.user)) {
       return;
     }
 
@@ -141,8 +220,13 @@ document.addEventListener('DOMContentLoaded', async function() {
   } catch (error) {
     console.error('Authentication error:', error);
     await apiClient.clearToken();
-    await clearRegistrationFlowState();
+    const pendingVerificationEmail = await getPendingVerificationEmail();
+    if (pendingVerificationEmail) {
+      showVerifyPendingSection(pendingVerificationEmail);
+    } else {
+      await clearRegistrationFlowState();
     showAuthSection();
+    }
   }
 });
 
@@ -151,8 +235,47 @@ function showAuthSection() {
   console.log('📝 Showing auth section');
   hideOnboardingPrompt();
   document.getElementById('authSection').style.display = 'block';
+  document.getElementById('verifySection').style.display = 'none';
   document.getElementById('consentSection').style.display = 'none';
   document.getElementById('mainContent').style.display = 'none';
+}
+
+// Show verify-email-pending section (after register or when login fails with EMAIL_NOT_VERIFIED)
+function showVerifyPendingSection(email) {
+  console.log('📧 Showing verify pending for:', email);
+  hideOnboardingPrompt();
+  document.getElementById('authSection').style.display = 'none';
+  document.getElementById('verifySection').style.display = 'block';
+  document.getElementById('consentSection').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'none';
+
+  const emailEl = document.getElementById('verifyEmailAddress');
+  const messageEl = document.getElementById('verifyEmailMessage');
+  const inputEl = document.getElementById('verifyCodeInput');
+  const continueBtn = document.getElementById('continueVerifyBtn');
+  const resendBtn = document.getElementById('resendVerifyBtn');
+
+  if (emailEl) {
+    emailEl.textContent = email;
+  }
+  if (messageEl) {
+    messageEl.textContent = 'Open the link we sent, copy the 6-digit code from the success page, and continue setup here.';
+  }
+  if (inputEl) {
+    inputEl.value = '';
+  }
+  if (continueBtn) {
+    continueBtn.textContent = 'Continue Setup';
+  }
+  if (resendBtn) {
+    resendBtn.textContent = 'Send New Link';
+  }
+
+  const errorEl = document.getElementById('verifyCodeError');
+  if (errorEl) {
+    errorEl.style.display = 'none';
+  }
+  window.setTimeout(() => inputEl?.focus(), 0);
 }
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
@@ -189,7 +312,9 @@ function showOnboardingPrompt(user) {
     const consentSection = document.getElementById('consentSection');
     const mainContent = document.getElementById('mainContent');
     
+    const verifySection = document.getElementById('verifySection');
     if (authSection) authSection.style.display = 'none';
+    if (verifySection) verifySection.style.display = 'none';
     if (consentSection) consentSection.style.display = 'none';
     if (mainContent) mainContent.style.display = 'none';
     
@@ -221,71 +346,77 @@ function showOnboardingPrompt(user) {
     onboardingPrompt.style.display = 'block';
     onboardingPrompt.innerHTML = `
       <div class="onboarding-prompt">
-        <div class="onboarding-hero">
-          <div class="welcome-badge">
-            <span class="welcome-emoji">&#128161;</span>
-          </div>
-          <div class="onboarding-hero-copy">
-            <h2>Welcome ${userName}!</h2>
-            <p class="onboarding-description">
-              Complete four quick assessments to generate your personalized AURA profile.
-            </p>
-          </div>
-        </div>
-
-        <div class="onboarding-meta">
-          <span class="meta-chip"><strong>4</strong> Challenges</span>
-          <span class="meta-chip"><strong>~5 min</strong> Duration</span>
-        </div>
-
-        <div class="challenge-list">
-          <div class="challenge-item">
-            <div class="challenge-index">01</div>
-            <div class="challenge-body">
-              <div class="challenge-title-row">
-                <h3>Calibrate the Light Colors</h3>
-              </div>
-              <p>Align the prism so signals are not lost.</p>
+        <div class="onboarding-prompt-card">
+          <div class="onboarding-hero">
+            <div class="welcome-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 21h4"/>
+                <path d="M12 17v4"/>
+                <path d="M8 21h8"/>
+                <path d="M9 17h6l-1-11h-4l-1 11z"/>
+                <path d="M12 3a2 2 0 0 1 2 2v1h-4V5a2 2 0 0 1 2-2z"/>
+                <path d="M4 13a8 8 0 0 1 3-6"/>
+                <path d="M20 13a8 8 0 0 0-3-6"/>
+              </svg>
+            </div>
+            <div class="onboarding-hero-copy">
+              <span class="onboarding-kicker">Lighthouse mission</span>
+              <h2>Finish setup, ${userName}</h2>
+              <p class="onboarding-description">
+                Four short signal checks tune AURA to your accessibility profile before the extension fully unlocks.
+              </p>
             </div>
           </div>
-
-          <div class="challenge-item">
-            <div class="challenge-index">02</div>
-            <div class="challenge-body">
-              <div class="challenge-title-row">
-                <h3>Focus the Beam</h3>
+          <div class="onboarding-meta">
+            <span class="meta-chip"><strong>4</strong> signal checks</span>
+            <span class="meta-chip"><strong>~5 min</strong> total</span>
+            <span class="meta-chip"><strong>1</strong> secure tab</span>
+          </div>
+          <div class="challenge-list">
+            <div class="challenge-item">
+              <div class="challenge-index">01</div>
+              <div class="challenge-body">
+                <div class="challenge-title-row">
+                  <h3>Calibrate color signals</h3>
+                </div>
+                <p>Tune how AURA reads light, contrast, and color response.</p>
               </div>
-              <p>Sharpen the light to reach distant signals.</p>
+            </div>
+            <div class="challenge-item">
+              <div class="challenge-index">02</div>
+              <div class="challenge-body">
+                <div class="challenge-title-row">
+                  <h3>Focus the beam</h3>
+                </div>
+                <p>Measure clarity and accuracy so the UI can stay readable.</p>
+              </div>
+            </div>
+            <div class="challenge-item">
+              <div class="challenge-index">03</div>
+              <div class="challenge-body">
+                <div class="challenge-title-row">
+                  <h3>Clear the signal noise</h3>
+                </div>
+                <p>Capture motor patterns that affect pointing and control.</p>
+              </div>
+            </div>
+            <div class="challenge-item">
+              <div class="challenge-index">04</div>
+              <div class="challenge-body">
+                <div class="challenge-title-row">
+                  <h3>Lock the control panel</h3>
+                </div>
+                <p>Finish the profile so the extension can adapt around you.</p>
+              </div>
             </div>
           </div>
-
-          <div class="challenge-item">
-            <div class="challenge-index">03</div>
-            <div class="challenge-body">
-              <div class="challenge-title-row">
-                <h3>Clear the Rising Fog</h3>
-              </div>
-              <p>Remove corrupted data blocking the path.</p>
-            </div>
+          <div class="onboarding-actions">
+            <button id="startOnboardingBtn" class="btn btn-primary full-width btn-glow" aria-label="Start onboarding game - opens in new tab">
+              <span class="btn-label">Start Lighthouse Mission</span>
+              <span class="btn-arrow" aria-hidden="true">&rarr;</span>
+            </button>
           </div>
-
-          <div class="challenge-item">
-            <div class="challenge-index">04</div>
-            <div class="challenge-body">
-              <div class="challenge-title-row">
-                <h3>Restore the Control Panel</h3>
-              </div>
-              <p>Make correct operational decisions.</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="onboarding-actions">
-          <button id="startOnboardingBtn" class="btn btn-primary full-width btn-glow" aria-label="Start onboarding game - opens in new tab">
-            <span class="btn-text">Start Lighthouse Mission</span>
-            <span class="btn-arrow" aria-hidden="true">&rarr;</span>
-          </button>
-          <p class="onboarding-footnote">Opens in a new tab. You can return here anytime.</p>
+          <p class="onboarding-footnote">Opens in a new tab and keeps this popup ready for your return.</p>
         </div>
       </div>
     `;
@@ -306,12 +437,19 @@ function showOnboardingPrompt(user) {
 // Start onboarding game in new tab
 async function startOnboardingGame() {
   const startBtn = document.getElementById('startOnboardingBtn');
+  const startBtnLabel = startBtn?.querySelector('.btn-label');
+  const startBtnArrow = startBtn?.querySelector('.btn-arrow');
   
   try {
     // Disable button during processing
     if (startBtn) {
       startBtn.disabled = true;
-      startBtn.textContent = 'Opening...';
+      if (startBtnLabel) {
+        startBtnLabel.textContent = 'Opening mission...';
+      }
+      if (startBtnArrow) {
+        startBtnArrow.style.opacity = '0.35';
+      }
     }
     
     const token = await apiClient.getToken();
@@ -364,7 +502,12 @@ async function startOnboardingGame() {
     // Re-enable button
     if (startBtn) {
       startBtn.disabled = false;
-      startBtn.textContent = 'Start Onboarding Game';
+      if (startBtnLabel) {
+        startBtnLabel.textContent = 'Start Lighthouse Mission';
+      }
+      if (startBtnArrow) {
+        startBtnArrow.style.opacity = '1';
+      }
     }
   }
 }
@@ -373,6 +516,7 @@ async function startOnboardingGame() {
 function showConsentSection() {
   hideOnboardingPrompt();
   document.getElementById('authSection').style.display = 'none';
+  document.getElementById('verifySection').style.display = 'none';
   document.getElementById('consentSection').style.display = 'block';
   document.getElementById('mainContent').style.display = 'none';
 }
@@ -381,6 +525,7 @@ function showConsentSection() {
 function showMainContent() {
   hideOnboardingPrompt();
   document.getElementById('authSection').style.display = 'none';
+  document.getElementById('verifySection').style.display = 'none';
   document.getElementById('consentSection').style.display = 'none';
   document.getElementById('mainContent').style.display = 'block';
 }
@@ -441,11 +586,37 @@ function initializeEventListeners() {
   document.getElementById('loginBtn')?.addEventListener('click', handleLogin);
   document.getElementById('registerBtn')?.addEventListener('click', handleRegister);
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
+  document.getElementById('deleteAccountBtn')?.addEventListener('click', handleDeleteAccount);
   
+  // Verify section buttons
+  document.getElementById('continueVerifyBtn')?.addEventListener('click', handleCompleteVerification);
+  document.getElementById('resendVerifyBtn')?.addEventListener('click', handleResendVerification);
+  document.getElementById('verifyCodeInput')?.addEventListener('input', (event) => {
+    const input = event.target;
+    input.value = input.value.replace(/\D/g, '').slice(0, 6);
+    const errorEl = document.getElementById('verifyCodeError');
+    if (errorEl) {
+      errorEl.style.display = 'none';
+    }
+  });
+  document.getElementById('verifyCodeInput')?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    handleCompleteVerification();
+  });
+  document.getElementById('backToLoginFromVerify')?.addEventListener('click', async () => {
+    await clearPendingVerification();
+    await clearRegistrationFlowState();
+    showAuthSection();
+    document.getElementById('loginTab').click();
+    const email = document.getElementById('verifyEmailAddress')?.textContent;
+    if (email) {
+      document.getElementById('loginEmail').value = email;
+    }
+  });
+
   // Consent button
   document.getElementById('acceptConsent')?.addEventListener('click', handleAcceptConsent);
-  
-  
 }
 
 // Manual test function (accessible from console)
@@ -502,6 +673,7 @@ async function handleLogin() {
         name: data.user.name ?? null,
       },
     });
+    await clearPendingVerification();
     console.log('✅ Settings synced:', {
       consentGiven: data.user.consentGiven,
       trackingEnabled: data.user.trackingEnabled
@@ -513,7 +685,12 @@ async function handleLogin() {
         console.warn('⚠️ Could not initialize tracking:', err.message);
       });
     }
-    
+
+    if (await continueRegistrationFlowIfNeeded(data.user)) {
+      showNotification('Login successful!', 'success');
+      return;
+    }
+
     await clearRegistrationFlowState();
     showMainContent();
     displayUserInfo(data.user);
@@ -538,8 +715,15 @@ async function handleLogin() {
     
   } catch (error) {
     console.error('Login error:', error);
-    errorDiv.textContent = error.message || 'Login failed. Please check your credentials.';
-    errorDiv.style.display = 'block';
+    if (error.code === 'EMAIL_NOT_VERIFIED') {
+      await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.VERIFICATION_PENDING);
+      await savePendingVerification(email);
+      showVerifyPendingSection(email);
+      errorDiv.style.display = 'none';
+    } else {
+      errorDiv.textContent = error.message || 'Login failed. Please check your credentials.';
+      errorDiv.style.display = 'block';
+    }
   } finally {
     document.getElementById('loginBtn').disabled = false;
     document.getElementById('loginBtn').textContent = 'Login';
@@ -580,8 +764,15 @@ async function handleRegister() {
     
     const data = await apiClient.register(email, password, name, age, gender);
     
-    // Sync userProfile and userId to storage so ping-pong and aggregator have them immediately
-    if (data.user) {
+    if (data.requiresVerification) {
+      // Email verification required – no token until user verifies and logs in
+      const verifyEmail = data.email || email;
+      await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.VERIFICATION_PENDING);
+      await savePendingVerification(verifyEmail);
+      showVerifyPendingSection(verifyEmail);
+      showNotification('Check your email for the verification link and code.', 'success');
+    } else if (data.user && data.token) {
+      // Legacy path (e.g. OAuth) – sync and show consent
       await chrome.storage.local.set({
         userId: data.user._id,
         userProfile: {
@@ -590,16 +781,16 @@ async function handleRegister() {
           name: data.user.name ?? null,
         },
       });
+      await clearPendingVerification();
+      await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.CONSENT_PENDING);
+      showConsentSection();
+      showNotification('Account created successfully!', 'success');
+    } else {
+      await clearPendingVerification();
+      await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.CONSENT_PENDING);
+      showConsentSection();
+      showNotification('Account created successfully!', 'success');
     }
-    
-    // Do NOT broadcast at registration – broadcast happens when onboarding completes
-    // (ONBOARDING_COMPLETE from sensecheck), so pages get token only when user is fully set up
-    // Do NOT fetch ML profile from daily GET API here – it has no data for new users.
-    // Initial profile comes from ONBOARDING_COMPLETE → impairment POST API.
-    
-    await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.CONSENT_PENDING);
-    showConsentSection();
-    showNotification('Account created successfully!', 'success');
     
   } catch (error) {
     console.error('Registration error:', error);
@@ -608,6 +799,88 @@ async function handleRegister() {
   } finally {
     document.getElementById('registerBtn').disabled = false;
     document.getElementById('registerBtn').textContent = 'Create Account';
+  }
+}
+
+// Handle complete verification (code from email – continues registration, no login)
+async function handleCompleteVerification() {
+  const emailEl = document.getElementById('verifyEmailAddress');
+  const email = emailEl ? emailEl.textContent.trim() : '';
+  const codeInput = document.getElementById('verifyCodeInput');
+  const code = codeInput ? codeInput.value.trim().replace(/\D/g, '').slice(0, 6) : '';
+  const errorEl = document.getElementById('verifyCodeError');
+  const btn = document.getElementById('continueVerifyBtn');
+
+  if (!email) {
+    showNotification('Email not found. Please register again.', 'error');
+    return;
+  }
+  if (code.length !== 6) {
+    if (errorEl) {
+      errorEl.textContent = 'Enter the 6-digit code from the verification page';
+      errorEl.style.display = 'block';
+    }
+    return;
+  }
+
+  try {
+    if (errorEl) errorEl.style.display = 'none';
+    if (btn) { btn.disabled = true; btn.textContent = 'Verifying...'; }
+    const data = await apiClient.completeVerification(email, code);
+
+    await chrome.storage.local.set({
+      userId: data.user._id,
+      consentGiven: data.user.consentGiven || false,
+      trackingEnabled: data.user.trackingEnabled || false,
+      userProfile: {
+        userId: data.user._id,
+        email: data.user.email ?? null,
+        name: data.user.name ?? null,
+      },
+    });
+    await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.CONSENT_PENDING);
+    await clearPendingVerification();
+
+    if (data.user.trackingEnabled) {
+      chrome.runtime.sendMessage({ type: 'INIT_TRACKING' }).catch(() => {});
+    }
+
+    // Do NOT broadcast here – broadcast happens only when onboarding game completes (ONBOARDING_COMPLETE)
+    // Other components have no use for the user until the profile is built
+
+    showNotification('Email verified. Continue setup.', 'success');
+    if (await continueRegistrationFlowIfNeeded(data.user)) {
+      return;
+    }
+    showConsentSection();
+  } catch (error) {
+    if (errorEl) {
+      errorEl.textContent = error.message || 'Invalid or expired code. Try resending the verification email.';
+      errorEl.style.display = 'block';
+    }
+    showNotification(error.message || 'Verification failed', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Continue Setup'; }
+  }
+}
+
+// Handle resend verification email
+async function handleResendVerification() {
+  const emailEl = document.getElementById('verifyEmailAddress');
+  const email = emailEl ? emailEl.textContent.trim() : '';
+  if (!email) {
+    showNotification('Email not found. Please register again.', 'error');
+    return;
+  }
+  const btn = document.getElementById('resendVerifyBtn');
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+    await apiClient.resendVerificationEmail(email);
+    showNotification('Verification email sent. Check your inbox.', 'success');
+  } catch (error) {
+    showNotification(error.message || 'Failed to resend', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Send New Link'; }
   }
 }
 
@@ -621,20 +894,53 @@ async function handleLogout() {
     const { userId } = await chrome.storage.local.get(['userId']);
     // 1. Clear token + userId (triggers storage.onChanged → background cleanup)
     await apiClient.logout();
-    
-    // 2. Explicitly broadcast logout so background clears auth + ML profiles (belt-and-suspenders)
-    await chrome.runtime.sendMessage({ type: 'BROADCAST_USER_LOGOUT', userId: userId || null }).catch(() => {});
-    
-    // 3. Clear remaining local storage (consent, config, etc.)
-    await clearRegistrationFlowState();
-    await chrome.storage.local.clear();
-    
-    showAuthSection();
+    await clearClientSessionState(userId);
     showNotification('Logged out successfully', 'success');
     
   } catch (error) {
     console.error('Logout error:', error);
     showNotification('Logout failed', 'error');
+  }
+}
+
+async function handleDeleteAccount() {
+  if (!confirm('This will permanently delete your AURA account and all related data. Continue?')) {
+    return;
+  }
+
+  const confirmation = window.prompt('Type DELETE to permanently remove your account.');
+  if (confirmation !== 'DELETE') {
+    showNotification('Account deletion cancelled', 'info');
+    return;
+  }
+
+  const deleteBtn = document.getElementById('deleteAccountBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+
+  try {
+    if (deleteBtn) {
+      deleteBtn.disabled = true;
+      deleteBtn.textContent = 'Deleting account...';
+    }
+    if (logoutBtn) {
+      logoutBtn.disabled = true;
+    }
+
+    const { userId } = await chrome.storage.local.get(['userId']);
+    await apiClient.deleteAccount();
+    await clearClientSessionState(userId);
+    showNotification('Account deleted permanently', 'success');
+  } catch (error) {
+    console.error('Delete account error:', error);
+    showNotification(error.message || 'Failed to delete account', 'error');
+  } finally {
+    if (deleteBtn) {
+      deleteBtn.disabled = false;
+      deleteBtn.textContent = 'Delete Account';
+    }
+    if (logoutBtn) {
+      logoutBtn.disabled = false;
+    }
   }
 }
 
@@ -678,48 +984,39 @@ async function handleAcceptConsent() {
     }).catch(err => {
       console.warn('⚠️ Could not notify background script:', err.message);
     });
-    
-    // Check onboarding status
-    console.log('🔍 Checking onboarding status...');
-    let onboardingStatus = { completed: false };
-    let userData = null;
-    
+
+    let user = null;
     try {
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), 3000)
-      );
-      const [status, user] = await Promise.race([
-        Promise.all([
-          apiClient.getOnboardingStatus(),
-          apiClient.getCurrentUser()
-        ]),
-        timeoutPromise
-      ]);
-      onboardingStatus = status || { completed: false };
-      userData = user;
-      console.log('📋 Onboarding status:', onboardingStatus);
-    } catch (err) {
-      console.warn('⚠️ Could not get status:', err.message);
-      try {
-        userData = await apiClient.getCurrentUser();
-      } catch (userErr) {}
-    }
-    
-    // If onboarding complete, show main content
-    if (onboardingStatus?.completed) {
-      console.log('✅ Onboarding complete, showing main content...');
-      await clearRegistrationFlowState();
-      showMainContent();
-      if (userData?.user) {
-        displayUserInfo(userData.user);
+      const userData = await apiClient.getCurrentUser();
+      user = userData?.user || null;
+      if (user?._id) {
+        await chrome.storage.local.set({
+          userId: user._id,
+          userProfile: {
+            userId: user._id,
+            email: user.email ?? null,
+            name: user.name ?? null,
+          },
+        });
       }
-      showNotification('Tracking enabled!', 'success');
-    } else {
-      // Show onboarding prompt
-      console.log('🎮 Showing onboarding prompt...');
-      const userName = userData?.user?.name || 'User';
-      showOnboardingPrompt({ name: userName, _id: userData?.user?._id });
+    } catch (err) {
+      console.debug('Could not refresh current user after consent:', err.message);
     }
+
+    if (!user) {
+      user = await getStoredUserProfileSummary();
+    }
+
+    if (await isOnboardingCompletedLocally()) {
+      console.log('✅ Onboarding already complete locally, showing main content...');
+      await finalizeOnboardingFlow(user);
+      showNotification('Tracking enabled!', 'success');
+      return;
+    }
+
+    console.log('🎮 Showing onboarding prompt...');
+    showOnboardingPrompt(user || { name: 'User' });
+    showNotification('Tracking enabled!', 'success');
     
   } catch (error) {
     console.error('❌ Consent handling failed:', error);
