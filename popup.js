@@ -11,6 +11,47 @@ try {
   console.error('✗ Failed to initialize APIClient:', error);
 }
 
+const REGISTRATION_FLOW_STATE_KEY = 'registrationFlowState';
+const ONBOARDING_COMPLETED_KEY = 'onboardingCompleted';
+const REGISTRATION_FLOW_STAGES = {
+  CONSENT_PENDING: 'consent_pending',
+  ONBOARDING_PENDING: 'onboarding_pending',
+};
+
+async function getRegistrationFlowState() {
+  const result = await chrome.storage.local.get([REGISTRATION_FLOW_STATE_KEY]);
+  return result?.[REGISTRATION_FLOW_STATE_KEY] || null;
+}
+
+async function setRegistrationFlowState(stage) {
+  if (!stage) return;
+  await chrome.storage.local.set({
+    [REGISTRATION_FLOW_STATE_KEY]: {
+      stage,
+      updatedAt: Date.now(),
+    },
+  });
+}
+
+async function clearRegistrationFlowState() {
+  await chrome.storage.local.remove([REGISTRATION_FLOW_STATE_KEY]);
+}
+
+async function isOnboardingCompletedLocally() {
+  const result = await chrome.storage.local.get([ONBOARDING_COMPLETED_KEY]);
+  return result?.[ONBOARDING_COMPLETED_KEY] === true;
+}
+
+async function finalizeOnboardingFlow(user) {
+  await chrome.storage.local.set({ [ONBOARDING_COMPLETED_KEY]: true });
+  await clearRegistrationFlowState();
+  showMainContent();
+  if (user) {
+    displayUserInfo(user);
+  }
+  await loadData();
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
   console.log('📄 DOMContentLoaded event fired');
   
@@ -23,6 +64,7 @@ document.addEventListener('DOMContentLoaded', async function() {
   console.log('🔑 Token status:', token ? 'Found' : 'Not found');
   
   if (!token) {
+    await clearRegistrationFlowState();
     showAuthSection();
     return;
   }
@@ -31,145 +73,305 @@ document.addEventListener('DOMContentLoaded', async function() {
   try {
     const userData = await apiClient.getCurrentUser();
     
-    // Check onboarding status
-    const onboardingStatus = await apiClient.getOnboardingStatus();
-    console.log('📋 Onboarding status:', onboardingStatus);
+    // CRITICAL: Sync user profile and settings from server to local storage
+    // This ensures settings and userId are always in sync, even after a browser restart
+    console.log('📥 Syncing user profile and settings from server...');
+    await chrome.storage.local.set({
+      userId: userData.user._id,
+      consentGiven: userData.user.consentGiven || false,
+      trackingEnabled: userData.user.trackingEnabled || false,
+      userProfile: {
+        userId: userData.user._id,
+        email: userData.user.email ?? null,
+        name: userData.user.name ?? null,
+      }
+    });
+    console.log('✅ Settings synced:', {
+      userId: userData.user._id,
+      consentGiven: userData.user.consentGiven,
+      trackingEnabled: userData.user.trackingEnabled
+    });
     
-    if (!onboardingStatus.completed) {
-      showOnboardingPrompt(userData.user);
+    // Initialize aggregator if tracking is enabled
+    if (userData.user.trackingEnabled) {
+      chrome.runtime.sendMessage({ type: 'INIT_TRACKING' }).catch(err => {
+        console.warn('⚠️ Could not initialize tracking:', err.message);
+      });
+    }
+    
+    // Registration flow gating (consent + onboarding) is only enforced for users
+    // currently in registration flow. Login flow always lands on main content.
+    let registrationFlowState = await getRegistrationFlowState();
+
+    if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.CONSENT_PENDING) {
+      if (!userData.user.consentGiven) {
+        showConsentSection();
+        return;
+      }
+
+      await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING);
+      registrationFlowState = { stage: REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING };
+    }
+
+    if (registrationFlowState?.stage === REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING) {
+      if (await isOnboardingCompletedLocally()) {
+        await finalizeOnboardingFlow(userData.user);
+        return;
+      }
+
+      let onboardingStatus = { completed: false };
+      try {
+        onboardingStatus = await apiClient.getOnboardingStatus() || { completed: false };
+      } catch (err) {
+        console.warn('Could not get onboarding status:', err.message);
+      }
+
+      if (!onboardingStatus.completed) {
+        showOnboardingPrompt(userData.user);
+        return;
+      }
+
+      await finalizeOnboardingFlow(userData.user);
       return;
     }
-    
-    if (!userData.user.consentGiven) {
-      showConsentSection();
-    } else {
-      showMainContent();
-      displayUserInfo(userData.user);
-      await loadData();
-    }
+
+    showMainContent();
+    displayUserInfo(userData.user);
+    await loadData();
   } catch (error) {
     console.error('Authentication error:', error);
     await apiClient.clearToken();
+    await clearRegistrationFlowState();
     showAuthSection();
   }
-  
-  // Initialize event listeners (moved to top, but keep here for safety)
-  // initializeEventListeners(); // Already called at the top
 });
 
 // Show auth section
 function showAuthSection() {
   console.log('📝 Showing auth section');
+  hideOnboardingPrompt();
   document.getElementById('authSection').style.display = 'block';
   document.getElementById('consentSection').style.display = 'none';
   document.getElementById('mainContent').style.display = 'none';
 }
 
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace !== 'local') return;
+  if (changes[ONBOARDING_COMPLETED_KEY]?.newValue !== true) return;
+
+  (async () => {
+    try {
+      const token = await apiClient?.getToken?.();
+      if (!token) return;
+
+      const userData = await apiClient.getCurrentUser().catch(() => null);
+      await finalizeOnboardingFlow(userData?.user || null);
+    } catch (error) {
+      console.warn('Could not refresh popup after onboarding completion:', error?.message || error);
+    }
+  })();
+});
+
+function hideOnboardingPrompt() {
+  const onboardingPrompt = document.getElementById('onboardingPrompt');
+  if (onboardingPrompt) {
+    onboardingPrompt.style.display = 'none';
+  }
+}
+
 // Show onboarding prompt
 function showOnboardingPrompt(user) {
-  console.log('🎮 Showing onboarding prompt');
-  document.getElementById('authSection').style.display = 'none';
-  document.getElementById('consentSection').style.display = 'none';
-  document.getElementById('mainContent').style.display = 'none';
+  console.log('🎮 Showing onboarding prompt for user:', user?.name);
   
-  // Create onboarding prompt (we'll add HTML for this)
-  const container = document.querySelector('.container');
-  let onboardingPrompt = document.getElementById('onboardingPrompt');
-  
-  if (!onboardingPrompt) {
-    onboardingPrompt = document.createElement('div');
-    onboardingPrompt.id = 'onboardingPrompt';
-    onboardingPrompt.className = 'section';
-    container.insertBefore(onboardingPrompt, container.querySelector('footer'));
+  try {
+    // Hide other sections
+    const authSection = document.getElementById('authSection');
+    const consentSection = document.getElementById('consentSection');
+    const mainContent = document.getElementById('mainContent');
+    
+    if (authSection) authSection.style.display = 'none';
+    if (consentSection) consentSection.style.display = 'none';
+    if (mainContent) mainContent.style.display = 'none';
+    
+    // Create or find onboarding prompt
+    const container = document.querySelector('.container');
+    if (!container) {
+      console.error('❌ Container not found!');
+      return;
+    }
+    
+    let onboardingPrompt = document.getElementById('onboardingPrompt');
+    
+    if (!onboardingPrompt) {
+      onboardingPrompt = document.createElement('div');
+      onboardingPrompt.id = 'onboardingPrompt';
+      onboardingPrompt.className = 'section';
+      
+      // Try to insert before footer, or just append
+      const footer = container.querySelector('footer');
+      if (footer) {
+        container.insertBefore(onboardingPrompt, footer);
+      } else {
+        container.appendChild(onboardingPrompt);
+      }
+    }
+    
+    const userName = user?.name || 'User';
+    
+    onboardingPrompt.style.display = 'block';
+    onboardingPrompt.innerHTML = `
+      <div class="onboarding-prompt">
+        <div class="onboarding-hero">
+          <div class="welcome-badge">
+            <span class="welcome-emoji">&#128161;</span>
+          </div>
+          <div class="onboarding-hero-copy">
+            <h2>Welcome ${userName}!</h2>
+            <p class="onboarding-description">
+              Complete four quick assessments to generate your personalized AURA profile.
+            </p>
+          </div>
+        </div>
+
+        <div class="onboarding-meta">
+          <span class="meta-chip"><strong>4</strong> Challenges</span>
+          <span class="meta-chip"><strong>~5 min</strong> Duration</span>
+        </div>
+
+        <div class="challenge-list">
+          <div class="challenge-item">
+            <div class="challenge-index">01</div>
+            <div class="challenge-body">
+              <div class="challenge-title-row">
+                <h3>Calibrate the Light Colors</h3>
+              </div>
+              <p>Align the prism so signals are not lost.</p>
+            </div>
+          </div>
+
+          <div class="challenge-item">
+            <div class="challenge-index">02</div>
+            <div class="challenge-body">
+              <div class="challenge-title-row">
+                <h3>Focus the Beam</h3>
+              </div>
+              <p>Sharpen the light to reach distant signals.</p>
+            </div>
+          </div>
+
+          <div class="challenge-item">
+            <div class="challenge-index">03</div>
+            <div class="challenge-body">
+              <div class="challenge-title-row">
+                <h3>Clear the Rising Fog</h3>
+              </div>
+              <p>Remove corrupted data blocking the path.</p>
+            </div>
+          </div>
+
+          <div class="challenge-item">
+            <div class="challenge-index">04</div>
+            <div class="challenge-body">
+              <div class="challenge-title-row">
+                <h3>Restore the Control Panel</h3>
+              </div>
+              <p>Make correct operational decisions.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="onboarding-actions">
+          <button id="startOnboardingBtn" class="btn btn-primary full-width btn-glow" aria-label="Start onboarding game - opens in new tab">
+            <span class="btn-text">Start Lighthouse Mission</span>
+            <span class="btn-arrow" aria-hidden="true">&rarr;</span>
+          </button>
+          <p class="onboarding-footnote">Opens in a new tab. You can return here anytime.</p>
+        </div>
+      </div>
+    `;
+    
+    // Add event listener
+    const startBtn = document.getElementById('startOnboardingBtn');
+    if (startBtn) {
+      startBtn.addEventListener('click', startOnboardingGame);
+    }
+    
+    console.log('✅ Onboarding prompt displayed');
+    
+  } catch (error) {
+    console.error('❌ Error showing onboarding prompt:', error);
   }
-  
-  onboardingPrompt.style.display = 'block';
-  onboardingPrompt.innerHTML = `
-    <div class="onboarding-prompt">
-      <h2>Welcome ${user.name}! 🎉</h2>
-      <p class="onboarding-description">
-        Before you start tracking, let's complete a quick onboarding assessment.
-        This helps us understand your device capabilities and preferences.
-      </p>
-      
-      <div class="onboarding-tests">
-        <div class="test-card">
-          <span class="test-icon">🎯</span>
-          <h3>Motor Skills</h3>
-          <p>Test reaction time and accuracy</p>
-        </div>
-        <div class="test-card">
-          <span class="test-icon">📚</span>
-          <h3>Computer Literacy</h3>
-          <p>Quick quiz on UI concepts</p>
-        </div>
-        <div class="test-card">
-          <span class="test-icon">👁️</span>
-          <h3>Vision Tests</h3>
-          <p>Color blindness & visual acuity</p>
-        </div>
-      </div>
-      
-      <p class="onboarding-note">
-        ⏱️ Takes about 5-7 minutes • Your data is private and secure
-      </p>
-      
-      <div class="onboarding-actions">
-        <button id="startOnboardingBtn" class="btn btn-primary full-width">
-          Start Onboarding Game
-        </button>
-        <button id="skipOnboardingBtn" class="btn btn-secondary full-width" style="margin-top: 10px;">
-          Skip for Now
-        </button>
-      </div>
-    </div>
-  `;
-  
-  // Add event listeners
-  document.getElementById('startOnboardingBtn').addEventListener('click', startOnboardingGame);
-  document.getElementById('skipOnboardingBtn').addEventListener('click', skipOnboarding);
 }
 
 // Start onboarding game in new tab
 async function startOnboardingGame() {
+  const startBtn = document.getElementById('startOnboardingBtn');
+  
   try {
-    const token = await apiClient.getToken();
-    const userData = await apiClient.getCurrentUser();
+    // Disable button during processing
+    if (startBtn) {
+      startBtn.disabled = true;
+      startBtn.textContent = 'Opening...';
+    }
     
-    // Build game URL with parameters
-    const gameUrl = `${API_CONFIG.ONBOARDING_GAME_URL}?userId=${userData.user._id}&token=${token}&mode=aura`;
+    const token = await apiClient.getToken();
+    
+    if (!token) {
+      throw new Error('No authentication token');
+    }
+    
+    // Try to get user data, but proceed even if it fails
+    let userId = null;
+    try {
+      const userData = await apiClient.getCurrentUser();
+      userId = userData?.user?._id;
+    } catch (err) {
+      console.warn('Could not get user data:', err.message);
+    }
+    
+    // Build game URL with parameters - go directly to /play route (skip module selection)
+    let gameUrl = `${API_CONFIG.ONBOARDING_GAME_URL}/play?token=${token}&mode=aura`;
+    if (userId) {
+      gameUrl += `&userId=${userId}`;
+    }
     
     console.log('🎮 Opening onboarding game:', gameUrl);
     
     // Open in new tab
     chrome.tabs.create({ url: gameUrl }, (tab) => {
-      console.log('✅ Onboarding game opened in tab:', tab.id);
+      if (chrome.runtime.lastError) {
+        console.error('Tab creation error:', chrome.runtime.lastError);
+        showNotification('Failed to open game tab', 'error');
+        return;
+      }
+      
+      console.log('✅ Onboarding game opened in tab:', tab?.id);
       showNotification('Onboarding game opened in new tab!', 'success');
       
       // Store tab ID to listen for completion
-      chrome.storage.local.set({ onboardingTabId: tab.id });
+      if (tab?.id) {
+        chrome.storage.local.set({ onboardingTabId: tab.id });
+      }
     });
     
-    // Close popup
-    window.close();
+    // Close popup after a short delay
+    setTimeout(() => window.close(), 500);
     
   } catch (error) {
     console.error('Failed to start onboarding:', error);
-    showNotification('Failed to open onboarding game', 'error');
+    showNotification('Failed to open onboarding game: ' + error.message, 'error');
+    
+    // Re-enable button
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.textContent = 'Start Onboarding Game';
+    }
   }
-}
-
-// Skip onboarding (proceed to consent)
-async function skipOnboarding() {
-  if (!confirm('Are you sure you want to skip the onboarding assessment? You can always complete it later from settings.')) {
-    return;
-  }
-  
-  showConsentSection();
 }
 
 // Show consent section
 function showConsentSection() {
+  hideOnboardingPrompt();
   document.getElementById('authSection').style.display = 'none';
   document.getElementById('consentSection').style.display = 'block';
   document.getElementById('mainContent').style.display = 'none';
@@ -177,6 +379,7 @@ function showConsentSection() {
 
 // Show main content
 function showMainContent() {
+  hideOnboardingPrompt();
   document.getElementById('authSection').style.display = 'none';
   document.getElementById('consentSection').style.display = 'none';
   document.getElementById('mainContent').style.display = 'block';
@@ -239,30 +442,10 @@ function initializeEventListeners() {
   document.getElementById('registerBtn')?.addEventListener('click', handleRegister);
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
   
-  // Consent buttons
+  // Consent button
   document.getElementById('acceptConsent')?.addEventListener('click', handleAcceptConsent);
-  document.getElementById('declineConsent')?.addEventListener('click', handleDeclineConsent);
   
-  // Tracking toggle
-  document.getElementById('trackingToggle')?.addEventListener('change', handleTrackingToggle);
   
-  // Configuration checkboxes
-  document.getElementById('trackClicks')?.addEventListener('change', handleConfigChange);
-  document.getElementById('trackKeystrokes')?.addEventListener('change', handleConfigChange);
-  document.getElementById('trackMovements')?.addEventListener('change', handleConfigChange);
-  document.getElementById('trackPageViews')?.addEventListener('change', handleConfigChange);
-  document.getElementById('trackDoubleClicks')?.addEventListener('change', handleConfigChange);
-  document.getElementById('trackRightClicks')?.addEventListener('change', handleConfigChange);
-  document.getElementById('trackMouseHovers')?.addEventListener('change', handleConfigChange);
-  document.getElementById('trackDragAndDrop')?.addEventListener('change', handleConfigChange);
-  document.getElementById('trackTouchEvents')?.addEventListener('change', handleConfigChange);
-  document.getElementById('trackZoomEvents')?.addEventListener('change', handleConfigChange);
-  
-  // Action buttons
-  document.getElementById('refreshBtn')?.addEventListener('click', loadRecentInteractions);
-  document.getElementById('exportBtn')?.addEventListener('click', handleExportData);
-  document.getElementById('clearBtn')?.addEventListener('click', handleClearData);
-  document.getElementById('revokeConsent')?.addEventListener('click', handleRevokeConsent);
 }
 
 // Manual test function (accessible from console)
@@ -305,13 +488,51 @@ async function handleLogin() {
     
     const data = await apiClient.login(email, password);
     
-    if (data.user.consentGiven) {
-      showMainContent();
-      displayUserInfo(data.user);
-      await loadData();
-    } else {
-      showConsentSection();
+    // CRITICAL: Sync consent and tracking settings from server to local storage
+    // Include userId so aggregator and background have it immediately (avoids race with api-client setToken)
+    console.log('📥 Syncing user settings from server...');
+    const activeUserId = data.user._id || data.user.id;
+    await chrome.storage.local.set({
+      userId: activeUserId,
+      consentGiven: data.user.consentGiven || false,
+      trackingEnabled: data.user.trackingEnabled || false,
+      userProfile: {
+        userId: activeUserId,
+        email: data.user.email ?? null,
+        name: data.user.name ?? null,
+      },
+    });
+    console.log('✅ Settings synced:', {
+      consentGiven: data.user.consentGiven,
+      trackingEnabled: data.user.trackingEnabled
+    });
+    
+    // Initialize aggregator if tracking is enabled
+    if (data.user.trackingEnabled) {
+      chrome.runtime.sendMessage({ type: 'INIT_TRACKING' }).catch(err => {
+        console.warn('⚠️ Could not initialize tracking:', err.message);
+      });
     }
+    
+    await clearRegistrationFlowState();
+    showMainContent();
+    displayUserInfo(data.user);
+    await loadData();
+    
+    // Notify other components (tabs with sensecheck, dashboard, etc.) - broadcast token and userId
+    chrome.runtime.sendMessage({
+      type: 'BROADCAST_USER_LOGIN',
+      token: data.token,
+      userId: activeUserId,
+      user: {
+        email: data.user.email ?? null,
+        name: data.user.name ?? null,
+      },
+      source: 'login',
+    }).catch(() => {});
+
+    // Fetch ML personalized profile on login (and when logging in again after logout)
+    chrome.runtime.sendMessage({ type: 'FETCH_ML_PERSONALIZED_PROFILE' }).catch(() => {});
     
     showNotification('Login successful!', 'success');
     
@@ -330,9 +551,11 @@ async function handleRegister() {
   const name = document.getElementById('registerName').value.trim();
   const email = document.getElementById('registerEmail').value.trim();
   const password = document.getElementById('registerPassword').value;
+  const age = parseInt(document.getElementById('registerAge').value);
+  const gender = document.getElementById('registerGender').value;
   const errorDiv = document.getElementById('registerError');
   
-  if (!name || !email || !password) {
+  if (!name || !email || !password || !age || !gender) {
     errorDiv.textContent = 'Please fill in all required fields';
     errorDiv.style.display = 'block';
     return;
@@ -344,13 +567,37 @@ async function handleRegister() {
     return;
   }
   
+  if (age < 18 || age > 120) {
+    errorDiv.textContent = 'Please enter a valid age (18-120)';
+    errorDiv.style.display = 'block';
+    return;
+  }
+  
   try {
     document.getElementById('registerBtn').disabled = true;
     document.getElementById('registerBtn').textContent = 'Creating account...';
     errorDiv.style.display = 'none';
     
-    await apiClient.register(email, password, name);
+    const data = await apiClient.register(email, password, name, age, gender);
     
+    // Sync userProfile and userId to storage so ping-pong and aggregator have them immediately
+    if (data.user) {
+      await chrome.storage.local.set({
+        userId: data.user._id,
+        userProfile: {
+          userId: data.user._id,
+          email: data.user.email ?? null,
+          name: data.user.name ?? null,
+        },
+      });
+    }
+    
+    // Do NOT broadcast at registration – broadcast happens when onboarding completes
+    // (ONBOARDING_COMPLETE from sensecheck), so pages get token only when user is fully set up
+    // Do NOT fetch ML profile from daily GET API here – it has no data for new users.
+    // Initial profile comes from ONBOARDING_COMPLETE → impairment POST API.
+    
+    await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.CONSENT_PENDING);
     showConsentSection();
     showNotification('Account created successfully!', 'success');
     
@@ -371,9 +618,15 @@ async function handleLogout() {
   }
   
   try {
+    const { userId } = await chrome.storage.local.get(['userId']);
+    // 1. Clear token + userId (triggers storage.onChanged → background cleanup)
     await apiClient.logout();
     
-    // Clear local storage
+    // 2. Explicitly broadcast logout so background clears auth + ML profiles (belt-and-suspenders)
+    await chrome.runtime.sendMessage({ type: 'BROADCAST_USER_LOGOUT', userId: userId || null }).catch(() => {});
+    
+    // 3. Clear remaining local storage (consent, config, etc.)
+    await clearRegistrationFlowState();
     await chrome.storage.local.clear();
     
     showAuthSection();
@@ -385,397 +638,122 @@ async function handleLogout() {
   }
 }
 
-// Handle consent acceptance
+// Handle consent acceptance - shows onboarding prompt
 async function handleAcceptConsent() {
-  try {
-    await apiClient.updateSettings(true, true);
-    
-    await chrome.runtime.sendMessage({ 
-      type: 'SET_CONSENT', 
-      consent: true 
-    });
-    
-    const userData = await apiClient.getCurrentUser();
-    showMainContent();
-    displayUserInfo(userData.user);
-    await loadData();
-    showNotification('Tracking enabled! Your privacy is protected.', 'success');
-  } catch (error) {
-    console.error('Failed to accept consent:', error);
-    showNotification('Failed to enable tracking', 'error');
+  const acceptBtn = document.getElementById('acceptConsent');
+  
+  // Disable button to prevent double clicks
+  if (acceptBtn) {
+    acceptBtn.disabled = true;
+    acceptBtn.textContent = 'Please wait...';
   }
-}
-
-// Handle consent decline
-function handleDeclineConsent() {
-  showNotification('Tracking disabled. You can enable it anytime.', 'info');
-  window.close();
-}
-
-// Handle tracking toggle
-async function handleTrackingToggle(event) {
-  const enabled = event.target.checked;
   
   try {
-    await chrome.runtime.sendMessage({ 
-      type: 'TOGGLE_TRACKING', 
-      enabled 
+    // STEP 1: Update server first (BLOCKING - must succeed)
+    console.log('📤 Updating server consent settings...');
+    try {
+      await apiClient.updateSettings(true, true);
+      console.log('✅ Server settings updated successfully');
+    } catch (err) {
+      console.error('❌ Failed to update server settings:', err);
+      showNotification('Failed to save consent. Please try again.', 'error');
+      if (acceptBtn) {
+        acceptBtn.disabled = false;
+        acceptBtn.textContent = 'I Understand, Continue';
+      }
+      return; // Stop if server update fails
+    }
+    
+    // STEP 2: Set in local storage
+    await chrome.storage.local.set({
+      trackingEnabled: true,
+      consentGiven: true
+    });
+    await setRegistrationFlowState(REGISTRATION_FLOW_STAGES.ONBOARDING_PENDING);
+    console.log('✅ Tracking enabled in local storage');
+    
+    // STEP 3: Notify background script to initialize aggregator
+    chrome.runtime.sendMessage({ 
+      type: 'INIT_TRACKING'
+    }).catch(err => {
+      console.warn('⚠️ Could not notify background script:', err.message);
     });
     
-    updateStatusIndicator(enabled);
-    showNotification(
-      enabled ? 'Tracking enabled' : 'Tracking paused', 
-      enabled ? 'success' : 'info'
-    );
+    // Check onboarding status
+    console.log('🔍 Checking onboarding status...');
+    let onboardingStatus = { completed: false };
+    let userData = null;
+    
+    try {
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 3000)
+      );
+      const [status, user] = await Promise.race([
+        Promise.all([
+          apiClient.getOnboardingStatus(),
+          apiClient.getCurrentUser()
+        ]),
+        timeoutPromise
+      ]);
+      onboardingStatus = status || { completed: false };
+      userData = user;
+      console.log('📋 Onboarding status:', onboardingStatus);
+    } catch (err) {
+      console.warn('⚠️ Could not get status:', err.message);
+      try {
+        userData = await apiClient.getCurrentUser();
+      } catch (userErr) {}
+    }
+    
+    // If onboarding complete, show main content
+    if (onboardingStatus?.completed) {
+      console.log('✅ Onboarding complete, showing main content...');
+      await clearRegistrationFlowState();
+      showMainContent();
+      if (userData?.user) {
+        displayUserInfo(userData.user);
+      }
+      showNotification('Tracking enabled!', 'success');
+    } else {
+      // Show onboarding prompt
+      console.log('🎮 Showing onboarding prompt...');
+      const userName = userData?.user?.name || 'User';
+      showOnboardingPrompt({ name: userName, _id: userData?.user?._id });
+    }
+    
   } catch (error) {
-    console.error('Failed to toggle tracking:', error);
-    showNotification('Failed to toggle tracking', 'error');
-    event.target.checked = !enabled; // Revert
+    console.error('❌ Consent handling failed:', error);
+    
+    // Even on error, show onboarding prompt
+    try {
+      showOnboardingPrompt({ name: 'User' });
+    } catch (fallbackErr) {
+      // Last resort: re-enable button
+      if (acceptBtn) {
+        acceptBtn.disabled = false;
+        acceptBtn.textContent = 'I Understand, Continue';
+      }
+      showNotification('Error: ' + error.message, 'error');
+    }
   }
 }
 
-// Handle configuration changes
-async function handleConfigChange() {
-  const config = {
-    clicks: document.getElementById('trackClicks').checked,
-    keystrokes: document.getElementById('trackKeystrokes').checked,
-    mouseMovements: document.getElementById('trackMovements').checked,
-    pageViews: document.getElementById('trackPageViews').checked,
-    doubleClicks: document.getElementById('trackDoubleClicks').checked,
-    rightClicks: document.getElementById('trackRightClicks').checked,
-    mouseHovers: document.getElementById('trackMouseHovers').checked,
-    dragAndDrop: document.getElementById('trackDragAndDrop').checked,
-    touchEvents: document.getElementById('trackTouchEvents').checked,
-    zoomEvents: document.getElementById('trackZoomEvents').checked
-  };
-  
-  try {
-    // Update in storage
-    await chrome.storage.local.set({ trackingConfig: config });
-    
-    // Notify all tabs
-    await chrome.runtime.sendMessage({ 
-      type: 'UPDATE_CONFIG', 
-      config 
-    });
-    
-    // Notify content scripts in all tabs
-    const tabs = await chrome.tabs.query({});
-    tabs.forEach(tab => {
-      chrome.tabs.sendMessage(tab.id, {
-        type: 'UPDATE_CONFIG',
-        config
-      }).catch(() => {
-        // Ignore errors for tabs without content script
-      });
-    });
-    
-    showNotification('Tracking options updated', 'success');
-  } catch (error) {
-    console.error('Failed to update config:', error);
-    showNotification('Failed to update options', 'error');
-  }
-}
+
+
+
+// Impairment profile / ML motor-score: created only when motor game completes during onboarding.
+// Do NOT call feature-vector or motor-score from popup on login – that triggers unnecessary API calls.
 
 // Load all data
 async function loadData() {
-  try {
-    // Get tracking state from local storage
-    const result = await chrome.storage.local.get(['trackingEnabled', 'trackingConfig']);
-    
-    // Update tracking toggle
-    const trackingToggle = document.getElementById('trackingToggle');
-    if (trackingToggle) {
-      trackingToggle.checked = result.trackingEnabled || false;
-      updateStatusIndicator(result.trackingEnabled);
-    }
-    
-    // Update configuration checkboxes
-    if (result.trackingConfig) {
-      document.getElementById('trackClicks').checked = result.trackingConfig.clicks !== false;
-      document.getElementById('trackKeystrokes').checked = result.trackingConfig.keystrokes !== false;
-      document.getElementById('trackMovements').checked = result.trackingConfig.mouseMovements !== false;
-      document.getElementById('trackPageViews').checked = result.trackingConfig.pageViews !== false;
-      document.getElementById('trackDoubleClicks').checked = result.trackingConfig.doubleClicks !== false;
-      document.getElementById('trackRightClicks').checked = result.trackingConfig.rightClicks !== false;
-      document.getElementById('trackMouseHovers').checked = result.trackingConfig.mouseHovers !== false;
-      document.getElementById('trackDragAndDrop').checked = result.trackingConfig.dragAndDrop !== false;
-      document.getElementById('trackTouchEvents').checked = result.trackingConfig.touchEvents !== false;
-      document.getElementById('trackZoomEvents').checked = result.trackingConfig.zoomEvents !== false;
-    }
-    
-    // Load stats from API
-    const statsData = await apiClient.getStats();
-    updateStatistics(statsData.stats);
-    
-    // Load recent interactions from API
-    await loadRecentInteractions();
-    
-  } catch (error) {
-    console.error('Failed to load data:', error);
-    showNotification('Failed to load data', 'error');
-  }
+  // Nothing to load - tracking is always active
+  console.log('✅ Tracking active');
 }
 
-// Update statistics display
-function updateStatistics(stats) {
-  if (!stats) {
-    stats = {
-      totalInteractions: 0,
-      clicks: 0,
-      keystrokes: 0,
-      mouseMovements: 0,
-      pageViews: 0,
-      doubleClicks: 0,
-      rightClicks: 0,
-      mouseHovers: 0,
-      dragAndDrop: 0,
-      touchEvents: 0,
-      zoomEvents: 0
-    };
-  }
-  
-  document.getElementById('totalInteractions').textContent = formatNumber(stats.totalInteractions);
-  document.getElementById('clicksCount').textContent = formatNumber(stats.clicks);
-  document.getElementById('keystrokesCount').textContent = formatNumber(stats.keystrokes);
-  document.getElementById('movementsCount').textContent = formatNumber(stats.mouseMovements);
-  document.getElementById('pageViewsCount').textContent = formatNumber(stats.pageViews);
-  document.getElementById('doubleClicksCount').textContent = formatNumber(stats.doubleClicks);
-  document.getElementById('rightClicksCount').textContent = formatNumber(stats.rightClicks);
-  document.getElementById('mouseHoversCount').textContent = formatNumber(stats.mouseHovers);
-  document.getElementById('dragAndDropCount').textContent = formatNumber(stats.dragAndDrop);
-  document.getElementById('touchEventsCount').textContent = formatNumber(stats.touchEvents);
-  document.getElementById('zoomEventsCount').textContent = formatNumber(stats.zoomEvents);
-  
-  // Update recent count
-  document.getElementById('recentCount').textContent = formatNumber(stats.totalInteractions);
-}
 
-// Load recent interactions
-async function loadRecentInteractions() {
-  try {
-    const data = await apiClient.getRecentInteractions(10);
-    const interactions = data.interactions || [];
-    
-    const listContainer = document.getElementById('interactionsList');
-    
-    if (interactions.length === 0) {
-      listContainer.innerHTML = '<div class="empty-state">No interactions tracked yet</div>';
-      return;
-    }
-    
-    listContainer.innerHTML = interactions.map(interaction => {
-      const time = new Date(interaction.timestamp).toLocaleTimeString();
-      const type = interaction.type.replace('_', ' ');
-      
-      let details = '';
-      switch (interaction.type) {
-        case 'click':
-        case 'double_click':
-        case 'right_click':
-          details = `${interaction.elementTag} - ${interaction.elementText?.substring(0, 30) || 'N/A'}`;
-          break;
-        case 'keypress':
-          details = `Key: ${interaction.key}`;
-          break;
-        case 'mouse_move':
-        case 'mouse_down':
-        case 'mouse_up':
-          details = `Position: (${interaction.x}, ${interaction.y})`;
-          break;
-        case 'mouse_enter':
-        case 'mouse_leave':
-          details = `${interaction.elementTag}${interaction.elementId ? '#' + interaction.elementId : ''}`;
-          break;
-        case 'page_view':
-          details = interaction.title?.substring(0, 40) || 'N/A';
-          break;
-        case 'drag_start':
-        case 'drag_end':
-        case 'drop':
-          details = `${interaction.elementTag} at (${interaction.x}, ${interaction.y})`;
-          break;
-        case 'touch_start':
-        case 'touch_end':
-          details = `${interaction.elementTag} - ${interaction.touchCount} touch(es)`;
-          break;
-        case 'touch_move':
-          details = `Position: (${interaction.x}, ${interaction.y}) - ${interaction.touchCount} touch(es)`;
-          break;
-        case 'swipe':
-          details = `${interaction.direction} - ${interaction.distance}px`;
-          break;
-        case 'pinch':
-          details = `${interaction.action} - scale: ${interaction.scale}${interaction.initialDistance ? ` (${interaction.initialDistance}px → ${interaction.currentDistance}px)` : ''}`;
-          break;
-        case 'scroll':
-          details = `Y: ${interaction.scrollY}`;
-          break;
-        case 'browser_zoom':
-          details = `${interaction.action} - ${interaction.zoomLevel} (was ${interaction.previousZoom})`;
-          break;
-        case 'wheel_zoom':
-          details = `${interaction.action} via ${interaction.method}`;
-          break;
-        case 'keyboard_zoom':
-          details = `${interaction.action} (${interaction.key})`;
-          break;
-        case 'visual_viewport_zoom':
-          details = `${interaction.action} - scale: ${interaction.scale}`;
-          break;
-        default:
-          details = 'N/A';
-      }
-      
-      return `
-        <div class="interaction-item">
-          <div class="interaction-type">${type}</div>
-          <div class="interaction-details">${details}</div>
-          <div class="interaction-time">${time} - ${truncateUrl(interaction.url)}</div>
-        </div>
-      `;
-    }).join('');
-    
-  } catch (error) {
-    console.error('Failed to load recent interactions:', error);
-  }
-}
 
-// Handle export data
-async function handleExportData() {
-  try {
-    const response = await chrome.runtime.sendMessage({ type: 'EXPORT_DATA' });
-    const interactions = response.interactions || [];
-    
-    if (interactions.length === 0) {
-      showNotification('No data to export', 'info');
-      return;
-    }
-    
-    // Create CSV content
-    const csv = convertToCSV(interactions);
-    
-    // Create download link
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `interaction-data-${Date.now()}.csv`;
-    a.click();
-    
-    showNotification('Data exported successfully', 'success');
-  } catch (error) {
-    console.error('Failed to export data:', error);
-    showNotification('Failed to export data', 'error');
-  }
-}
 
-// Convert interactions to CSV
-function convertToCSV(interactions) {
-  const headers = ['Timestamp', 'Type', 'URL', 'Page Title', 'Details'];
-  const rows = interactions.map(i => {
-    const timestamp = new Date(i.timestamp).toISOString();
-    const details = JSON.stringify(i).replace(/"/g, '""');
-    return [timestamp, i.type, i.url, i.pageTitle || '', details];
-  });
-  
-  const csvContent = [
-    headers.join(','),
-    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-  ].join('\n');
-  
-  return csvContent;
-}
 
-// Handle clear data
-async function handleClearData() {
-  if (!confirm('Are you sure you want to delete all tracked data? This action cannot be undone.')) {
-    return;
-  }
-  
-  try {
-    await apiClient.clearInteractions();
-    await loadData();
-    showNotification('All data cleared successfully', 'success');
-  } catch (error) {
-    console.error('Failed to clear data:', error);
-    showNotification('Failed to clear data', 'error');
-  }
-}
-
-// Handle revoke consent
-async function handleRevokeConsent() {
-  if (!confirm('This will disable tracking and clear all data. Are you sure?')) {
-    return;
-  }
-  
-  try {
-    // Clear all data first
-    await chrome.runtime.sendMessage({ type: 'CLEAR_DATA' });
-    
-    // Revoke consent
-    await chrome.runtime.sendMessage({ 
-      type: 'SET_CONSENT', 
-      consent: false 
-    });
-    
-    // Reset storage
-    await chrome.storage.local.set({
-      consentGiven: false,
-      trackingEnabled: false
-    });
-    
-    showNotification('Consent revoked and data cleared', 'success');
-    
-    // Show consent screen again
-    setTimeout(() => {
-      showConsentSection();
-    }, 1000);
-    
-  } catch (error) {
-    console.error('Failed to revoke consent:', error);
-    showNotification('Failed to revoke consent', 'error');
-  }
-}
-
-// Update status indicator
-function updateStatusIndicator(enabled) {
-  const indicator = document.getElementById('statusIndicator');
-  const statusText = document.getElementById('statusText');
-  
-  if (enabled) {
-    indicator.classList.add('active');
-    indicator.classList.remove('inactive');
-    statusText.textContent = 'Active';
-    statusText.style.color = '#4CAF50';
-  } else {
-    indicator.classList.add('inactive');
-    indicator.classList.remove('active');
-    statusText.textContent = 'Paused';
-    statusText.style.color = '#f44336';
-  }
-}
-
-// Utility function to format numbers
-function formatNumber(num) {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M';
-  } else if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K';
-  }
-  return num.toString();
-}
-
-// Utility function to truncate URL
-function truncateUrl(url) {
-  if (!url) return 'N/A';
-  try {
-    const urlObj = new URL(url);
-    return urlObj.hostname;
-  } catch {
-    return url.substring(0, 30) + '...';
-  }
-}
 
 // Show notification (simple visual feedback)
 function showNotification(message, type = 'info') {
@@ -816,4 +794,3 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
-
