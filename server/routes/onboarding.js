@@ -47,32 +47,12 @@ const ISHIHARA_PLATES = [
   { plateId: 4, normalAnswer: 'nothing', colorBlindAnswer: '2' },
 ];
 
-function isSevereVisionImpairment(visionResult) {
-  if (!visionResult) return false;
-  const plates = visionResult.colorBlindness?.plates;
-  const attempts = visionResult.visualAcuity?.attempts;
-  const finalLevel = visionResult.visualAcuity?.finalLevel;
-  if (!plates?.length || !Array.isArray(attempts)) return false;
-  let normalCount = 0;
-  let colorBlindCount = 0;
-  plates.forEach((p, i) => {
-    const def = ISHIHARA_PLATES[i];
-    if (!def) return;
-    const ua = String(p.userAnswer || '').toLowerCase().trim();
-    const norm = String(def.normalAnswer).toLowerCase();
-    const cb = String(def.colorBlindAnswer).toLowerCase();
-    if (ua === norm) normalCount++;
-    else if (ua === cb) colorBlindCount++;
-  });
-  const failedAllIshihara = normalCount === 0 && colorBlindCount === 0;
-  const failedFirstAcuity = finalLevel === 1 && attempts.length > 0 && attempts.every(a => a.isCorrect === false);
-  return failedAllIshihara && failedFirstAcuity;
-}
+const ISHIHARA_CONTROL_PLATE_ID = 1;
+const MIN_COLOR_BLIND_MATCHES = 2;
+const COLOR_BLIND_RATIO_THRESHOLD = 0.75;
 
-function clampImpairmentProbability(value) {
-  const finite = toFiniteNumber(value);
-  if (finite == null) return null;
-  return Number(Math.max(0, Math.min(1, finite)).toFixed(4));
+function normalizeColorAnswer(answer) {
+  return String(answer ?? '').toLowerCase().trim();
 }
 
 function getIshiharaPlateDefinition(plate, index) {
@@ -83,38 +63,95 @@ function getIshiharaPlateDefinition(plate, index) {
   return ISHIHARA_PLATES[index] || null;
 }
 
-function deriveColorBlindnessProbability(visionResult) {
-  const persistedScore = clampImpairmentProbability(visionResult?.colorBlindness?.colorBlindnessScore);
-  if (persistedScore != null) {
-    return persistedScore;
+function summarizeColorBlindnessResponses(plates) {
+  const summary = {
+    controlPlateCorrect: false,
+    normalVisionCount: 0,
+    colorBlindCount: 0,
+    anomalyCount: 0,
+    diagnosticPlateCount: 0,
+  };
+
+  if (!Array.isArray(plates) || plates.length === 0) {
+    return summary;
   }
 
-  const plates = Array.isArray(visionResult?.colorBlindness?.plates)
-    ? visionResult.colorBlindness.plates
-    : [];
-  if (plates.length === 0) {
-    return null;
-  }
-
-  let scoredPlates = 0;
-  let colorBlindCount = 0;
   plates.forEach((plate, index) => {
     const definition = getIshiharaPlateDefinition(plate, index);
     if (!definition) return;
 
-    scoredPlates += 1;
-    const userAnswer = String(plate.userAnswer || '').toLowerCase().trim();
-    const colorBlindAnswer = String(definition.colorBlindAnswer || '').toLowerCase().trim();
-    if (userAnswer === colorBlindAnswer) {
-      colorBlindCount += 1;
+    const userAnswer = normalizeColorAnswer(plate.userAnswer);
+    const normalAnswer = normalizeColorAnswer(definition.normalAnswer);
+    const colorBlindAnswer = normalizeColorAnswer(definition.colorBlindAnswer);
+    const isControlPlate = definition.plateId === ISHIHARA_CONTROL_PLATE_ID;
+
+    if (isControlPlate) {
+      summary.controlPlateCorrect = userAnswer === normalAnswer;
+      return;
+    }
+
+    summary.diagnosticPlateCount += 1;
+    if (userAnswer === normalAnswer) {
+      summary.normalVisionCount += 1;
+    } else if (userAnswer === colorBlindAnswer) {
+      summary.colorBlindCount += 1;
+    } else {
+      summary.anomalyCount += 1;
     }
   });
 
-  if (scoredPlates === 0) {
+  return summary;
+}
+
+function getBinaryColorBlindnessScore(summary) {
+  if (!summary?.controlPlateCorrect || !summary?.diagnosticPlateCount) {
+    return 0;
+  }
+
+  const colorBlindRatio = summary.colorBlindCount / summary.diagnosticPlateCount;
+  return (
+    summary.colorBlindCount >= MIN_COLOR_BLIND_MATCHES
+    || colorBlindRatio > COLOR_BLIND_RATIO_THRESHOLD
+  ) ? 1 : 0;
+}
+
+function isSevereVisionImpairment(visionResult) {
+  if (!visionResult) return false;
+  const plates = visionResult.colorBlindness?.plates;
+  const attempts = visionResult.visualAcuity?.attempts;
+  const finalLevel = visionResult.visualAcuity?.finalLevel;
+  if (!plates?.length || !Array.isArray(attempts)) return false;
+
+  const summary = summarizeColorBlindnessResponses(plates);
+  const failedAllIshihara = !summary.controlPlateCorrect
+    && summary.normalVisionCount === 0
+    && summary.colorBlindCount === 0;
+  const failedFirstAcuity = finalLevel === 1 && attempts.length > 0 && attempts.every(a => a.isCorrect === false);
+  return failedAllIshihara && failedFirstAcuity;
+}
+
+function clampImpairmentProbability(value) {
+  const finite = toFiniteNumber(value);
+  if (finite == null) return null;
+  return Number(Math.max(0, Math.min(1, finite)).toFixed(4));
+}
+
+function deriveColorBlindnessProbability(visionResult) {
+  const plates = Array.isArray(visionResult?.colorBlindness?.plates)
+    ? visionResult.colorBlindness.plates
+    : [];
+  if (plates.length > 0) {
+    return getBinaryColorBlindnessScore(summarizeColorBlindnessResponses(plates));
+  }
+
+  const persistedScore = toFiniteNumber(visionResult?.colorBlindness?.colorBlindnessScore);
+  if (persistedScore == null) {
     return null;
   }
 
-  return clampImpairmentProbability(colorBlindCount / scoredPlates);
+  // Legacy clients stored the ratio of color-blind matches across all plates.
+  // Map those historical decimals to the new binary score.
+  return persistedScore >= 0.5 ? 1 : 0;
 }
 
 function deriveVisionLossProbability(visionResult) {

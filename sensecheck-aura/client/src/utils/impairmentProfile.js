@@ -35,7 +35,8 @@ export const buildImpairmentProfile = ({
   // Stored directly as impairment level - higher = more impaired
   // Override to 1.0 if user failed ALL Ishihara plates (wrong for both normal and color-blind)
   // AND failed the first level of visual acuity (could not read even the largest letters)
-  const failedAllIshihara = (colorBlindness?.normalVisionCount === 0 && colorBlindness?.colorBlindCount === 0)
+  const failedAllIshihara = (colorBlindness?.controlPlateCorrect === false)
+    && (colorBlindness?.normalVisionCount === 0 && colorBlindness?.colorBlindCount === 0)
     && (colorBlindness?.totalPlates ?? 0) > 0;
   const failedFirstAcuityLevel = visualAcuity?.finalLevel === 1
     && Array.isArray(visualAcuity?.attempts)
@@ -43,12 +44,12 @@ export const buildImpairmentProfile = ({
   const severeVisionImpairment = failedAllIshihara && failedFirstAcuityLevel;
   const visionLoss = severeVisionImpairment ? 1.0 : (visualAcuity?.visionLoss ?? 0);
 
-  // Color blindness impairment level (0-1)
-  // Uses colorBlindnessScore = colorBlindCount / totalPlates (not 1 - colorVisionScore)
-  // Higher = more color blind. Only actual color-blind pattern answers count.
-  const colorBlindnessProb = colorBlindness?.colorBlindnessScore != null
-    ? parseFloat(Number(colorBlindness.colorBlindnessScore).toFixed(2))
-    : 0;
+  // Binary color blindness impairment level:
+  // 0 = normal / inconclusive, 1 = strong color-blind pattern.
+  // Legacy decimal scores are normalized for older saved state.
+  const colorBlindnessProb = Number(
+    Number(colorBlindness?.colorBlindnessScore ?? 0) >= 0.5 ? 1 : 0
+  );
 
   // Inaccurate click from miss rate (0-1, higher = more impaired)
   const totalAttempts = motorSkills
