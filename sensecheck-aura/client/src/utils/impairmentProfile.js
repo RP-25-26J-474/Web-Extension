@@ -114,7 +114,7 @@ export const buildAndSaveImpairmentProfile = async (params) => {
     try {
       // Save the profile data first
       const token = auraIntegration.getToken();
-      const auraAPI = AURA_ONBOARDING_API_URL;
+      const auraAPI = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding`;
       
       const response = await fetch(`${auraAPI}/impairment-profile`, {
         method: 'POST',

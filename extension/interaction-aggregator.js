@@ -33,6 +33,7 @@
 
 // Import API configuration (module version)
 import { API_CONFIG } from './config.module.js';
+import { sanitizePageContext } from './utils/urlSanitizer.js';
 
 class InteractionAggregator {
   constructor() {
@@ -137,23 +138,13 @@ class InteractionAggregator {
     const eventType = interactionData.type;
     const timestamp = interactionData.timestamp || Date.now();
     
-    // Store page context from the interaction data
+    // Store page context from the interaction data (GDPR-compliant: sanitized domain + route)
     if (interactionData.url) {
       try {
-        const url = new URL(interactionData.url);
-        this.currentPageContext = {
-          domain: url.hostname,
-          route: url.pathname,
-          app_type: 'web',
-        };
+        this.currentPageContext = sanitizePageContext(interactionData.url, 'web');
       } catch (e) {
         console.warn('[AURA Aggregator] Invalid URL in tracked event:', interactionData.url, e);
-        // Fallback
-        this.currentPageContext = {
-          domain: 'unknown',
-          route: '/',
-          app_type: 'web',
-        };
+        this.currentPageContext = { domain: 'unknown', route: '/', app_type: 'web' };
       }
     }
     

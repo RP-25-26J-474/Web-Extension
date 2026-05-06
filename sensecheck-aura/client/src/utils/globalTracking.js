@@ -4,9 +4,11 @@
  * Uses ML-ready GlobalInteractionBucket for efficient storage
  * 
  * NEW: 10-second aggregation windows with 30-second batch flushing
+ * Page context uses GDPR-compliant URL sanitization.
  */
 
 import auraIntegration from './auraIntegration';
+import { sanitizePageContext } from './urlSanitizer';
 
 class GlobalTracker {
   constructor() {
@@ -155,12 +157,11 @@ class GlobalTracker {
     // Scroll speed
     const scroll_speed_px_s = this.calculateScrollSpeed();
     
-    // Page context
-    const page_context = {
-      domain: window.location.hostname || 'localhost',
-      route: window.location.pathname,
-      app_type: 'web',
-    };
+    // Page context (GDPR-compliant: sanitized domain + route)
+    const page_context = sanitizePageContext(
+      typeof window !== 'undefined' ? window.location.href : '',
+      'web'
+    );
     
     // Sampling profiler
     const sampling_hz = windowDuration > 0 ? this.samplingEventCount / windowDuration : 0;
@@ -476,16 +477,11 @@ class GlobalTracker {
     }
   }
 
-  // Helper: Get element data
+  // Helper: Get element data (GDPR: only tag – no id, class, text to avoid PII)
   getElementData(element) {
     if (!element) return {};
     return {
       tag: element.tagName?.toLowerCase(),
-      id: element.id || null,
-      class: element.className || null,
-      text: element.innerText?.substring(0, 100) || null,
-      type: element.type || null,
-      name: element.name || null,
     };
   }
 
@@ -589,22 +585,16 @@ class GlobalTracker {
   // ===== KEYBOARD INTERACTIONS =====
 
   setupKeyboardEvents() {
-    // 10. Keypress
+    // 10. Keypress (GDPR: mask code for character keys – e.code would reveal KeyA, Digit1)
     document.addEventListener('keydown', (e) => {
       const target = e.target;
       const isInput = ['INPUT', 'TEXTAREA'].includes(target.tagName);
-      
-      // Mask character keys for privacy
-      const key = e.key.length === 1 ? '[CHAR]' : e.key;
+      const isChar = e.key.length === 1;
       
       this.logToBackend(this.createInteractionData('keypress', {
-        key,
-        code: e.code,
-        target: {
-          tag: target.tagName?.toLowerCase(),
-          type: target.type,
-          isInput,
-        },
+        key: isChar ? '[CHAR]' : e.key,
+        code: isChar ? null : e.code,
+        target: { tag: target.tagName?.toLowerCase(), isInput },
         modifiers: {
           ctrl: e.ctrlKey,
           alt: e.altKey,

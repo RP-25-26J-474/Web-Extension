@@ -5,6 +5,47 @@ class APIClient {
     this.token = null;
   }
 
+  formatErrorMessage(data, response) {
+    if (Array.isArray(data?.errors) && data.errors.length > 0) {
+      return data.errors
+        .map((entry) => {
+          const field = entry?.path || entry?.param || 'field';
+          const message = entry?.msg || 'Invalid value';
+          return `${field}: ${message}`;
+        })
+        .join(', ');
+    }
+
+    if (typeof data?.error === 'string' && data.error.trim()) {
+      return data.error.trim();
+    }
+
+    if (data?.error && typeof data.error === 'object') {
+      if (typeof data.error.message === 'string' && data.error.message.trim()) {
+        return data.error.message.trim();
+      }
+      return JSON.stringify(data.error);
+    }
+
+    if (typeof data?.message === 'string' && data.message.trim()) {
+      return data.message.trim();
+    }
+
+    if (data?.message && typeof data.message === 'object') {
+      return JSON.stringify(data.message);
+    }
+
+    if (typeof data?.raw === 'string' && data.raw.trim()) {
+      return data.raw.trim().slice(0, 200);
+    }
+
+    if (data && typeof data === 'object') {
+      return JSON.stringify(data).slice(0, 200);
+    }
+
+    return `Request failed with status ${response.status}`;
+  }
+
   async setToken(token) {
     this.token = token;
     let userId = null;
@@ -40,6 +81,7 @@ class APIClient {
     const token = await this.getToken();
     
     const headers = {
+      'Accept': 'application/json',
       'Content-Type': 'application/json',
       ...options.headers
     };
@@ -49,15 +91,42 @@ class APIClient {
     }
 
     try {
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
+      const requestUrl = `${this.baseURL}${endpoint}`;
+      const response = await fetch(requestUrl, {
         ...options,
         headers
       });
 
-      const data = await response.json();
+      const contentType = response.headers.get('content-type') || '';
+      const rawBody = await response.text();
+      let data = null;
+
+      if (rawBody) {
+        if (contentType.includes('application/json')) {
+          try {
+            data = JSON.parse(rawBody);
+          } catch (parseError) {
+            throw new Error(`Invalid JSON response (${response.status} ${response.statusText}): ${rawBody.slice(0, 160)}`);
+          }
+        } else {
+          data = { raw: rawBody };
+        }
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Request failed');
+        const message = this.formatErrorMessage(data, response);
+        const error = new Error(String(message).slice(0, 300));
+        error.code = data?.code || data?.error?.code || null;
+        error.status = response.status;
+        error.endpoint = endpoint;
+        error.url = requestUrl;
+        error.responseBody = data;
+        error.validationErrors = Array.isArray(data?.errors) ? data.errors : [];
+        throw error;
+      }
+
+      if (data == null) {
+        return {};
       }
 
       return data;
@@ -73,11 +142,28 @@ class APIClient {
       method: 'POST',
       body: JSON.stringify({ email, password, name, age, gender })
     });
-    
+    // Only set token when returned (email/password flow requires verification first)
     if (data.token) {
       await this.setToken(data.token);
     }
-    
+    return data;
+  }
+
+  async resendVerificationEmail(email) {
+    return await this.request(API_CONFIG.ENDPOINTS.RESEND_VERIFICATION, {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+  }
+
+  async completeVerification(email, code) {
+    const data = await this.request(API_CONFIG.ENDPOINTS.COMPLETE_VERIFICATION, {
+      method: 'POST',
+      body: JSON.stringify({ email, code })
+    });
+    if (data.token) {
+      await this.setToken(data.token);
+    }
     return data;
   }
 
@@ -100,6 +186,14 @@ class APIClient {
     } finally {
       await this.clearToken();
     }
+  }
+
+  async deleteAccount() {
+    const data = await this.request(API_CONFIG.ENDPOINTS.DELETE_ACCOUNT, {
+      method: 'DELETE'
+    });
+    await this.clearToken();
+    return data;
   }
 
   async getCurrentUser() {
