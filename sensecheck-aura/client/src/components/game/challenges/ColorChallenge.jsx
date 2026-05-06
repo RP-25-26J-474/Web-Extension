@@ -5,6 +5,7 @@ import useStore from '../../../state/store';
 import { ISHIHARA_PLATES, analyzeColorBlindness } from '../../../utils/colorBlindnessAnalysis';
 import { saveVisionResults } from '../../../utils/api';
 import auraIntegration from '../../../utils/auraIntegration';
+import { runBackgroundTasks } from '../../../utils/backgroundTasks';
 import { Palette, EyeOff, ChevronRight, CheckCircle } from 'lucide-react';
 
 // Import Ishihara plate images
@@ -94,28 +95,28 @@ const ColorChallenge = () => {
     if (isLastPlate) {
       completeColorBlindnessTest();
       const analysis = analyzeColorBlindness(newPlates);
-      
-      try {
-        const userId = state.userId || auraIntegration.getUserId();
-        await saveVisionResults({
-          userId,
-          colorBlindness: {
-            plates: newPlates,
-            ...analysis,
-          },
-        });
-        
-        if (auraIntegration.isEnabled()) {
-          await auraIntegration.saveVisionResults({
-            plates: newPlates,
-            ...analysis,
-          }, null, {
+
+      const colorBlindnessPayload = {
+        plates: newPlates,
+        ...analysis,
+      };
+      const userId = state.userId || auraIntegration.getUserId();
+
+      runBackgroundTasks('color-blindness completion', [
+        {
+          label: 'save vision results',
+          run: () => saveVisionResults({
+            userId,
+            colorBlindness: colorBlindnessPayload,
+          }),
+        },
+        auraIntegration.isEnabled() ? {
+          label: 'save AURA vision results',
+          run: () => auraIntegration.saveVisionResults(colorBlindnessPayload, null, {
             device: navigator.userAgent,
-          });
-        }
-      } catch (error) {
-        console.error('Failed to save results:', error);
-      }
+          }),
+        } : null,
+      ]);
       
       updateChallengeProgress('colorBlindness', { currentPlate: 0, plates: [] });
       await completeChallenge('color-blindness', analysis);

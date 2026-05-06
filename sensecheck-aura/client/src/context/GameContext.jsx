@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
+import { createContext, useContext, useReducer, useCallback, useEffect, useRef, startTransition } from 'react';
 import useStore from '../state/store';
 import auraIntegration from '../utils/auraIntegration';
 
@@ -55,6 +55,11 @@ export const LIGHTHOUSE_MESSAGES = {
   3: 'The beam grows stronger...',
   4: 'Almost there... one final system...',
 };
+
+export const GAME_TRANSITION_TOTAL_MS = 1200;
+export const GAME_TRANSITION_SHOW_MS = 850;
+
+const STATE_SAVE_DEBOUNCE_MS = 120;
 
 const initialState = {
   // User identifier (from AURA extension registration - no sessionId needed)
@@ -283,10 +288,26 @@ const GameContext = createContext(null);
 // Storage key
 const STORAGE_KEY = 'aura_game_state';
 
+function createPersistedStateSnapshot(state) {
+  return {
+    userId: state.userId,
+    currentPhase: state.currentPhase,
+    completedChallenges: state.completedChallenges,
+    stats: state.stats,
+    unlockedTraits: state.unlockedTraits,
+    challengeResults: state.challengeResults,
+    challengeProgress: state.challengeProgress,
+    startTime: state.startTime,
+    lighthouseProgress: state.lighthouseProgress,
+  };
+}
+
 // Provider component
 export function GameProvider({ children }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const storeActions = useStore();
+  const latestStateRef = useRef(initialState);
+  const saveTimerRef = useRef(null);
   
   // Load userId from AURA integration on mount
   useEffect(() => {
@@ -313,26 +334,59 @@ export function GameProvider({ children }) {
     }
   }, []);
   
-  // Save state on changes
-  useEffect(() => {
-    if (state.startTime) {
-      try {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
-          userId: state.userId,
-          currentPhase: state.currentPhase,
-          completedChallenges: state.completedChallenges,
-          stats: state.stats,
-          unlockedTraits: state.unlockedTraits,
-          challengeResults: state.challengeResults,
-          challengeProgress: state.challengeProgress,
-          startTime: state.startTime,
-          lighthouseProgress: state.lighthouseProgress,
-        }));
-      } catch (e) {
-        console.error('Failed to save game state:', e);
-      }
+  const persistGameState = useCallback((gameState) => {
+    if (!gameState.startTime) return;
+
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(createPersistedStateSnapshot(gameState)));
+    } catch (e) {
+      console.error('Failed to save game state:', e);
     }
+  }, []);
+
+  useEffect(() => {
+    latestStateRef.current = state;
   }, [state]);
+
+  // Save state on changes without blocking every reducer update
+  useEffect(() => {
+    if (!state.startTime) return;
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = setTimeout(() => {
+      persistGameState(state);
+      saveTimerRef.current = null;
+    }, STATE_SAVE_DEBOUNCE_MS);
+
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
+  }, [state, persistGameState]);
+
+  // Flush the latest snapshot if the page is hidden or unloaded mid-session.
+  useEffect(() => {
+    const flushLatestState = () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      persistGameState(latestStateRef.current);
+    };
+
+    window.addEventListener('pagehide', flushLatestState);
+    window.addEventListener('beforeunload', flushLatestState);
+
+    return () => {
+      window.removeEventListener('pagehide', flushLatestState);
+      window.removeEventListener('beforeunload', flushLatestState);
+    };
+  }, [persistGameState]);
   
   // Actions
   const setUserId = useCallback((userId) => {
@@ -382,17 +436,21 @@ export function GameProvider({ children }) {
       }
     });
     
-    // Wait for transition animation
-    await new Promise(resolve => setTimeout(resolve, 2500));
-    
-    dispatch({ type: ACTIONS.HIDE_TRANSITION });
-    
+    // Keep the lighthouse transition brief so it feels responsive.
+    await new Promise(resolve => setTimeout(resolve, GAME_TRANSITION_TOTAL_MS));
+
     // Move to next phase
     const currentIndex = CHALLENGE_ORDER.indexOf(challengeId);
-    if (currentIndex < CHALLENGE_ORDER.length - 1) {
-      const nextPhase = CHALLENGE_ORDER[currentIndex + 1];
-      dispatch({ type: ACTIONS.SET_PHASE, payload: nextPhase });
-    }
+    const nextPhase = currentIndex < CHALLENGE_ORDER.length - 1
+      ? CHALLENGE_ORDER[currentIndex + 1]
+      : null;
+
+    startTransition(() => {
+      dispatch({ type: ACTIONS.HIDE_TRANSITION });
+      if (nextPhase) {
+        dispatch({ type: ACTIONS.SET_PHASE, payload: nextPhase });
+      }
+    });
     } finally {
       completingRef.current = false;
     }

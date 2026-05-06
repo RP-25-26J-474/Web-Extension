@@ -4,8 +4,8 @@
   // =========================
   // Edit only these base URLs
   // =========================
-  const API_BASE_URL = 'https://extension-backend-theta.vercel.app/api';
-  const ONBOARDING_GAME_BASE_URL = 'https://onboarding-frontend-psi.vercel.app';
+  const API_BASE_URL = 'http://localhost:3000/api';
+  const ONBOARDING_GAME_BASE_URL = 'http://localhost:5173';
   const ML_BASE_URL = 'https://mlengine.auraui.org';
 
   function toOrigin(url) {

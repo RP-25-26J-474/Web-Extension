@@ -1,48 +1,47 @@
 {
-    "manifest_version":  3,
-    "name":  "AURA Interaction Tracker",
-    "version":  "1.0.0",
-    "description":  "Unleash the Future of UI - Track user interactions with advanced analytics and privacy controls",
-    "permissions":  [
-                        "storage",
-                        "activeTab",
-                        "alarms"
-                    ],
-    "host_permissions":  [
-                             "\u003call_urls\u003e",
-                             "https://extension-backend-theta.vercel.app/*",
-                             "https://onboarding-frontend-psi.vercel.app/*",
-                             "https://mlengine.auraui.org/*"
-                         ],
-    "background":  {
-                       "service_worker":  "background.js",
-                       "type":  "module"
-                   },
-    "content_scripts":  [
-                            {
-                                "matches":  [
-                                                "\u003call_urls\u003e"
-                                            ],
-                                "js":  [
-                                           "env.js",
-                                           "content.js"
-                                       ],
-                                "run_at":  "document_idle"
-                            }
-                        ],
-    "action":  {
-                   "default_popup":  "popup.html",
-                   "default_icon":  {
-                                        "16":  "icons/logo.png",
-                                        "32":  "icons/logo.png",
-                                        "48":  "icons/logo.png",
-                                        "128":  "icons/logo.png"
-                                    }
-               },
-    "icons":  {
-                  "16":  "icons/logo.png",
-                  "32":  "icons/logo.png",
-                  "48":  "icons/logo.png",
-                  "128":  "icons/logo.png"
-              }
+  "manifest_version": 3,
+  "name": "AURA",
+  "version": "1.0.0",
+  "description": "AURA delivers adaptive UI personalization using onboarding and interaction signals you explicitly enable.",
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://extension-backend-theta.vercel.app/*",
+    "https://onboarding-frontend-psi.vercel.app/*",
+    "https://mlengine.auraui.org/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "env.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "AURA",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
 }

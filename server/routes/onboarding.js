@@ -47,26 +47,139 @@ const ISHIHARA_PLATES = [
   { plateId: 4, normalAnswer: 'nothing', colorBlindAnswer: '2' },
 ];
 
+const ISHIHARA_CONTROL_PLATE_ID = 1;
+const MIN_COLOR_BLIND_MATCHES = 2;
+const COLOR_BLIND_RATIO_THRESHOLD = 0.75;
+
+function normalizeColorAnswer(answer) {
+  return String(answer ?? '').toLowerCase().trim();
+}
+
+function getIshiharaPlateDefinition(plate, index) {
+  if (plate?.plateId != null) {
+    const byId = ISHIHARA_PLATES.find(def => def.plateId === Number(plate.plateId));
+    if (byId) return byId;
+  }
+  return ISHIHARA_PLATES[index] || null;
+}
+
+function summarizeColorBlindnessResponses(plates) {
+  const summary = {
+    controlPlateCorrect: false,
+    normalVisionCount: 0,
+    colorBlindCount: 0,
+    anomalyCount: 0,
+    diagnosticPlateCount: 0,
+  };
+
+  if (!Array.isArray(plates) || plates.length === 0) {
+    return summary;
+  }
+
+  plates.forEach((plate, index) => {
+    const definition = getIshiharaPlateDefinition(plate, index);
+    if (!definition) return;
+
+    const userAnswer = normalizeColorAnswer(plate.userAnswer);
+    const normalAnswer = normalizeColorAnswer(definition.normalAnswer);
+    const colorBlindAnswer = normalizeColorAnswer(definition.colorBlindAnswer);
+    const isControlPlate = definition.plateId === ISHIHARA_CONTROL_PLATE_ID;
+
+    if (isControlPlate) {
+      summary.controlPlateCorrect = userAnswer === normalAnswer;
+      return;
+    }
+
+    summary.diagnosticPlateCount += 1;
+    if (userAnswer === normalAnswer) {
+      summary.normalVisionCount += 1;
+    } else if (userAnswer === colorBlindAnswer) {
+      summary.colorBlindCount += 1;
+    } else {
+      summary.anomalyCount += 1;
+    }
+  });
+
+  return summary;
+}
+
+function getBinaryColorBlindnessScore(summary) {
+  if (!summary?.controlPlateCorrect || !summary?.diagnosticPlateCount) {
+    return 0;
+  }
+
+  const colorBlindRatio = summary.colorBlindCount / summary.diagnosticPlateCount;
+  return (
+    summary.colorBlindCount >= MIN_COLOR_BLIND_MATCHES
+    || colorBlindRatio > COLOR_BLIND_RATIO_THRESHOLD
+  ) ? 1 : 0;
+}
+
 function isSevereVisionImpairment(visionResult) {
   if (!visionResult) return false;
   const plates = visionResult.colorBlindness?.plates;
   const attempts = visionResult.visualAcuity?.attempts;
   const finalLevel = visionResult.visualAcuity?.finalLevel;
   if (!plates?.length || !Array.isArray(attempts)) return false;
-  let normalCount = 0;
-  let colorBlindCount = 0;
-  plates.forEach((p, i) => {
-    const def = ISHIHARA_PLATES[i];
-    if (!def) return;
-    const ua = String(p.userAnswer || '').toLowerCase().trim();
-    const norm = String(def.normalAnswer).toLowerCase();
-    const cb = String(def.colorBlindAnswer).toLowerCase();
-    if (ua === norm) normalCount++;
-    else if (ua === cb) colorBlindCount++;
-  });
-  const failedAllIshihara = normalCount === 0 && colorBlindCount === 0;
+
+  const summary = summarizeColorBlindnessResponses(plates);
+  const failedAllIshihara = !summary.controlPlateCorrect
+    && summary.normalVisionCount === 0
+    && summary.colorBlindCount === 0;
   const failedFirstAcuity = finalLevel === 1 && attempts.length > 0 && attempts.every(a => a.isCorrect === false);
   return failedAllIshihara && failedFirstAcuity;
+}
+
+function clampImpairmentProbability(value) {
+  const finite = toFiniteNumber(value);
+  if (finite == null) return null;
+  return Number(Math.max(0, Math.min(1, finite)).toFixed(4));
+}
+
+function deriveColorBlindnessProbability(visionResult) {
+  const plates = Array.isArray(visionResult?.colorBlindness?.plates)
+    ? visionResult.colorBlindness.plates
+    : [];
+  if (plates.length > 0) {
+    return getBinaryColorBlindnessScore(summarizeColorBlindnessResponses(plates));
+  }
+
+  const persistedScore = toFiniteNumber(visionResult?.colorBlindness?.colorBlindnessScore);
+  if (persistedScore == null) {
+    return null;
+  }
+
+  // Legacy clients stored the ratio of color-blind matches across all plates.
+  // Map those historical decimals to the new binary score.
+  return persistedScore >= 0.5 ? 1 : 0;
+}
+
+function deriveVisionLossProbability(visionResult) {
+  if (isSevereVisionImpairment(visionResult)) {
+    return 1;
+  }
+
+  const persistedLoss = clampImpairmentProbability(visionResult?.visualAcuity?.visionLoss);
+  if (persistedLoss != null) {
+    return persistedLoss;
+  }
+
+  const acuityDecimal = getFirstFinite(
+    visionResult?.visualAcuity?.visualAcuityDecimal,
+    visionResult?.visualAcuity?.snellenDenominator
+      ? 20 / Number(visionResult.visualAcuity.snellenDenominator)
+      : null
+  );
+
+  if (acuityDecimal == null) {
+    return null;
+  }
+
+  if (acuityDecimal >= 1) {
+    return 0;
+  }
+
+  return clampImpairmentProbability(1 - acuityDecimal);
 }
 
 function parseOS(userAgent) {
@@ -775,9 +888,8 @@ router.get('/impairment-profile', authMiddleware, async (req, res) => {
       OnboardingVisionResult.findOne({ userId: req.userId }),
     ]);
 
-    const severeImpairment = isSevereVisionImpairment(visionResult);
-    const visionLossScore = severeImpairment ? 100 : visionResult?.overallScore;
-    const colorBlindnessScore = visionResult?.colorBlindness?.colorVisionScore;
+    const visionLoss = deriveVisionLossProbability(visionResult);
+    const colorBlindness = deriveColorBlindnessProbability(visionResult);
     const literacyScore = literacyResult?.score?.computerLiteracyScore;
     const existingHitRate = toFiniteNumber(profile?.onboarding_metrics?.hit_rate);
     const overallHitRate = toFiniteNumber(motorResult?.overallMetrics?.overallHitRate);
@@ -797,8 +909,8 @@ router.get('/impairment-profile', authMiddleware, async (req, res) => {
     );
     const impairment_probs = {
       vision: {
-        vision_loss: Number.isFinite(visionLossScore) ? visionLossScore / 100 : null,
-        color_blindness: Number.isFinite(colorBlindnessScore) ? colorBlindnessScore / 100 : null,
+        vision_loss: visionLoss,
+        color_blindness: colorBlindness,
       },
       motor: {
         delayed_reaction: motorExisting.delayed_reaction ?? null,
