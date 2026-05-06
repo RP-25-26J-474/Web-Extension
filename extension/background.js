@@ -117,7 +117,7 @@ async function initializeAggregator() {
 // Sync current extension profile to ML engine before storage is cleared on logout/browser close.
 // Sends required user/session fields to /user/trigger-update and includes feedback overrides when available.
 async function syncProfileBeforeLogout(userId) {
-  const mlFeedbackUrl = API_CONFIG.ML_SESSION_FEEDBACK_URL || 'https://mlpe.auraui.org/user/trigger-update';
+  const mlFeedbackUrl = API_CONFIG.ML_SESSION_FEEDBACK_URL || 'https://mlengine.auraui.org/user/trigger-update';
   try {
     const stored = await chrome.storage.local.get([
       'AURA_EXT_ML_PERSONALIZED_PROFILE',

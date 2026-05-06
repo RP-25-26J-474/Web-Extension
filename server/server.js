@@ -1,4 +1,5 @@
 require('dotenv').config();
+const path = require('path');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -13,6 +14,9 @@ const app = express();
 // Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Static files (logo for email + verification page)
+app.use(express.static(path.join(__dirname, 'public')));
 
 // CORS configuration for browser extensions
 app.use(cors({

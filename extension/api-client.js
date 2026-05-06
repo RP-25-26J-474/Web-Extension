@@ -116,10 +116,12 @@ class APIClient {
       if (!response.ok) {
         const message = this.formatErrorMessage(data, response);
         const error = new Error(String(message).slice(0, 300));
+        error.code = data?.code || data?.error?.code || null;
         error.status = response.status;
         error.endpoint = endpoint;
         error.url = requestUrl;
         error.responseBody = data;
+        error.validationErrors = Array.isArray(data?.errors) ? data.errors : [];
         throw error;
       }
 
@@ -140,11 +142,28 @@ class APIClient {
       method: 'POST',
       body: JSON.stringify({ email, password, name, age, gender })
     });
-    
+    // Only set token when returned (email/password flow requires verification first)
     if (data.token) {
       await this.setToken(data.token);
     }
-    
+    return data;
+  }
+
+  async resendVerificationEmail(email) {
+    return await this.request(API_CONFIG.ENDPOINTS.RESEND_VERIFICATION, {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+  }
+
+  async completeVerification(email, code) {
+    const data = await this.request(API_CONFIG.ENDPOINTS.COMPLETE_VERIFICATION, {
+      method: 'POST',
+      body: JSON.stringify({ email, code })
+    });
+    if (data.token) {
+      await this.setToken(data.token);
+    }
     return data;
   }
 
@@ -167,6 +186,14 @@ class APIClient {
     } finally {
       await this.clearToken();
     }
+  }
+
+  async deleteAccount() {
+    const data = await this.request(API_CONFIG.ENDPOINTS.DELETE_ACCOUNT, {
+      method: 'DELETE'
+    });
+    await this.clearToken();
+    return data;
   }
 
   async getCurrentUser() {

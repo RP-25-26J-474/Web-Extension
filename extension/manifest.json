@@ -12,7 +12,7 @@
                              "\u003call_urls\u003e",
                              "https://extension-backend-theta.vercel.app/*",
                              "https://onboarding-frontend-psi.vercel.app/*",
-                             "https://mlpe.auraui.org/*"
+                             "https://mlengine.auraui.org/*"
                          ],
     "background":  {
                        "service_worker":  "background.js",
