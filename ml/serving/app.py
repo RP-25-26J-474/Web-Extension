@@ -14,11 +14,36 @@ report_path = os.path.join(MODEL_DIR, "reports", "training_report.json")
 with open(report_path, "r", encoding="utf-8") as f:
     report = json.load(f)
 
-pca_motor_cols = report["feature_sets"]["pca_motor_columns"]
-b2_motor_cols = report["feature_sets"]["b2_motor_columns"]
-runtime_motor_cols = report["feature_sets"]["runtime_motor_columns"]
-ctx_num_cols = report["feature_sets"]["context_numeric_columns"]
-ctx_cat_cols = report["feature_sets"]["context_categorical_columns"]
+def resolve_feature_sets(report: dict) -> dict:
+    if isinstance(report.get("feature_sets"), dict):
+        return report["feature_sets"]
+
+    pca_report = report.get("pca", {})
+    b2_report = report.get("modelB2_motor_plus_context", {})
+
+    pca_cols = list(pca_report.get("pca_motor_columns") or pca_report.get("motor_feature_columns") or [])
+    ctx_num = list(b2_report.get("context_numeric_columns") or [])
+    ctx_cat = list(b2_report.get("context_categorical_columns") or [])
+    b2_motor = list(b2_report.get("b2_motor_columns") or pca_cols)
+    runtime_motor = list(b2_report.get("runtime_motor_columns") or b2_motor or pca_cols)
+
+    if not pca_cols or not b2_motor:
+        raise KeyError("training_report.json is missing feature_sets and legacy motor feature columns")
+
+    return {
+        "pca_motor_columns": pca_cols,
+        "b2_motor_columns": b2_motor,
+        "runtime_motor_columns": runtime_motor,
+        "context_numeric_columns": ctx_num,
+        "context_categorical_columns": ctx_cat,
+    }
+
+feature_sets = resolve_feature_sets(report)
+pca_motor_cols = feature_sets["pca_motor_columns"]
+b2_motor_cols = feature_sets["b2_motor_columns"]
+runtime_motor_cols = feature_sets["runtime_motor_columns"]
+ctx_num_cols = feature_sets["context_numeric_columns"]
+ctx_cat_cols = feature_sets["context_categorical_columns"]
 pc1_flipped = bool(report["pca"].get("pc1_flipped", False))
 
 pca_scaler = joblib.load(os.path.join(MODEL_DIR, "preprocess", "pca_scaler_motor.joblib"))
