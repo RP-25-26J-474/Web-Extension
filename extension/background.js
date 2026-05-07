@@ -15,6 +15,21 @@ const EXPORT_BATCH_SIZE = 100;
 const REGISTRATION_FLOW_STATE_KEY = 'registrationFlowState';
 const ONBOARDING_COMPLETED_KEY = 'onboardingCompleted';
 
+const httpClient = {
+  post(url, payload, options = {}) {
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      },
+      body: JSON.stringify(payload),
+      keepalive: options.keepalive === true,
+      cache: 'no-store',
+    });
+  },
+};
+
 // Initialize extension
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log('[AURA Background] Extension installed:', details.reason);
@@ -321,12 +336,11 @@ async function syncProfileBeforeLogout(userId) {
       payload.feedback_overrides = feedbackOverrides;
     }
 
-    console.log('[AURA] Syncing profile changes to ML engine on logout:', payload);
-    const mlFeedbackRes = await fetch(mlFeedbackUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+    console.log('[AURA] Syncing profile changes to ML engine on logout via POST:', {
+      url: mlFeedbackUrl,
+      payload,
     });
+    const mlFeedbackRes = await httpClient.post(mlFeedbackUrl, payload, { keepalive: true });
 
     if (!mlFeedbackRes.ok) {
       throw new Error(`ML session-feedback API returned ${mlFeedbackRes.status}`);
