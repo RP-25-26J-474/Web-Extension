@@ -812,8 +812,8 @@ router.get('/results', authMiddleware, async (req, res) => {
 });
 
 // Save impairment profile (POST from client after game completion)
-// NOTE: motor.motor_impairment and motor.delayed_reaction come from ML motor-score, not the client.
-// The client only provides inaccurate_click. Merge with existing to avoid overwriting ML values.
+// NOTE: motor.motor_impairment and motor.delayed_reaction come from ML motor-score.
+// The initial client profile sends zero placeholders. Merge with existing to avoid overwriting ML values.
 router.post('/impairment-profile', authMiddleware, async (req, res) => {
   try {
     const {
@@ -835,9 +835,9 @@ router.post('/impairment-profile', authMiddleware, async (req, res) => {
     const existingMotor = existingProfile?.impairment_probs?.motor || {};
     const incomingMotor = incomingProbs?.motor || {};
     const mergedMotor = {
-      delayed_reaction: existingMotor.delayed_reaction ?? incomingMotor.delayed_reaction ?? null,
-      inaccurate_click: incomingMotor.inaccurate_click ?? existingMotor.inaccurate_click ?? null,
-      motor_impairment: existingMotor.motor_impairment ?? incomingMotor.motor_impairment ?? null,
+      delayed_reaction: existingMotor.delayed_reaction ?? incomingMotor.delayed_reaction ?? 0,
+      inaccurate_click: incomingMotor.inaccurate_click ?? existingMotor.inaccurate_click ?? 0,
+      motor_impairment: existingMotor.motor_impairment ?? incomingMotor.motor_impairment ?? 0,
     };
     const impairment_probs = {
       ...incomingProbs,
@@ -913,9 +913,9 @@ router.get('/impairment-profile', authMiddleware, async (req, res) => {
         color_blindness: colorBlindness,
       },
       motor: {
-        delayed_reaction: motorExisting.delayed_reaction ?? null,
-        inaccurate_click: inaccurateClick,
-        motor_impairment: motorExisting.motor_impairment ?? null,
+        delayed_reaction: motorExisting.delayed_reaction ?? 0,
+        inaccurate_click: inaccurateClick ?? 0,
+        motor_impairment: motorExisting.motor_impairment ?? 0,
       },
       literacy: Number.isFinite(literacyScore) ? literacyScore / 100 : null,
     };

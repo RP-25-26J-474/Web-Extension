@@ -85,6 +85,8 @@ export const buildImpairmentProfile = ({
       },
       motor: {
         inaccurate_click: inaccurateClick,
+        delayed_reaction: 0,
+        motor_impairment: 0,
       },
       literacy: parseFloat(literacyScore.toFixed(2)),
     },
