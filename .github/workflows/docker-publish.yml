@@ -2,14 +2,14 @@ name: Docker Image CI/CD (Extension Repos)
 
 on:
   push:
-    branches: [ "deploy" ]
+    branches: [ "demo" ]
     paths:
       - 'server/**'
       - 'ml/serving/**'
       - 'sensecheck-aura/client/**'
       - '.github/workflows/docker-publish.yml'
   pull_request:
-    branches: [ "deploy" ]
+    branches: [ "demo" ]
   workflow_dispatch:
 
 jobs:

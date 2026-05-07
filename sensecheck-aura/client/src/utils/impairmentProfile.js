@@ -8,7 +8,7 @@
 
 import auraIntegration from './auraIntegration';
 
-const AURA_API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const AURA_API_BASE_URL = import.meta.env.VITE_API_URL || 'http://api-gateway.auraui.org/api';
 const AURA_ONBOARDING_API_URL = `${AURA_API_BASE_URL}/onboarding`;
 
 /**
@@ -115,7 +115,7 @@ export const buildAndSaveImpairmentProfile = async (params) => {
     try {
       // Save the profile data first
       const token = auraIntegration.getToken();
-      const auraAPI = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding`;
+      const auraAPI = `${import.meta.env.VITE_API_URL || 'http://api-gateway.auraui.org/api'}/onboarding`;
       
       const response = await fetch(`${auraAPI}/impairment-profile`, {
         method: 'POST',

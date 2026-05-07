@@ -3,7 +3,7 @@
 
 // Message types for extension ↔ web page bridge
 const AURA_PING_TIMEOUT_MS = 1000;
-const AURA_API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const AURA_API_BASE_URL = import.meta.env.VITE_API_URL || 'http://api-gateway.auraui.org/api';
 const AURA_ONBOARDING_API_URL = `${AURA_API_BASE_URL}/onboarding`;
 
 class AuraIntegration {
@@ -12,7 +12,7 @@ class AuraIntegration {
     this.token = null;
     this.isAuraMode = false;
     this.extensionPresent = false;
-    this.auraAPI = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/onboarding`;
+    this.auraAPI = `${import.meta.env.VITE_API_URL || 'http://api-gateway.auraui.org/api'}/onboarding`;
     
     // Request queue to prevent ERR_INSUFFICIENT_RESOURCES
     this.requestQueue = [];

@@ -48,7 +48,8 @@ npm start
 
 ```bash
 cd sensecheck-aura/client && npm install
-# Create .env: VITE_API_URL=http://localhost:3000/api
+# Optional local override: VITE_API_URL=http://localhost:3000/api
+# Default API target: http://api-gateway.auraui.org/api
 npm run dev
 ```
 
@@ -109,15 +110,16 @@ powershell -File build-chrome.ps1
 |------|----------|
 | `server/.env` | `MONGODB_URI`, `JWT_SECRET`, `PORT` |
 | `sensecheck-aura/client/.env` | `VITE_API_URL` |
-| `extension/config.js` | `BASE_URL`, `ONBOARDING_GAME_URL` |
-| `extension/config.module.js` | `ML_PROFILE_API_URL` |
+| `extension/env.js` | `API_BASE_URL`, `ONBOARDING_GAME_BASE_URL`, `ML_BASE_URL` |
+| `extension/config.js` | normalized gateway-backed extension API settings |
+| `extension/config.module.js` | gateway-backed service worker API settings |
 
 ---
 
 ## 🐛 Troubleshooting
 
-- **Extension not connecting?** – Check server on port 3000, `extension/config.js` `BASE_URL`
-- **Onboarding not opening?** – Game on 5173, `ONBOARDING_GAME_URL` in config
+- **Extension not connecting?** – Check `http://api-gateway.auraui.org/api`, then `extension/env.js` `API_BASE_URL`
+- **Onboarding not opening?** – Check `https://onboarding.auraui.org`, then `extension/env.js` `ONBOARDING_GAME_BASE_URL`
 - **MongoDB error?** – `MONGODB_URI` in `server/.env`
 
 ---

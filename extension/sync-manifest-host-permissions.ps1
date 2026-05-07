@@ -24,7 +24,7 @@ function To-HostPermission {
     param([string]$Url)
     try {
         $uri = [Uri]$Url
-        return "$($uri.Scheme)://$($uri.Host)/*"
+        return "$($uri.Scheme)://$($uri.Authority)/*"
     } catch {
         return $null
     }
@@ -50,7 +50,7 @@ $apiHostPermissions = @(
     (To-HostPermission -Url $mlUrl)
 ) | Where-Object { $_ } | Select-Object -Unique
 
-$manifestObj.host_permissions = @("<all_urls>") + $apiHostPermissions
+$manifestObj.host_permissions = $apiHostPermissions
 
 $manifestJson = $manifestObj | ConvertTo-Json -Depth 20
 Set-Content -Path $ManifestPath -Value $manifestJson

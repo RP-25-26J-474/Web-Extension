@@ -4,9 +4,10 @@
   // =========================
   // Edit only these base URLs
   // =========================
-  const API_BASE_URL = 'http://localhost:3000/api';
-  const ONBOARDING_GAME_BASE_URL = 'http://localhost:5173';
-  const ML_BASE_URL = 'https://mlengine.auraui.org';
+  const API_BASE_URL = 'http://api-gateway.auraui.org/api';
+  const ONBOARDING_GAME_BASE_URL = 'https://onboarding.auraui.org';
+  const ML_BASE_URL = 'http://api-gateway.auraui.org/api/ml-engine';
+
 
   function toOrigin(url) {
     try {
@@ -31,6 +32,7 @@
   const BRIDGE_TRUSTED_ORIGINS = unique([
     toOrigin(ONBOARDING_GAME_BASE_URL),
     toOrigin(API_BASE_URL),
+    'https://onboarding.auraui.org',
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:5000',

@@ -8,9 +8,8 @@
     "alarms"
   ],
   "host_permissions": [
-    "https://extension-backend-theta.vercel.app/*",
-    "https://onboarding-frontend-psi.vercel.app/*",
-    "https://mlengine.auraui.org/*"
+    "http://api-gateway.auraui.org/*",
+    "https://onboarding.auraui.org/*"
   ],
   "background": {
     "service_worker": "background.js",

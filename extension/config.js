@@ -2,7 +2,7 @@
 const EXTENSION_ENV = (typeof globalThis !== 'undefined' && globalThis.EXTENSION_ENV) ? globalThis.EXTENSION_ENV : {};
 
 function normalizeApiBaseUrl(url) {
-  const fallback = 'http://localhost:3000/api';
+  const fallback = 'http://api-gateway.auraui.org/api';
   if (!url) return fallback;
 
   const trimmed = String(url).trim().replace(/\/+$/, '');
@@ -17,17 +17,16 @@ function normalizeApiBaseUrl(url) {
 
 const API_CONFIG = {
   BASE_URL: normalizeApiBaseUrl(EXTENSION_ENV.API_BASE_URL),
-  // Change this to your production URL when deploying
-  // BASE_URL: 'https://your-server.com/api',
+  // Gateway keeps extension backend compatibility routes under /api.
   
   // Onboarding game URL (sensecheck)
-  ONBOARDING_GAME_URL: EXTENSION_ENV.ONBOARDING_GAME_URL || 'http://localhost:5173',
+  ONBOARDING_GAME_URL: EXTENSION_ENV.ONBOARDING_GAME_URL || 'https://onboarding.auraui.org',
   // Production: 'https://your-sensecheck-app.vercel.app',
 
   // ML profile URLs (also used by background via module config)
-  ML_PROFILE_API_URL: EXTENSION_ENV.ML_PROFILE_API_URL || 'http://localhost:8000/data/current-profile',
-  IMPAIRMENT_TO_ML_PROFILE_API_URL: EXTENSION_ENV.IMPAIRMENT_TO_ML_PROFILE_API_URL || 'http://localhost:8000/category/generate-profile',
-  ML_SESSION_FEEDBACK_URL: EXTENSION_ENV.ML_SESSION_FEEDBACK_URL || 'http://localhost:8000/user/trigger-update',
+  ML_PROFILE_API_URL: EXTENSION_ENV.ML_PROFILE_API_URL || 'http://api-gateway.auraui.org/api/ml-engine/data/current-profile',
+  IMPAIRMENT_TO_ML_PROFILE_API_URL: EXTENSION_ENV.IMPAIRMENT_TO_ML_PROFILE_API_URL || 'http://api-gateway.auraui.org/api/ml-engine/category/generate-profile',
+  ML_SESSION_FEEDBACK_URL: EXTENSION_ENV.ML_SESSION_FEEDBACK_URL || 'http://api-gateway.auraui.org/api/ml-engine/user/trigger-update',
   
   ENDPOINTS: {
     REGISTER: '/auth/register',

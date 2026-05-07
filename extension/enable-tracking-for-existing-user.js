@@ -53,7 +53,7 @@
   
   try {
     // Update server
-    const response = await fetch('http://localhost:3000/api/auth/settings', {
+    const response = await fetch('http://api-gateway.auraui.org/api/auth/settings', {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',

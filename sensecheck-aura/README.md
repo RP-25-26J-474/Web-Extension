@@ -24,7 +24,7 @@ This is a **modified version of Sensecheck** specifically designed for the AURA 
 │  AURA Extension (Chrome/Firefox)            │
 │  - User registers                           │
 │  - Receives JWT token                       │
-│  └─> Opens: http://localhost:5173?         │
+│  └─> Opens: https://onboarding.auraui.org? │
 │      mode=aura&userId=XXX&token=YYY        │
 └─────────────────────────────────────────────┘
                     │
@@ -64,7 +64,7 @@ This is a **modified version of Sensecheck** specifically designed for the AURA 
 ### Prerequisites
 
 - Node.js 18+ installed
-- AURA Extension backend running on `http://localhost:3000`
+- AURA API Gateway available at `http://api-gateway.auraui.org/api`
 
 ### Installation
 
@@ -79,7 +79,8 @@ npm install
 npm run dev
 ```
 
-The game will be available at `http://localhost:5173`
+The production game is available at `https://onboarding.auraui.org`.
+For local development, Vite still serves it at `http://localhost:5173`.
 
 ---
 
@@ -91,7 +92,7 @@ Create a `.env` file (copy from `.env.example`):
 
 ```bash
 # AURA Backend URL
-VITE_API_URL=http://localhost:3000/api
+VITE_API_URL=http://api-gateway.auraui.org/api
 ```
 
 ### AURA Integration
@@ -104,7 +105,7 @@ The game automatically detects if it's launched from the AURA Extension by check
 
 **Example URL:**
 ```
-http://localhost:5173?mode=aura&userId=507f1f77bcf86cd799439011&token=eyJhbGc...
+https://onboarding.auraui.org?mode=aura&userId=507f1f77bcf86cd799439011&token=eyJhbGc...
 ```
 
 ---
@@ -249,13 +250,13 @@ Outputs to `client/dist/`. Can be deployed to any static hosting service (Vercel
 ## 🐛 Troubleshooting
 
 ### Game not connecting to AURA backend?
-- Check that AURA backend is running: `http://localhost:3000`
+- Check that the AURA API Gateway is reachable: `http://api-gateway.auraui.org/api`
 - Verify `.env` has correct `VITE_API_URL`
 - Check browser console for errors
 
 ### Missing userId/token in URL?
 - The extension should automatically include these when opening the game
-- Manually test: `http://localhost:5173?mode=aura&userId=test123&token=test456`
+- Manually test: `https://onboarding.auraui.org?mode=aura&userId=test123&token=test456`
 
 ### Results not saving?
 - Check backend server logs

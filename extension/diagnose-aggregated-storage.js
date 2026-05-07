@@ -35,7 +35,7 @@
     console.log('\n📤 Step 3: Testing Manual Sync to Server...');
     
     try {
-      const response = await fetch('http://localhost:3000/api/interactions/aggregated-batches', {
+      const response = await fetch('http://api-gateway.auraui.org/api/interactions/aggregated-batches', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

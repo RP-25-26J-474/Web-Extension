@@ -240,7 +240,7 @@ aura-interaction-tracker/
 - `storage`: Cache data locally in browser for offline access
 - `activeTab`: Access the currently active tab for tracking
 - `<all_urls>`: Track interactions across all websites
-- `http://localhost:3000/*`: Connect to local development server
+- `http://api-gateway.auraui.org/*`: Connect to the AURA API Gateway
 - `https://*.yourdomain.com/*`: Connect to production server
 
 ### Data Storage

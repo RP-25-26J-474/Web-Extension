@@ -491,8 +491,9 @@
   // Helper function to check if we're on the onboarding game page
   function isOnboardingGamePage() {
     const url = window.location.href;
-    // Check if URL matches localhost:5173 or contains the onboarding game domain
-    return url.includes('localhost:5173') || 
+    // Check if URL matches local dev or the production onboarding game domain.
+    return url.includes('onboarding.auraui.org') ||
+           url.includes('localhost:5173') || 
            url.includes('your-sensecheck-app.vercel.app') ||
            url.match(/\/play\?.*mode=aura/); // Match the game URL pattern
   }

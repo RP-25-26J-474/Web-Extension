@@ -277,7 +277,7 @@ async function initializeAggregator() {
 // Sync current extension profile to ML engine before storage is cleared on logout/browser close.
 // Sends required user/session fields to /user/trigger-update and includes feedback overrides when available.
 async function syncProfileBeforeLogout(userId) {
-  const mlFeedbackUrl = API_CONFIG.ML_SESSION_FEEDBACK_URL || 'https://mlengine.auraui.org/user/trigger-update';
+  const mlFeedbackUrl = API_CONFIG.ML_SESSION_FEEDBACK_URL || 'http://api-gateway.auraui.org/api/ml-engine/user/trigger-update';
   try {
     const stored = await chrome.storage.local.get([
       'AURA_EXT_ML_PERSONALIZED_PROFILE',
@@ -475,7 +475,7 @@ async function fetchMlPersonalizedProfile() {
       return;
     }
 
-    const baseUrl = API_CONFIG.ML_PROFILE_API_URL || 'http://localhost:8000/data/current-profile';
+    const baseUrl = API_CONFIG.ML_PROFILE_API_URL || 'http://api-gateway.auraui.org/api/ml-engine/data/current-profile';
     const separator = baseUrl.includes('?') ? '&' : '?';
     const url = `${baseUrl}${separator}user_id=${encodeURIComponent(userId)}`;
     const res = await fetch(url);
@@ -522,7 +522,7 @@ async function fetchInitialMlProfileFromImpairment() {
     const impairmentData = await impairmentRes.json();
     const impairmentProfile = impairmentData?.data ?? impairmentData;
 
-    const url = API_CONFIG.IMPAIRMENT_TO_ML_PROFILE_API_URL || 'https://impairment-to-ml.example.com/api/profile-from-impairment';
+    const url = API_CONFIG.IMPAIRMENT_TO_ML_PROFILE_API_URL || 'http://api-gateway.auraui.org/api/ml-engine/category/generate-profile';
     const mlRes = await fetch(url, {
       method: 'POST',
       headers: {
