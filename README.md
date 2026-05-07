@@ -49,7 +49,7 @@ npm start
 ```bash
 cd sensecheck-aura/client && npm install
 # Optional local override: VITE_API_URL=http://localhost:3000/api
-# Default API target: http://api-gateway.auraui.org/api
+# Default API target: https://api-gateway.auraui.org/api
 npm run dev
 ```
 
@@ -118,7 +118,7 @@ powershell -File build-chrome.ps1
 
 ## 🐛 Troubleshooting
 
-- **Extension not connecting?** – Check `http://api-gateway.auraui.org/api`, then `extension/env.js` `API_BASE_URL`
+- **Extension not connecting?** – Check `https://api-gateway.auraui.org/api`, then `extension/env.js` `API_BASE_URL`
 - **Onboarding not opening?** – Check `https://onboarding.auraui.org`, then `extension/env.js` `ONBOARDING_GAME_BASE_URL`
 - **MongoDB error?** – `MONGODB_URI` in `server/.env`
 

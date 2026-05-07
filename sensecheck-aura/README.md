@@ -64,7 +64,7 @@ This is a **modified version of Sensecheck** specifically designed for the AURA 
 ### Prerequisites
 
 - Node.js 18+ installed
-- AURA API Gateway available at `http://api-gateway.auraui.org/api`
+- AURA API Gateway available at `https://api-gateway.auraui.org/api`
 
 ### Installation
 
@@ -92,7 +92,7 @@ Create a `.env` file (copy from `.env.example`):
 
 ```bash
 # AURA Backend URL
-VITE_API_URL=http://api-gateway.auraui.org/api
+VITE_API_URL=https://api-gateway.auraui.org/api
 ```
 
 ### AURA Integration
@@ -250,7 +250,7 @@ Outputs to `client/dist/`. Can be deployed to any static hosting service (Vercel
 ## 🐛 Troubleshooting
 
 ### Game not connecting to AURA backend?
-- Check that the AURA API Gateway is reachable: `http://api-gateway.auraui.org/api`
+- Check that the AURA API Gateway is reachable: `https://api-gateway.auraui.org/api`
 - Verify `.env` has correct `VITE_API_URL`
 - Check browser console for errors
 

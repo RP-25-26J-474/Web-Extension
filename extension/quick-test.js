@@ -42,7 +42,7 @@
   // 4. Check server connectivity
   console.log('\n🌐 SERVER CHECK:');
   try {
-    const response = await fetch('http://api-gateway.auraui.org/api/auth/me', {
+    const response = await fetch('https://api-gateway.auraui.org/api/auth/me', {
       headers: { 'Authorization': `Bearer ${storage.authToken}` }
     });
     

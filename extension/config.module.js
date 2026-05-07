@@ -3,7 +3,7 @@ import './env.js';
 const EXTENSION_ENV = (typeof globalThis !== 'undefined' && globalThis.EXTENSION_ENV) ? globalThis.EXTENSION_ENV : {};
 
 function normalizeApiBaseUrl(url) {
-  const fallback = 'http://api-gateway.auraui.org/api';
+  const fallback = 'https://api-gateway.auraui.org/api';
   if (!url) return fallback;
 
   const trimmed = String(url).trim().replace(/\/+$/, '');
@@ -66,18 +66,18 @@ export const API_CONFIG = {
   // ===== ML PERSONALIZED PROFILE – Daily fetch from separate component =====
   // Daily profile fetch endpoint (expects user_id query param)
   // Example call: /data/current-profile?user_id=<mongo_user_id>
-  ML_PROFILE_API_URL: EXTENSION_ENV.ML_PROFILE_API_URL || 'http://api-gateway.auraui.org/api/ml-engine/data/current-profile',
+  ML_PROFILE_API_URL: EXTENSION_ENV.ML_PROFILE_API_URL || 'https://api-gateway.auraui.org/api/ml-engine/data/current-profile',
 
   // ===== IMPAIRMENT → ML PROFILE – Initial fetch on registration =====
   // For local testing: use dummy-ml-profile POST endpoint. Extension POSTs impairment JSON
   // when onboarding completes; receives { profile } in response.
   // Production: replace with actual API.
-  IMPAIRMENT_TO_ML_PROFILE_API_URL: EXTENSION_ENV.IMPAIRMENT_TO_ML_PROFILE_API_URL || 'http://api-gateway.auraui.org/api/ml-engine/category/generate-profile',
+  IMPAIRMENT_TO_ML_PROFILE_API_URL: EXTENSION_ENV.IMPAIRMENT_TO_ML_PROFILE_API_URL || 'https://api-gateway.auraui.org/api/ml-engine/category/generate-profile',
 
   // ===== SESSION FEEDBACK – Sends profile diff to ML engine on logout / browser close =====
   // Compares AURA_EXT_ML_PERSONALIZED_PROFILE (base) vs AURA_EXT_ADAPTIVE_OPTIMIZED_PROFILE (current)
   // and POSTs the changes so the ML engine can learn from user feedback.
-  ML_SESSION_FEEDBACK_URL: EXTENSION_ENV.ML_SESSION_FEEDBACK_URL || 'http://api-gateway.auraui.org/api/ml-engine/user/trigger-update',
+  ML_SESSION_FEEDBACK_URL: EXTENSION_ENV.ML_SESSION_FEEDBACK_URL || 'https://api-gateway.auraui.org/api/ml-engine/user/trigger-update',
 };
 
 

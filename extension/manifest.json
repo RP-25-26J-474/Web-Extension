@@ -8,7 +8,7 @@
     "alarms"
   ],
   "host_permissions": [
-    "http://api-gateway.auraui.org/*",
+    "https://api-gateway.auraui.org/*",
     "https://onboarding.auraui.org/*"
   ],
   "background": {

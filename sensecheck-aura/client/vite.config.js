@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import react from '@vitejs/plugin-react';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DEFAULT_API_URL = 'http://api-gateway.auraui.org/api';
+const DEFAULT_API_URL = 'https://api-gateway.auraui.org/api';
 
 function resolveApiConfig(rawApiUrl) {
   const candidate = String(rawApiUrl || DEFAULT_API_URL).trim();

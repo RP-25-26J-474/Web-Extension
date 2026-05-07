@@ -8,7 +8,7 @@
  */
 
 const VERIFY_CONFIG = {
-  API_BASE_URL: 'http://api-gateway.auraui.org/api',
+  API_BASE_URL: 'https://api-gateway.auraui.org/api',
   CHECK_INTERVAL: 5000, // Check every 5 seconds
   TEST_DURATION: 60000, // Run for 60 seconds
 };

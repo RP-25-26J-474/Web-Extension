@@ -340,7 +340,7 @@ class GlobalTracker {
     
     try {
       const token = auraIntegration.getToken();
-      const url = `${import.meta.env.VITE_API_URL || 'http://api-gateway.auraui.org/api'}/interactions/aggregated-batches`;
+      const url = `${import.meta.env.VITE_API_URL || 'https://api-gateway.auraui.org/api'}/interactions/aggregated-batches`;
       
       const response = await fetch(url, {
         method: 'POST',
@@ -816,7 +816,7 @@ class GlobalTracker {
         // Try to flush aggregated batches synchronously
         if (this.aggregationBatchQueue.length > 0 && auraIntegration.getToken()) {
           const batches = [...this.aggregationBatchQueue];
-          const url = `${import.meta.env.VITE_API_URL || 'http://api-gateway.auraui.org/api'}/interactions/aggregated-batches`;
+          const url = `${import.meta.env.VITE_API_URL || 'https://api-gateway.auraui.org/api'}/interactions/aggregated-batches`;
           const blob = new Blob([JSON.stringify({ batches })], { type: 'application/json' });
           navigator.sendBeacon(url, blob);
         }

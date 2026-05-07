@@ -4,9 +4,9 @@
   // =========================
   // Edit only these base URLs
   // =========================
-  const API_BASE_URL = 'http://api-gateway.auraui.org/api';
+  const API_BASE_URL = 'https://api-gateway.auraui.org/api';
   const ONBOARDING_GAME_BASE_URL = 'https://onboarding.auraui.org';
-  const ML_BASE_URL = 'http://api-gateway.auraui.org/api/ml-engine';
+  const ML_BASE_URL = 'https://api-gateway.auraui.org/api/ml-engine';
 
 
   function toOrigin(url) {

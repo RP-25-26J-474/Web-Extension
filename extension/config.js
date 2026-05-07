@@ -2,7 +2,7 @@
 const EXTENSION_ENV = (typeof globalThis !== 'undefined' && globalThis.EXTENSION_ENV) ? globalThis.EXTENSION_ENV : {};
 
 function normalizeApiBaseUrl(url) {
-  const fallback = 'http://api-gateway.auraui.org/api';
+  const fallback = 'https://api-gateway.auraui.org/api';
   if (!url) return fallback;
 
   const trimmed = String(url).trim().replace(/\/+$/, '');
@@ -24,9 +24,9 @@ const API_CONFIG = {
   // Production: 'https://your-sensecheck-app.vercel.app',
 
   // ML profile URLs (also used by background via module config)
-  ML_PROFILE_API_URL: EXTENSION_ENV.ML_PROFILE_API_URL || 'http://api-gateway.auraui.org/api/ml-engine/data/current-profile',
-  IMPAIRMENT_TO_ML_PROFILE_API_URL: EXTENSION_ENV.IMPAIRMENT_TO_ML_PROFILE_API_URL || 'http://api-gateway.auraui.org/api/ml-engine/category/generate-profile',
-  ML_SESSION_FEEDBACK_URL: EXTENSION_ENV.ML_SESSION_FEEDBACK_URL || 'http://api-gateway.auraui.org/api/ml-engine/user/trigger-update',
+  ML_PROFILE_API_URL: EXTENSION_ENV.ML_PROFILE_API_URL || 'https://api-gateway.auraui.org/api/ml-engine/data/current-profile',
+  IMPAIRMENT_TO_ML_PROFILE_API_URL: EXTENSION_ENV.IMPAIRMENT_TO_ML_PROFILE_API_URL || 'https://api-gateway.auraui.org/api/ml-engine/category/generate-profile',
+  ML_SESSION_FEEDBACK_URL: EXTENSION_ENV.ML_SESSION_FEEDBACK_URL || 'https://api-gateway.auraui.org/api/ml-engine/user/trigger-update',
   
   ENDPOINTS: {
     REGISTER: '/auth/register',
