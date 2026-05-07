@@ -8,6 +8,7 @@ const interactionRoutes = require('./routes/interactions');
 const statsRoutes = require('./routes/stats');
 const onboardingRoutes = require('./routes/onboarding');
 const mlRoutes = require('./routes/ml');
+const userRoutes = require('./routes/users');
 
 const app = express();
 
@@ -55,6 +56,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/interactions', interactionRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/onboarding', onboardingRoutes);
 app.use('/api/ml', mlRoutes);
