@@ -81,7 +81,7 @@ jobs:
     - name: Build Onboarding Game artifacts
       working-directory: ./sensecheck-aura/client
       env:
-        VITE_API_URL: ${{ vars.EXTENSION_ONBOARDING_API_URL || 'http://4.194.234.251:4020/api' }}
+        VITE_API_URL: ${{ vars.EXTENSION_ONBOARDING_API_URL || 'https://api-gateway.auraui.org/api' }}
       run: |
         npm install
         npm run build -- --emptyOutDir
@@ -94,7 +94,7 @@ jobs:
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ secrets.DOCKER_USERNAME }}/extension-onboarding-game:latest
         build-args: |
-          VITE_API_URL=${{ vars.EXTENSION_ONBOARDING_API_URL || 'http://4.194.234.251:4020/api' }}
+          VITE_API_URL=${{ vars.EXTENSION_ONBOARDING_API_URL || 'https://api-gateway.auraui.org/api' }}
         cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/extension-onboarding-game:buildcache
         cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/extension-onboarding-game:buildcache,mode=max
 
