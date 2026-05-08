@@ -282,8 +282,7 @@ def score_motor(payload: dict):
             "reaction_analysis": {
                 "delayed_reaction_ms": delayed_reaction_ms,
                 "reaction_delay_score": reaction_delay_score
-            },
-            "data_quality": data_quality,
+            }
         }
 
     except Exception as e:
